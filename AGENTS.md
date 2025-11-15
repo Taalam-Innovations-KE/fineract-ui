@@ -31,7 +31,8 @@
   - Core colors: `#006AD7` (primary), `#9AD9EA` (secondary), `#21277B` (foreground/navy), `#FFFFFF` (surface).
 - Do not use gradients for page or component backgrounds; stick to solid surfaces (`bg-background`, `bg-card`, `bg-muted`).
 - All pages should feel like modern Google UIs: clean cards, generous whitespace, subtle elevation, and clear hierarchy.
-- Respect the global theme tokens in `src/app/globals.css` and Tailwind utilities (for example `text-foreground`, `bg-primary`, `border-border`); do not hard‑code hex colors in components.
+- Respect the global theme tokens in `src/app/globals.css` and Tailwind utilities (for example `text-foreground`, `bg-primary`, `border-border`); do not hard‑code hex or rgb/hsl colors in components.
+- ESLint will fail builds if you use raw color values (hex, rgb, hsl) or arbitrary Tailwind color classes; always map designs to the existing tokens first.
 - Theme selection is handled by `ThemeProvider` and `ThemeToggle`:
   - Use the `useTheme()` hook when you need to react to `light | dark | system`, but generally rely on CSS variables and the `dark` class.
 

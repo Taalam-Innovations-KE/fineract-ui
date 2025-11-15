@@ -14,7 +14,7 @@
 - `pnpm dev` – run the Next.js development server on `http://localhost:3000`.
 - `pnpm build` – create an optimized production build.
 - `pnpm start` – start the production server (after `pnpm build`).
-- `pnpm lint` – run ESLint using `eslint.config.mjs`.
+- `pnpm lint` – run ESLint using `eslint.config.mjs` (run this before every commit).
 - Add UI primitives via `pnpm dlx shadcn@latest add <component> -y`.
 
 ## Coding Style & Naming Conventions
@@ -24,6 +24,12 @@
 - Components use `PascalCase` (e.g., `LoanDashboard`); hooks use `useCamelCase`.
 - Prefer shadcn/ui and Tailwind classes for styling; avoid custom CSS unless necessary.
 - Keep imports ordered: core libs (`react`, `next`) → third‑party → local (`@/…`).
+
+## Server vs Client Components
+
+- Prefer **server components by default** for pages, layouts, and data-heavy UI; only mark files with `"use client"` when interactivity is required.
+- Keep client components small, focused, and usually leaf-level (buttons, interactive widgets, charts).
+- Avoid passing large data structures or complex business logic into client components; fetch and prepare data on the server side whenever possible.
 
 ## Design System & Theming
 

@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -18,37 +18,43 @@ export function ThemeToggle() {
     return null;
   }
 
-  const isActive = (value: "light" | "dark" | "system") => theme === value;
+  const isDark = resolvedTheme === "dark";
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-full bg-muted px-1 py-1 shadow-sm">
-      <Button
+    <div className="relative inline-flex items-center rounded-full bg-muted px-1 py-1 text-xs font-medium shadow-sm">
+      <div
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-1 w-1/2 rounded-full bg-background shadow-sm transition-transform",
+          isDark ? "translate-x-full" : "translate-x-0"
+        )}
+      />
+      <button
         type="button"
-        size="icon-sm"
-        variant={isActive("light") ? "default" : "ghost"}
         onClick={() => setTheme("light")}
+        className={cn(
+          "relative z-10 flex items-center gap-1 px-3 py-1",
+          !isDark ? "text-foreground" : "text-muted-foreground"
+        )}
+        aria-pressed={!isDark}
         aria-label="Use light theme"
       >
         <Sun className="size-4" />
-      </Button>
-      <Button
+        <span>Light</span>
+      </button>
+      <button
         type="button"
-        size="icon-sm"
-        variant={isActive("dark") ? "default" : "ghost"}
         onClick={() => setTheme("dark")}
+        className={cn(
+          "relative z-10 flex items-center gap-1 px-3 py-1",
+          isDark ? "text-foreground" : "text-muted-foreground"
+        )}
+        aria-pressed={isDark}
         aria-label="Use dark theme"
       >
         <Moon className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        size="icon-sm"
-        variant={isActive("system") ? "default" : "ghost"}
-        onClick={() => setTheme("system")}
-        aria-label="Use system theme"
-      >
-        <Monitor className="size-4" />
-      </Button>
+        <span>Dark</span>
+      </button>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function ThemeToggle() {
   const isDark = resolvedTheme === "dark";
 
   return (
-    <div className="relative inline-flex items-center rounded-full bg-muted px-1 py-1 text-xs font-medium shadow-sm">
+    <div className="relative inline-flex items-center rounded-full bg-muted px-0.5 py-0.5 text-[11px] font-medium shadow-sm">
       <div
         aria-hidden="true"
         className={cn(
@@ -33,26 +33,26 @@ export function ThemeToggle() {
         type="button"
         onClick={() => setTheme("light")}
         className={cn(
-          "relative z-10 flex items-center gap-1 px-3 py-1",
+          "relative z-10 flex items-center gap-1 px-2 py-0.5",
           !isDark ? "text-foreground" : "text-muted-foreground"
         )}
         aria-pressed={!isDark}
         aria-label="Use light theme"
       >
-        <Sun className="size-4" />
+        <Sun className="size-3" />
         <span>Light</span>
       </button>
       <button
         type="button"
         onClick={() => setTheme("dark")}
         className={cn(
-          "relative z-10 flex items-center gap-1 px-3 py-1",
+          "relative z-10 flex items-center gap-1 px-2 py-0.5",
           isDark ? "text-foreground" : "text-muted-foreground"
         )}
         aria-pressed={isDark}
         aria-label="Use dark theme"
       >
-        <Moon className="size-4" />
+        <Moon className="size-3" />
         <span>Dark</span>
       </button>
     </div>

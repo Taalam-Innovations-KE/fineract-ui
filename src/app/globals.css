@@ -1,0 +1,346 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* ============================================
+     TAILWIND CSS v4 THEME CONFIGURATION
+     Maps CSS variables to Tailwind utilities
+     ============================================ */
+
+  /* Typography - Professional Banking Fonts */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  /* Base Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* Card */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  /* Popover */
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* Primary Brand */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* Secondary */
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  /* Muted */
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  /* Accent */
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Destructive/Error */
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Success (NEW - Banking specific) */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  /* Warning (NEW - Banking specific) */
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  /* Info (NEW - Banking specific) */
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* Borders & Inputs */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Charts - Financial Data Visualization */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar Navigation */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Border Radius Scale */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+:root {
+  /* ============================================
+     FINERACT BANKING UI - LIGHT THEME
+     Professional Slate-based color scheme
+     ============================================ */
+
+  /* Border Radius */
+  --radius: 0.75rem;
+
+  /* ============================================
+     BASE COLORS - Backgrounds & Surfaces
+     ============================================ */
+  --background: oklch(1 0 0); /* #ffffff - Pure white */
+  --foreground: oklch(0.211 0.042 256.788); /* #0F172A - Slate 900 */
+
+  /* Card surfaces */
+  --card: oklch(1 0 0); /* White cards */
+  --card-foreground: oklch(0.211 0.042 256.788);
+
+  /* Popovers & dropdowns */
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.211 0.042 256.788);
+
+  /* ============================================
+     PRIMARY - Professional Blue
+     Base: #3B82F6 (Blue 500)
+     ============================================ */
+  --primary: oklch(0.616 0.214 264.376); /* #3B82F6 */
+  --primary-foreground: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
+
+  /* ============================================
+     SECONDARY - Subtle Gray
+     Base: #F1F5F9 (Slate 100)
+     ============================================ */
+  --secondary: oklch(0.967 0.006 256.788); /* #F1F5F9 - Slate 100 */
+  --secondary-foreground: oklch(0.211 0.042 256.788); /* Slate 900 */
+
+  /* ============================================
+     MUTED - Backgrounds & Disabled States
+     Base: #F1F5F9 (Slate 100)
+     ============================================ */
+  --muted: oklch(0.967 0.006 256.788); /* #F1F5F9 */
+  --muted-foreground: oklch(0.626 0.038 256.788); /* #64748B - Slate 500 */
+
+  /* ============================================
+     ACCENT - Success Green
+     Base: #10B981 (Emerald 500)
+     ============================================ */
+  --accent: oklch(0.697 0.169 162.48); /* #10B981 */
+  --accent-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     DESTRUCTIVE - Error Red
+     Base: #EF4444 (Red 500)
+     ============================================ */
+  --destructive: oklch(0.628 0.257 27.325); /* #EF4444 */
+  --destructive-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     SUCCESS - Emerald Green
+     Base: #10B981 (Emerald 500)
+     ============================================ */
+  --success: oklch(0.697 0.169 162.48); /* #10B981 */
+  --success-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     WARNING - Amber
+     Base: #F59E0B (Amber 500)
+     ============================================ */
+  --warning: oklch(0.769 0.188 70.08); /* #F59E0B */
+  --warning-foreground: oklch(0.211 0.042 256.788); /* Dark text */
+
+  /* ============================================
+     INFO - Light Blue
+     Base: #60A5FA (Blue 400)
+     ============================================ */
+  --info: oklch(0.729 0.176 264.376); /* #60A5FA */
+  --info-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     BORDERS & INPUTS
+     Base: #E2E8F0 (Slate 200)
+     ============================================ */
+  --border: oklch(0.929 0.013 256.788); /* #E2E8F0 - Slate 200 */
+  --input: oklch(0.929 0.013 256.788);
+  --ring: oklch(0.616 0.214 264.376); /* Matches primary */
+
+  /* ============================================
+     CHARTS - Financial Data Visualization
+     ============================================ */
+  --chart-1: oklch(0.616 0.214 264.376); /* Primary Blue #3B82F6 */
+  --chart-2: oklch(0.729 0.176 264.376); /* Info Blue #60A5FA */
+  --chart-3: oklch(0.697 0.169 162.48); /* Success Green #10B981 */
+  --chart-4: oklch(0.829 0.176 70.08); /* Warning Amber #FBBF24 */
+  --chart-5: oklch(0.676 0.221 27.325); /* Error Red #F87171 */
+
+  /* ============================================
+     SIDEBAR - Navigation
+     ============================================ */
+  --sidebar: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
+  --sidebar-foreground: oklch(0.211 0.042 256.788);
+  --sidebar-primary: oklch(0.616 0.214 264.376);
+  --sidebar-primary-foreground: oklch(0.988 0.002 256.788);
+  --sidebar-accent: oklch(0.967 0.006 256.788);
+  --sidebar-accent-foreground: oklch(0.211 0.042 256.788);
+  --sidebar-border: oklch(0.929 0.013 256.788);
+  --sidebar-ring: oklch(0.616 0.214 264.376);
+}
+
+.dark {
+  /* ============================================
+     FINERACT BANKING UI - DARK THEME
+     Slate-based dark mode with exact colors
+     Background: #0F172A | Surface: #1E293B
+     ============================================ */
+
+  /* ============================================
+     BASE COLORS - Dark Backgrounds
+     ============================================ */
+  --background: oklch(0.211 0.042 256.788); /* #0F172A - Slate 900 */
+  --foreground: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
+
+  /* Card surfaces - Elevated */
+  --card: oklch(0.279 0.041 256.788); /* #1E293B - Slate 800 */
+  --card-foreground: oklch(0.988 0.002 256.788);
+
+  /* Popovers & dropdowns */
+  --popover: oklch(0.279 0.041 256.788);
+  --popover-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     PRIMARY - Professional Blue
+     Base: #3B82F6 (Blue 500)
+     ============================================ */
+  --primary: oklch(0.616 0.214 264.376); /* #3B82F6 */
+  --primary-foreground: oklch(0.988 0.002 256.788); /* #F8FAFC */
+
+  /* ============================================
+     SECONDARY - Dark Slate Surface
+     Base: #334155 (Slate 700)
+     ============================================ */
+  --secondary: oklch(0.388 0.034 256.788); /* #334155 - Slate 700 */
+  --secondary-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     MUTED - Dark Backgrounds & Disabled
+     Base: #334155 (Slate 700)
+     ============================================ */
+  --muted: oklch(0.388 0.034 256.788); /* #334155 */
+  --muted-foreground: oklch(0.664 0.032 256.788); /* #94A3B8 - Slate 400 */
+
+  /* ============================================
+     ACCENT - Success Green
+     Base: #10B981 (Emerald 500)
+     ============================================ */
+  --accent: oklch(0.697 0.169 162.48); /* #10B981 */
+  --accent-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     DESTRUCTIVE - Error Red
+     Base: #F87171 (Red 400)
+     ============================================ */
+  --destructive: oklch(0.676 0.221 27.325); /* #F87171 */
+  --destructive-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     SUCCESS - Emerald Green
+     Base: #10B981 (Emerald 500)
+     ============================================ */
+  --success: oklch(0.697 0.169 162.48); /* #10B981 */
+  --success-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     WARNING - Amber
+     Base: #FBBF24 (Amber 400)
+     ============================================ */
+  --warning: oklch(0.829 0.176 70.08); /* #FBBF24 */
+  --warning-foreground: oklch(0.211 0.042 256.788); /* Dark text */
+
+  /* ============================================
+     INFO - Light Blue
+     Base: #60A5FA (Blue 400)
+     ============================================ */
+  --info: oklch(0.729 0.176 264.376); /* #60A5FA */
+  --info-foreground: oklch(0.988 0.002 256.788);
+
+  /* ============================================
+     BORDERS & INPUTS
+     Base: #334155 (Slate 700)
+     ============================================ */
+  --border: oklch(0.388 0.034 256.788); /* #334155 - Slate 700 */
+  --input: oklch(0.388 0.034 256.788);
+  --ring: oklch(0.616 0.214 264.376); /* Matches primary */
+
+  /* ============================================
+     CHARTS - Financial Data Visualization
+     ============================================ */
+  --chart-1: oklch(0.616 0.214 264.376); /* Primary Blue #3B82F6 */
+  --chart-2: oklch(0.729 0.176 264.376); /* Info Blue #60A5FA */
+  --chart-3: oklch(0.697 0.169 162.48); /* Success Green #10B981 */
+  --chart-4: oklch(0.829 0.176 70.08); /* Warning Amber #FBBF24 */
+  --chart-5: oklch(0.676 0.221 27.325); /* Error Red #F87171 */
+
+  /* ============================================
+     SIDEBAR - Dark Navigation
+     Base: #0F172A (Slate 900)
+     ============================================ */
+  --sidebar: oklch(0.211 0.042 256.788); /* #0F172A - Same as background */
+  --sidebar-foreground: oklch(0.988 0.002 256.788);
+  --sidebar-primary: oklch(0.616 0.214 264.376);
+  --sidebar-primary-foreground: oklch(0.988 0.002 256.788);
+  --sidebar-accent: oklch(0.388 0.034 256.788);
+  --sidebar-accent-foreground: oklch(0.988 0.002 256.788);
+  --sidebar-border: oklch(0.388 0.034 256.788);
+  --sidebar-ring: oklch(0.616 0.214 264.376);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+  }
+
+  /* ============================================
+     TABULAR NUMBERS FOR FINANCIAL DATA
+     Essential for aligning currency amounts
+     ============================================ */
+  .tabular-nums,
+  [class*='currency'],
+  [class*='amount'],
+  [class*='balance'] {
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================
+     SMOOTH SCROLLING
+     ============================================ */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* ============================================
+     FOCUS VISIBLE - Accessibility
+     ============================================ */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}

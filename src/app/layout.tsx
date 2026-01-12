@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { AuthProvider } from "@/providers/auth-provider";
+import { auth } from "@/auth";
 
 // Plus Jakarta Sans - Modern sans-serif for dashboard UI
 // Variable font for optimal performance and flexibility
@@ -25,21 +27,25 @@ export const metadata: Metadata = {
   description: "Modern banking administration interface built with Apache Fineract, Next.js 15, and shadcn/ui",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${jakarta.variable} ${jetbrainsMono.variable} antialiased font-sans`}
       >
-        <ThemeProvider>
-          <QueryProvider>
-            {children}
-          </QueryProvider>
-        </ThemeProvider>
+        <AuthProvider session={session}>
+          <ThemeProvider>
+            <QueryProvider>
+              {children}
+            </QueryProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

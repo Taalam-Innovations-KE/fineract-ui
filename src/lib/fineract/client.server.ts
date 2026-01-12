@@ -1,4 +1,5 @@
 import 'server-only';
+import { getAccessToken } from '@/lib/auth/session';
 
 /**
  * Server-side Fineract client
@@ -14,23 +15,42 @@ interface FineractRequestOptions {
   body?: any;
   tenantId: string;
   headers?: Record<string, string>;
+  useBasicAuth?: boolean; // Optional flag to use basic auth instead of bearer token
 }
 
 /**
  * Makes authenticated requests to Fineract API
+ * By default, uses the user's access token from the session.
+ * Set useBasicAuth=true to use basic authentication instead.
  */
 export async function fineractFetch<T = any>(
   path: string,
   options: FineractRequestOptions
 ): Promise<T> {
-  const { method = 'GET', body, tenantId, headers = {} } = options;
+  const { method = 'GET', body, tenantId, headers = {}, useBasicAuth = false } = options;
 
-  // Create Basic Auth header
-  const authHeader = Buffer.from(`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`).toString('base64');
+  let authHeader: string;
+
+  if (useBasicAuth) {
+    // Use Basic Auth for service-level operations
+    const basicAuth = Buffer.from(`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`).toString('base64');
+    authHeader = `Basic ${basicAuth}`;
+  } else {
+    // Use Bearer token from user session
+    try {
+      const accessToken = await getAccessToken();
+      authHeader = `Bearer ${accessToken}`;
+    } catch (error) {
+      // Fallback to basic auth if no session token is available
+      console.warn('No access token available, falling back to basic auth');
+      const basicAuth = Buffer.from(`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`).toString('base64');
+      authHeader = `Basic ${basicAuth}`;
+    }
+  }
 
   const requestHeaders: HeadersInit = {
     'Content-Type': 'application/json',
-    'Authorization': `Basic ${authHeader}`,
+    'Authorization': authHeader,
     'fineract-platform-tenantid': tenantId,
     ...headers,
   };

@@ -1,6 +1,7 @@
 'use client';
 
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { UserMenu } from '@/components/auth/user-menu';
 
 export function TopBar() {
   return (
@@ -16,6 +17,7 @@ export function TopBar() {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <UserMenu />
           <ThemeToggle />
         </div>
       </div>

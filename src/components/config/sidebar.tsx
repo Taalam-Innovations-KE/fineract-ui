@@ -84,7 +84,7 @@ export function Sidebar() {
   };
 
   return (
-    <nav className="flex flex-col gap-3 px-5 py-6">
+    <nav className="flex flex-col gap-2 px-4 py-4">
       {navItems.map((item, index) => {
         const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
         const isOpen = openSections.includes(item.href);
@@ -93,13 +93,13 @@ export function Sidebar() {
 
         return (
           <div key={item.href}>
-            {index > 0 && <Separator className="my-4" />}
+            {index > 0 && <Separator className="my-3" />}
 
             {hasChildren ? (
               <button
                 onClick={() => toggleSection(item.href)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-[15px] font-medium transition-all duration-200',
+                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all duration-200',
                   isActive
                     ? 'bg-primary/8 text-primary font-semibold'
                     : 'text-sidebar-foreground hover:bg-accent hover:text-accent-foreground'
@@ -118,7 +118,7 @@ export function Sidebar() {
               <Link
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-4 py-3 text-[15px] font-medium transition-all duration-200',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all duration-200',
                   isActive
                     ? 'bg-primary/8 text-primary font-semibold'
                     : 'text-sidebar-foreground hover:bg-accent hover:text-accent-foreground'
@@ -130,7 +130,7 @@ export function Sidebar() {
             )}
 
             {hasChildren && isOpen && (
-              <div className="ml-6 mt-2 flex flex-col gap-1.5 overflow-hidden">
+              <div className="ml-5 mt-1.5 flex flex-col gap-1 overflow-hidden">
                 {item.children!.map((child) => {
                   const ChildIcon = child.icon;
                   const isChildActive = pathname === child.href;
@@ -140,7 +140,7 @@ export function Sidebar() {
                       key={child.href}
                       href={child.href}
                       className={cn(
-                        'flex items-center gap-2.5 rounded-md px-3.5 py-2 text-[13px] font-medium transition-all duration-200',
+                        'flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-all duration-200',
                         isChildActive
                           ? 'bg-primary/8 text-primary font-semibold'
                           : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground'

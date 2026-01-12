@@ -12,13 +12,15 @@ export function TenantSwitcher() {
   const { tenantId } = useTenantStore();
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+    <div className="flex items-center gap-4 px-6 py-5 border-b border-sidebar-border">
+      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/12">
         <Building2 className="h-5 w-5 text-primary" />
       </div>
-      <div className="flex flex-col">
-        <span className="text-sm font-medium">Tenant</span>
-        <Badge variant="secondary" className="w-fit text-xs">
+      <div className="flex flex-col gap-1">
+        <span className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Tenant
+        </span>
+        <Badge variant="secondary" className="w-fit text-[13px]">
           {tenantId}
         </Badge>
       </div>

@@ -20,15 +20,15 @@ export function PageShell({
   className,
 }: PageShellProps) {
   return (
-    <div className={cn('flex flex-col gap-6', className)}>
+    <div className={cn('flex flex-col gap-10', className)}>
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-[28px] font-semibold tracking-tight">{title}</h1>
           {subtitle && (
-            <p className="text-muted-foreground mt-1">{subtitle}</p>
+            <p className="text-muted-foreground mt-2 text-[15px] leading-relaxed">{subtitle}</p>
           )}
         </div>
-        {actions && <div className="flex items-center gap-2">{actions}</div>}
+        {actions && <div className="flex items-center gap-3">{actions}</div>}
       </div>
       {children}
     </div>

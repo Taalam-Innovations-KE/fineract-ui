@@ -4,19 +4,19 @@ import { cn } from "@/lib/utils"
 import { AlertCircle, CheckCircle2, Info, AlertTriangle } from "lucide-react"
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-4",
+  "relative w-full rounded-xl border bg-card p-5",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
+        default: "border-border/60 bg-card text-foreground",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+          "border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive",
         warning:
-          "border-warning/50 bg-warning/10 text-warning-foreground [&>svg]:text-warning",
+          "border-warning/40 bg-warning/5 text-warning-foreground [&>svg]:text-warning",
         success:
-          "border-success/50 bg-success/10 text-success-foreground [&>svg]:text-success",
+          "border-success/40 bg-success/5 text-success-foreground [&>svg]:text-success",
         info:
-          "border-info/50 bg-info/10 text-info-foreground [&>svg]:text-info",
+          "border-info/40 bg-info/5 text-info-foreground [&>svg]:text-info",
       },
     },
     defaultVariants: {

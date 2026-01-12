@@ -15,14 +15,14 @@ const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(
       <>
         {/* Backdrop */}
         <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-foreground/10 backdrop-blur-sm"
           onClick={() => onOpenChange?.(false)}
         />
         {/* Drawer */}
         <div
           ref={ref}
           className={cn(
-            "fixed right-0 top-0 z-50 h-full w-full max-w-2xl border-l bg-background shadow-lg",
+            "fixed right-0 top-0 z-50 h-full w-full max-w-2xl border-l border-border/80 bg-card shadow-md",
             "transition-transform duration-300 ease-in-out",
             className
           )}
@@ -42,7 +42,7 @@ const DrawerHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex items-center justify-between border-b px-6 py-4",
+      "flex items-center justify-between border-b border-border/80 px-7 py-5",
       className
     )}
     {...props}
@@ -82,7 +82,7 @@ const DrawerContent = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex-1 overflow-y-auto p-6", className)}
+    className={cn("flex-1 overflow-y-auto p-7", className)}
     {...props}
   />
 )
@@ -95,7 +95,7 @@ const DrawerClose = React.forwardRef<
   <button
     ref={ref}
     className={cn(
-      "rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none",
+      "rounded-full opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none",
       className
     )}
     {...props}

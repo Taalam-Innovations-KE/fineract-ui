@@ -1,6 +1,6 @@
 import { TenantSwitcher } from '@/components/config/tenant-switcher';
 import { Sidebar } from '@/components/config/sidebar';
-import { Separator } from '@/components/ui/separator';
+import { TopBar } from '@/components/config/topbar';
 
 export default function ConfigLayout({
   children,
@@ -10,7 +10,7 @@ export default function ConfigLayout({
   return (
     <div className="flex h-screen">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-sidebar flex flex-col">
+      <aside className="w-72 border-r border-sidebar-border bg-sidebar flex flex-col">
         <TenantSwitcher />
         <div className="flex-1 overflow-y-auto">
           <Sidebar />
@@ -19,7 +19,8 @@ export default function ConfigLayout({
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto">
-        <div className="container mx-auto py-8 px-8">
+        <TopBar />
+        <div className="container mx-auto px-12 py-12">
           {children}
         </div>
       </main>

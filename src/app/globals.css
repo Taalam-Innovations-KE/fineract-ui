@@ -9,8 +9,8 @@
      Maps CSS variables to Tailwind utilities
      ============================================ */
 
-  /* Typography - Professional Banking Fonts */
-  --font-sans: var(--font-inter);
+  /* Typography - Modern Dashboard Fonts */
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-jetbrains-mono);
 
   /* Base Colors */
@@ -79,231 +79,225 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Border Radius Scale */
+  /* Border Radius Scale - Modern, comfortable curves */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: calc(var(--radius) + 5px);
+  --radius-2xl: calc(var(--radius) + 9px);
+  --radius-3xl: calc(var(--radius) + 13px);
+  --radius-4xl: calc(var(--radius) + 17px);
+
+  /* Minimal Shadows - Barely visible elevation */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.04);
+  --shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.05);
+  --shadow-xl: 0 8px 16px 0 rgb(0 0 0 / 0.06);
 }
 
 :root {
   /* ============================================
-     FINERACT BANKING UI - LIGHT THEME
-     Professional Slate-based color scheme
+     FINERACT UI - MODERN LIGHT THEME
+     Inspired by contemporary dashboard aesthetics
+     Clean, spacious, with vibrant orange accents
      ============================================ */
 
-  /* Border Radius */
+  /* Border Radius - Softer, more modern */
   --radius: 0.75rem;
 
   /* ============================================
      BASE COLORS - Backgrounds & Surfaces
+     Ultra-light, clean aesthetic
      ============================================ */
-  --background: oklch(1 0 0); /* #ffffff - Pure white */
-  --foreground: oklch(0.211 0.042 256.788); /* #0F172A - Slate 900 */
+  --background: #fafafa;
+  --background-subtle: #f5f5f5;
+  --background-tint: #ffffff;
+  --foreground: #1a1a1a;
 
-  /* Card surfaces */
-  --card: oklch(1 0 0); /* White cards */
-  --card-foreground: oklch(0.211 0.042 256.788);
+  /* Card surfaces - Pure white with subtle elevation */
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
 
   /* Popovers & dropdowns */
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.211 0.042 256.788);
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
 
   /* ============================================
-     PRIMARY - Professional Blue
-     Base: #3B82F6 (Blue 500)
+     PRIMARY - Vibrant Orange
+     Base: #FF6B35 (More vibrant, matches inspiration)
      ============================================ */
-  --primary: oklch(0.616 0.214 264.376); /* #3B82F6 */
-  --primary-foreground: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
+  --primary: #ff6b35;
+  --primary-foreground: #ffffff;
 
   /* ============================================
-     SECONDARY - Subtle Gray
-     Base: #F1F5F9 (Slate 100)
+     SECONDARY - Soft Neutral Gray
      ============================================ */
-  --secondary: oklch(0.967 0.006 256.788); /* #F1F5F9 - Slate 100 */
-  --secondary-foreground: oklch(0.211 0.042 256.788); /* Slate 900 */
+  --secondary: #f3f4f6;
+  --secondary-foreground: #374151;
 
   /* ============================================
-     MUTED - Backgrounds & Disabled States
-     Base: #F1F5F9 (Slate 100)
+     MUTED - Subtle Backgrounds
      ============================================ */
-  --muted: oklch(0.967 0.006 256.788); /* #F1F5F9 */
-  --muted-foreground: oklch(0.626 0.038 256.788); /* #64748B - Slate 500 */
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280;
 
   /* ============================================
-     ACCENT - Success Green
-     Base: #10B981 (Emerald 500)
+     ACCENT - Soft Orange Tint
      ============================================ */
-  --accent: oklch(0.697 0.169 162.48); /* #10B981 */
-  --accent-foreground: oklch(0.988 0.002 256.788);
+  --accent: #fff5f2;
+  --accent-foreground: #374151;
 
   /* ============================================
      DESTRUCTIVE - Error Red
-     Base: #EF4444 (Red 500)
      ============================================ */
-  --destructive: oklch(0.628 0.257 27.325); /* #EF4444 */
-  --destructive-foreground: oklch(0.988 0.002 256.788);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
   /* ============================================
-     SUCCESS - Emerald Green
-     Base: #10B981 (Emerald 500)
+     SUCCESS - Fresh Green
      ============================================ */
-  --success: oklch(0.697 0.169 162.48); /* #10B981 */
-  --success-foreground: oklch(0.988 0.002 256.788);
+  --success: #10b981;
+  --success-foreground: #ffffff;
 
   /* ============================================
-     WARNING - Amber
-     Base: #F59E0B (Amber 500)
+     WARNING - Warm Amber
      ============================================ */
-  --warning: oklch(0.769 0.188 70.08); /* #F59E0B */
-  --warning-foreground: oklch(0.211 0.042 256.788); /* Dark text */
+  --warning: #f59e0b;
+  --warning-foreground: #ffffff;
 
   /* ============================================
-     INFO - Light Blue
-     Base: #60A5FA (Blue 400)
+     INFO - Cool Blue
      ============================================ */
-  --info: oklch(0.729 0.176 264.376); /* #60A5FA */
-  --info-foreground: oklch(0.988 0.002 256.788);
+  --info: #3b82f6;
+  --info-foreground: #ffffff;
 
   /* ============================================
-     BORDERS & INPUTS
-     Base: #E2E8F0 (Slate 200)
+     BORDERS & INPUTS - Very subtle
      ============================================ */
-  --border: oklch(0.929 0.013 256.788); /* #E2E8F0 - Slate 200 */
-  --input: oklch(0.929 0.013 256.788);
-  --ring: oklch(0.616 0.214 264.376); /* Matches primary */
+  --border: #e5e7eb;
+  --input: #f3f4f6;
+  --ring: #ff6b35;
 
   /* ============================================
-     CHARTS - Financial Data Visualization
+     CHARTS - Dashboard Data Visualization
+     Multi-color vibrant palette
      ============================================ */
-  --chart-1: oklch(0.616 0.214 264.376); /* Primary Blue #3B82F6 */
-  --chart-2: oklch(0.729 0.176 264.376); /* Info Blue #60A5FA */
-  --chart-3: oklch(0.697 0.169 162.48); /* Success Green #10B981 */
-  --chart-4: oklch(0.829 0.176 70.08); /* Warning Amber #FBBF24 */
-  --chart-5: oklch(0.676 0.221 27.325); /* Error Red #F87171 */
+  --chart-1: #ff6b35;
+  --chart-2: #3b82f6;
+  --chart-3: #8b5cf6;
+  --chart-4: #10b981;
+  --chart-5: #f59e0b;
 
   /* ============================================
      SIDEBAR - Navigation
      ============================================ */
-  --sidebar: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
-  --sidebar-foreground: oklch(0.211 0.042 256.788);
-  --sidebar-primary: oklch(0.616 0.214 264.376);
-  --sidebar-primary-foreground: oklch(0.988 0.002 256.788);
-  --sidebar-accent: oklch(0.967 0.006 256.788);
-  --sidebar-accent-foreground: oklch(0.211 0.042 256.788);
-  --sidebar-border: oklch(0.929 0.013 256.788);
-  --sidebar-ring: oklch(0.616 0.214 264.376);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #374151;
+  --sidebar-primary: #ff6b35;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fff5f2;
+  --sidebar-accent-foreground: #374151;
+  --sidebar-border: #f3f4f6;
+  --sidebar-ring: #ff6b35;
 }
 
 .dark {
   /* ============================================
-     FINERACT BANKING UI - DARK THEME
-     Slate-based dark mode with exact colors
-     Background: #0F172A | Surface: #1E293B
+     FINERACT UI - MODERN DARK THEME
+     Deep backgrounds with vibrant orange accents
      ============================================ */
 
   /* ============================================
      BASE COLORS - Dark Backgrounds
      ============================================ */
-  --background: oklch(0.211 0.042 256.788); /* #0F172A - Slate 900 */
-  --foreground: oklch(0.988 0.002 256.788); /* #F8FAFC - Slate 50 */
+  --background: #0a0a0a;
+  --background-subtle: #141414;
+  --background-tint: #1f1f1f;
+  --foreground: #fafafa;
 
   /* Card surfaces - Elevated */
-  --card: oklch(0.279 0.041 256.788); /* #1E293B - Slate 800 */
-  --card-foreground: oklch(0.988 0.002 256.788);
+  --card: #171717;
+  --card-foreground: #fafafa;
 
   /* Popovers & dropdowns */
-  --popover: oklch(0.279 0.041 256.788);
-  --popover-foreground: oklch(0.988 0.002 256.788);
+  --popover: #171717;
+  --popover-foreground: #fafafa;
 
   /* ============================================
-     PRIMARY - Professional Blue
-     Base: #3B82F6 (Blue 500)
+     PRIMARY - Vibrant Orange
      ============================================ */
-  --primary: oklch(0.616 0.214 264.376); /* #3B82F6 */
-  --primary-foreground: oklch(0.988 0.002 256.788); /* #F8FAFC */
+  --primary: #ff7849;
+  --primary-foreground: #ffffff;
 
   /* ============================================
-     SECONDARY - Dark Slate Surface
-     Base: #334155 (Slate 700)
+     SECONDARY - Deep Gray
      ============================================ */
-  --secondary: oklch(0.388 0.034 256.788); /* #334155 - Slate 700 */
-  --secondary-foreground: oklch(0.988 0.002 256.788);
+  --secondary: #262626;
+  --secondary-foreground: #d4d4d4;
 
   /* ============================================
      MUTED - Dark Backgrounds & Disabled
-     Base: #334155 (Slate 700)
      ============================================ */
-  --muted: oklch(0.388 0.034 256.788); /* #334155 */
-  --muted-foreground: oklch(0.664 0.032 256.788); /* #94A3B8 - Slate 400 */
+  --muted: #1f1f1f;
+  --muted-foreground: #a3a3a3;
 
   /* ============================================
-     ACCENT - Success Green
-     Base: #10B981 (Emerald 500)
+     ACCENT - Warm Dark Tint
      ============================================ */
-  --accent: oklch(0.697 0.169 162.48); /* #10B981 */
-  --accent-foreground: oklch(0.988 0.002 256.788);
+  --accent: #2a1f1a;
+  --accent-foreground: #fafafa;
 
   /* ============================================
      DESTRUCTIVE - Error Red
-     Base: #F87171 (Red 400)
      ============================================ */
-  --destructive: oklch(0.676 0.221 27.325); /* #F87171 */
-  --destructive-foreground: oklch(0.988 0.002 256.788);
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
 
   /* ============================================
      SUCCESS - Emerald Green
-     Base: #10B981 (Emerald 500)
      ============================================ */
-  --success: oklch(0.697 0.169 162.48); /* #10B981 */
-  --success-foreground: oklch(0.988 0.002 256.788);
+  --success: #34d399;
+  --success-foreground: #ffffff;
 
   /* ============================================
      WARNING - Amber
-     Base: #FBBF24 (Amber 400)
      ============================================ */
-  --warning: oklch(0.829 0.176 70.08); /* #FBBF24 */
-  --warning-foreground: oklch(0.211 0.042 256.788); /* Dark text */
+  --warning: #fbbf24;
+  --warning-foreground: #ffffff;
 
   /* ============================================
-     INFO - Light Blue
-     Base: #60A5FA (Blue 400)
+     INFO - Cool Blue
      ============================================ */
-  --info: oklch(0.729 0.176 264.376); /* #60A5FA */
-  --info-foreground: oklch(0.988 0.002 256.788);
+  --info: #60a5fa;
+  --info-foreground: #ffffff;
 
   /* ============================================
      BORDERS & INPUTS
-     Base: #334155 (Slate 700)
      ============================================ */
-  --border: oklch(0.388 0.034 256.788); /* #334155 - Slate 700 */
-  --input: oklch(0.388 0.034 256.788);
-  --ring: oklch(0.616 0.214 264.376); /* Matches primary */
+  --border: #262626;
+  --input: #262626;
+  --ring: #ff7849;
 
   /* ============================================
      CHARTS - Financial Data Visualization
      ============================================ */
-  --chart-1: oklch(0.616 0.214 264.376); /* Primary Blue #3B82F6 */
-  --chart-2: oklch(0.729 0.176 264.376); /* Info Blue #60A5FA */
-  --chart-3: oklch(0.697 0.169 162.48); /* Success Green #10B981 */
-  --chart-4: oklch(0.829 0.176 70.08); /* Warning Amber #FBBF24 */
-  --chart-5: oklch(0.676 0.221 27.325); /* Error Red #F87171 */
+  --chart-1: #ff7849;
+  --chart-2: #60a5fa;
+  --chart-3: #a78bfa;
+  --chart-4: #34d399;
+  --chart-5: #fbbf24;
 
   /* ============================================
      SIDEBAR - Dark Navigation
-     Base: #0F172A (Slate 900)
      ============================================ */
-  --sidebar: oklch(0.211 0.042 256.788); /* #0F172A - Same as background */
-  --sidebar-foreground: oklch(0.988 0.002 256.788);
-  --sidebar-primary: oklch(0.616 0.214 264.376);
-  --sidebar-primary-foreground: oklch(0.988 0.002 256.788);
-  --sidebar-accent: oklch(0.388 0.034 256.788);
-  --sidebar-accent-foreground: oklch(0.988 0.002 256.788);
-  --sidebar-border: oklch(0.388 0.034 256.788);
-  --sidebar-ring: oklch(0.616 0.214 264.376);
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #d4d4d4;
+  --sidebar-primary: #ff7849;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1f1f1f;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #262626;
+  --sidebar-ring: #ff7849;
 }
 
 @layer base {
@@ -312,7 +306,12 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(1200px 600px at -10% -10%, var(--background-tint), transparent 60%),
+      radial-gradient(900px 500px at 110% -20%, var(--background-tint), transparent 55%),
+      linear-gradient(180deg, var(--background) 0%, var(--background-subtle) 100%);
     font-feature-settings: 'cv11', 'ss01';
     font-variation-settings: 'opsz' 32;
   }
@@ -333,6 +332,7 @@
      SMOOTH SCROLLING
      ============================================ */
   html {
+    font-size: 16px;
     scroll-behavior: smooth;
   }
 
@@ -340,7 +340,7 @@
      FOCUS VISIBLE - Accessibility
      ============================================ */
   *:focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 }

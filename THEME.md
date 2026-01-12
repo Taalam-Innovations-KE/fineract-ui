@@ -1,14 +1,14 @@
 # Fineract UI Theme System
 
-Comprehensive theming documentation for the Fineract Banking UI built with shadcn/ui, Tailwind CSS v4, and React 19.
+Comprehensive theming documentation for the Fineract UI built with shadcn/ui, Tailwind CSS v4, and React 19.
 
 ## Overview
 
 This theme system is specifically designed for financial applications with:
-- **Professional Blue** (#3B82F6) primary color conveying trust and stability
-- **Slate Color Palette** for sophisticated, modern interfaces
+- **Warm Orange** (#FF8A00) primary color for a modern dashboard aesthetic
+- **Neutral Palette** with soft warm grays for surfaces and dividers
 - **Semantic Colors** for financial states (success, warning, error)
-- **Dark Mode** with deep slate backgrounds (#0F172A, #1E293B)
+- **Dark Mode** with deep slate backgrounds (#0F1218, #151B24)
 - **WCAG 2.1 Level AA** compliant contrast ratios
 
 ## Color Palette
@@ -16,55 +16,53 @@ This theme system is specifically designed for financial applications with:
 ### Light Mode
 
 #### Primary Colors
-- **Primary Blue**: `#3B82F6` (Blue 500)
+- **Primary Orange**: `#FF8A00`
   - Used for: Primary buttons, links, active states, brand elements
-  - Text: `#F8FAFC` (Slate 50)
+  - Text: `#FFFFFF`
 
 #### Semantic Colors
-- **Success Green**: `#10B981` (Emerald 500)
+- **Success Green**: `#22C55E`
   - Used for: Positive balances, confirmations, successful transactions
-  - Text: `#F8FAFC`
+  - Text: `#FFFFFF`
 
-- **Warning Amber**: `#F59E0B` (Amber 500)
+- **Warning Amber**: `#F59E0B`
   - Used for: Pending states, warnings, caution messages
-  - Text: `#0F172A` (Slate 900)
+  - Text: `#1F2937`
 
-- **Error Red**: `#EF4444` (Red 500)
+- **Error Red**: `#EF4444`
   - Used for: Negative balances, errors, deletions
-  - Text: `#F8FAFC`
+  - Text: `#FFFFFF`
 
-- **Info Blue**: `#60A5FA` (Blue 400)
+- **Info Blue**: `#60A5FA`
   - Used for: Informational messages, secondary actions
-  - Text: `#F8FAFC`
+  - Text: `#FFFFFF`
 
-#### Slate Neutral Scale
-- **50**: `#F8FAFC` - Lightest (text on dark)
-- **100**: `#F1F5F9` - Background elevated
-- **200**: `#E2E8F0` - Borders light
-- **400**: `#94A3B8` - Text secondary
-- **500**: `#64748B` - Text muted
-- **700**: `#334155` - Borders/dividers
-- **800**: `#1E293B` - Surface dark
-- **900**: `#0F172A` - Background dark
+#### Neutral Scale
+- **50**: `#FFFFFF` - Card surfaces
+- **100**: `#F6F7FB` - Page background
+- **200**: `#EEF1F6` - Background gradient base
+- **300**: `#E6E9EF` - Borders/dividers
+- **500**: `#6B7280` - Muted text
+- **900**: `#141621` - Primary text
 
 ### Dark Mode (Exact Colors)
 
 #### Base Colors
-- **Background**: `#0F172A` (Slate 900)
-- **Surface/Card**: `#1E293B` (Slate 800)
-- **Text Light**: `#F8FAFC` (Slate 50)
-- **Text Secondary**: `#94A3B8` (Slate 400)
+- **Background**: `#0F1218`
+- **Surface/Card**: `#151B24`
+- **Text Light**: `#F8FAFC`
+- **Text Secondary**: `#94A3B8`
 
 #### Primary & Semantic Colors
-- **Primary**: `#3B82F6` (Blue 500)
-- **Success/Accent**: `#10B981` (Emerald 500)
-- **Warning**: `#FBBF24` (Amber 400)
-- **Error**: `#F87171` (Red 400)
-- **Info**: `#60A5FA` (Blue 400)
+- **Primary**: `#FF9A1F`
+- **Success/Accent**: `#34D399`
+- **Warning**: `#FBBF24`
+- **Error**: `#F87171`
+- **Info**: `#7DD3FC`
 
 #### UI Elements
-- **Dividers & Borders**: `#334155` (Slate 700)
-- **Focus Ring**: `#3B82F6` (matches primary)
+- **Dividers & Borders**: `#242C3A`
+- **Focus Ring**: `#FF9A1F` (matches primary)
 
 ## Usage Examples
 
@@ -147,17 +145,17 @@ import { LineChart, Line } from 'recharts';
 <LineChart data={data}>
   <Line
     dataKey="balance"
-    stroke="hsl(var(--chart-1))"
+    stroke="var(--chart-1)"
     strokeWidth={2}
   />
   <Line
     dataKey="income"
-    stroke="hsl(var(--chart-3))"
+    stroke="var(--chart-3)"
     strokeWidth={2}
   />
   <Line
     dataKey="expenses"
-    stroke="hsl(var(--chart-5))"
+    stroke="var(--chart-5)"
     strokeWidth={2}
   />
 </LineChart>
@@ -197,15 +195,15 @@ import { LineChart, Line } from 'recharts';
 --border            /* Border color */
 --input             /* Input border */
 --ring              /* Focus ring */
---radius            /* Border radius (0.75rem) */
+--radius            /* Border radius (1rem) */
 ```
 
 ### Charts
 ```css
---chart-1           /* Primary blue */
---chart-2           /* Cyan */
+--chart-1           /* Primary orange */
+--chart-2           /* Amber */
 --chart-3           /* Success green */
---chart-4           /* Warning amber */
+--chart-4           /* Cool blue */
 --chart-5           /* Destructive red */
 ```
 

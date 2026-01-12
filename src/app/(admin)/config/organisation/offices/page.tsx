@@ -1,6 +1,4 @@
 'use client';
-
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageShell } from '@/components/config/page-shell';
 import { Button } from '@/components/ui/button';
@@ -18,10 +16,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/ui/data-table';
 import { OfficeForm } from '@/components/config/forms/office-form';
 import { BFF_ROUTES } from '@/lib/fineract/endpoints';
 import { useTenantStore } from '@/store/tenant';
-import { Plus, Building2, ChevronRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { OfficeData } from '@/lib/fineract/generated/types.gen';
 
 async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
@@ -56,14 +55,16 @@ async function createOffice(tenantId: string, data: any) {
   return response.json();
 }
 
-function buildOfficeTree(offices: OfficeData[]): OfficeData[] {
-  const officeMap = new Map<number, OfficeData & { children: OfficeData[] }>();
+type OfficeNode = OfficeData & { children: OfficeNode[] };
+
+function buildOfficeTree(offices: OfficeData[]): OfficeNode[] {
+  const officeMap = new Map<number, OfficeNode>();
 
   offices.forEach((office) => {
     officeMap.set(office.id!, { ...office, children: [] });
   });
 
-  const tree: OfficeData[] = [];
+  const tree: OfficeNode[] = [];
 
   offices.forEach((office) => {
     const node = officeMap.get(office.id!);
@@ -84,43 +85,11 @@ function buildOfficeTree(offices: OfficeData[]): OfficeData[] {
   return tree;
 }
 
-function OfficeTreeNode({ office, level = 0 }: { office: any; level?: number }) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const hasChildren = office.children && office.children.length > 0;
-
-  return (
-    <div>
-      <div
-        className="flex items-center gap-2 py-2 px-3 hover:bg-accent/50 rounded-lg cursor-pointer transition-colors"
-        style={{ paddingLeft: `${level * 1.5 + 0.75}rem` }}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        {hasChildren && (
-          <ChevronRight
-            className={`h-4 w-4 transition-transform ${
-              isExpanded ? 'rotate-90' : ''
-            }`}
-          />
-        )}
-        {!hasChildren && <div className="w-4" />}
-        <Building2 className="h-4 w-4 text-primary" />
-        <span className="font-medium">{office.name}</span>
-        {level === 0 && <Badge variant="outline">Head Office</Badge>}
-        {office.externalId && (
-          <Badge variant="secondary" className="ml-auto">
-            {office.externalId}
-          </Badge>
-        )}
-      </div>
-      {hasChildren && isExpanded && (
-        <div>
-          {office.children.map((child: any) => (
-            <OfficeTreeNode key={child.id} office={child} level={level + 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function flattenOfficeTree(tree: OfficeNode[], level = 0): Array<{ office: OfficeNode; level: number }> {
+  return tree.flatMap((office) => [
+    { office, level },
+    ...flattenOfficeTree(office.children, level + 1),
+  ]);
 }
 
 export default function OfficesPage() {
@@ -146,6 +115,54 @@ export default function OfficesPage() {
   });
 
   const officeTree = buildOfficeTree(offices);
+  const flattenedOffices = flattenOfficeTree(officeTree);
+  const officeLookup = new Map(offices.map((office) => [office.id, office]));
+  const officeColumns = [
+    {
+      header: 'Office',
+      cell: ({ office, level }: { office: OfficeNode; level: number }) => (
+        <div className="flex items-center gap-2">
+          <div style={{ paddingLeft: `${level * 0.75}rem` }}>
+            <span className="font-medium">{office.name}</span>
+          </div>
+          {!office.parentId && (
+            <Badge variant="outline" className="text-xs px-2 py-0.5">
+              Head Office
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Parent',
+      cell: ({ office }: { office: OfficeNode; level: number }) => (
+        <span className={office.parentId ? '' : 'text-muted-foreground'}>
+          {office.parentId ? officeLookup.get(office.parentId)?.name || '—' : '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'External ID',
+      cell: ({ office }: { office: OfficeNode; level: number }) => (
+        <span className={office.externalId ? '' : 'text-muted-foreground'}>
+          {office.externalId || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Type',
+      cell: ({ office }: { office: OfficeNode; level: number }) =>
+        office.parentId ? (
+          <Badge variant="secondary" className="text-xs px-2 py-0.5">
+            Branch
+          </Badge>
+        ) : (
+          <Badge variant="default" className="text-xs px-2 py-0.5">
+            Head
+          </Badge>
+        ),
+    },
+  ];
 
   return (
     <PageShell
@@ -161,9 +178,9 @@ export default function OfficesPage() {
       <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Office Hierarchy</CardTitle>
+            <CardTitle>Offices</CardTitle>
             <CardDescription>
-              Tree view of all offices in your organization
+              Hierarchical listing of all offices in your organization
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -183,11 +200,11 @@ export default function OfficesPage() {
               </div>
             )}
             {!isLoading && !error && officeTree.length > 0 && (
-              <div className="space-y-1">
-                {officeTree.map((office) => (
-                  <OfficeTreeNode key={office.id} office={office} />
-                ))}
-              </div>
+              <DataTable
+                data={flattenedOffices}
+                columns={officeColumns}
+                getRowId={(row) => row.office.id ?? row.office.name ?? 'office-row'}
+              />
             )}
           </CardContent>
         </Card>

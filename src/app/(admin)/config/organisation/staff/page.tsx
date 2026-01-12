@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { DataTable } from '@/components/ui/data-table';
 import { StaffForm } from '@/components/config/forms/staff-form';
 import { BFF_ROUTES } from '@/lib/fineract/endpoints';
 import { useTenantStore } from '@/store/tenant';
@@ -122,6 +123,54 @@ export default function StaffPage() {
 
   const loanOfficers = staff.filter((s) => s.loanOfficer);
   const activeStaff = staff.filter((s) => s.active);
+  const staffColumns = [
+    {
+      header: 'Name',
+      cell: (member: Staff) => (
+        <span className="font-medium">{member.displayName}</span>
+      ),
+    },
+    {
+      header: 'Office',
+      cell: (member: Staff) => (
+        <span className={member.office?.name ? '' : 'text-muted-foreground'}>
+          {member.office?.name || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Role',
+      cell: (member: Staff) =>
+        member.loanOfficer ? (
+          <Badge variant="default" className="text-xs px-2 py-0.5">
+            Loan Officer
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-xs px-2 py-0.5">
+            Staff
+          </Badge>
+        ),
+    },
+    {
+      header: 'Status',
+      cell: (member: Staff) => (
+        <Badge
+          variant={member.active ? 'success' : 'secondary'}
+          className="text-xs px-2 py-0.5"
+        >
+          {member.active ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'External ID',
+      cell: (member: Staff) => (
+        <span className={member.externalId ? '' : 'text-muted-foreground'}>
+          {member.externalId || '—'}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <PageShell
@@ -214,37 +263,11 @@ export default function StaffPage() {
                 </div>
               )}
               {!isLoading && !error && staff.length > 0 && (
-                <div className="space-y-2">
-                  {staff.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          <Users className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{member.displayName}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {member.office?.name || 'No office'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {member.loanOfficer && (
-                          <Badge variant="default">Loan Officer</Badge>
-                        )}
-                        <Badge variant={member.active ? 'success' : 'secondary'}>
-                          {member.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                        {member.externalId && (
-                          <Badge variant="outline">{member.externalId}</Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <DataTable
+                  data={staff}
+                  columns={staffColumns}
+                  getRowId={(member) => member.id ?? member.displayName ?? 'staff-row'}
+                />
               )}
             </CardContent>
           </Card>

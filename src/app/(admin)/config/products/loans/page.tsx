@@ -20,10 +20,11 @@ import {
   DrawerClose,
 } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/ui/data-table';
 import { LoanProductWizard } from '@/components/config/loan-product-wizard';
 import { BFF_ROUTES } from '@/lib/fineract/endpoints';
 import { useTenantStore } from '@/store/tenant';
-import { Plus, CreditCard, TrendingUp, Percent } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp } from 'lucide-react';
 import type { CurrencyConfigurationData } from '@/lib/fineract/generated/types.gen';
 
 async function fetchLoanProducts(tenantId: string) {
@@ -101,6 +102,59 @@ export default function LoanProductsPage() {
     },
   });
 
+  const productColumns = [
+    {
+      header: 'Product',
+      cell: (product: any) => (
+        <div>
+          <div className="font-medium">{product.name}</div>
+          <div className="text-xs text-muted-foreground">
+            {product.shortName || 'Short name not set'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Currency',
+      cell: (product: any) => (
+        <span className={product.currency?.code ? '' : 'text-muted-foreground'}>
+          {product.currency?.code || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Principal',
+      cell: (product: any) =>
+        product.principal ? (
+          <Badge variant="secondary" className="text-xs px-2 py-0.5">
+            {product.currency?.displaySymbol}
+            {product.principal}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      header: 'Interest',
+      cell: (product: any) =>
+        product.interestRatePerPeriod !== undefined ? (
+          <Badge variant="info" className="text-xs px-2 py-0.5">
+            {product.interestRatePerPeriod}%
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      header: 'Accounting',
+      cell: (product: any) => (
+        <span className={product.accountingRule ? '' : 'text-muted-foreground'}>
+          {product.accountingRule?.value || '—'}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <PageShell
       title="Loan Products"
@@ -152,45 +206,11 @@ export default function LoanProductsPage() {
                 </div>
               )}
               {!isLoading && !error && products.length > 0 && (
-                <div className="space-y-2">
-                  {products.map((product: any) => (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          <CreditCard className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {product.shortName} • {product.currency?.code}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {product.principal && (
-                          <Badge variant="secondary">
-                            <TrendingUp className="h-3 w-3 mr-1" />
-                            {product.currency?.displaySymbol}{product.principal}
-                          </Badge>
-                        )}
-                        {product.interestRatePerPeriod !== undefined && (
-                          <Badge variant="info">
-                            <Percent className="h-3 w-3 mr-1" />
-                            {product.interestRatePerPeriod}%
-                          </Badge>
-                        )}
-                        {product.accountingRule && (
-                          <Badge variant="outline">
-                            {product.accountingRule.value || 'No Accounting'}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <DataTable
+                  data={products}
+                  columns={productColumns}
+                  getRowId={(product: any) => product.id ?? product.name ?? 'product-row'}
+                />
               )}
             </CardContent>
           </Card>

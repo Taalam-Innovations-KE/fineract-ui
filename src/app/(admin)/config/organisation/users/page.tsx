@@ -20,6 +20,7 @@ import {
   DrawerClose,
 } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
+import { DataTable } from '@/components/ui/data-table';
 import { UserForm } from '@/components/config/forms/user-form';
 import { BFF_ROUTES } from '@/lib/fineract/endpoints';
 import { useTenantStore } from '@/store/tenant';
@@ -137,6 +138,53 @@ export default function UsersPage() {
     },
   });
 
+  const userColumns = [
+    {
+      header: 'User',
+      cell: (user: GetUsersResponse) => (
+        <div>
+          <div className="font-medium">
+            {user.firstname} {user.lastname}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            @{user.username} • {user.officeName || 'No office'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Roles',
+      cell: (user: GetUsersResponse) => (
+        <div className="flex flex-wrap gap-1">
+          {user.selectedRoles && user.selectedRoles.length > 0 ? (
+            <>
+              {user.selectedRoles.slice(0, 2).map((role) => (
+                <Badge key={role.id} variant="secondary" className="text-xs px-2 py-0.5">
+                  {role.name}
+                </Badge>
+              ))}
+              {user.selectedRoles.length > 2 && (
+                <Badge variant="outline" className="text-xs px-2 py-0.5">
+                  +{user.selectedRoles.length - 2}
+                </Badge>
+              )}
+            </>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Email',
+      cell: (user: GetUsersResponse) => (
+        <span className={user.email ? '' : 'text-muted-foreground'}>
+          {user.email || '—'}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <PageShell
       title="Users"
@@ -173,47 +221,11 @@ export default function UsersPage() {
               </div>
             )}
             {!isLoading && !error && users.length > 0 && (
-              <div className="space-y-2">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <UserCog className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{user.firstname} {user.lastname}</div>
-                        <div className="text-sm text-muted-foreground">
-                          @{user.username} • {user.officeName || 'No office'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {user.selectedRoles && user.selectedRoles.length > 0 && (
-                        <div className="flex gap-1">
-                          {user.selectedRoles.slice(0, 2).map((role) => (
-                            <Badge key={role.id} variant="secondary" className="text-xs">
-                              {role.name}
-                            </Badge>
-                          ))}
-                          {user.selectedRoles.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{user.selectedRoles.length - 2}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      {user.email && (
-                        <Badge variant="outline" className="text-xs">
-                          {user.email}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <DataTable
+                data={users}
+                columns={userColumns}
+                getRowId={(user) => user.id ?? user.username ?? 'user-row'}
+              />
             )}
           </CardContent>
         </Card>

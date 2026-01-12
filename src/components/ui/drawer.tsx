@@ -22,7 +22,7 @@ const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(
         <div
           ref={ref}
           className={cn(
-            "fixed right-0 top-0 z-50 h-full w-full max-w-2xl border-l border-border/80 bg-card shadow-md",
+            "fixed right-0 top-0 z-50 h-full w-full border-l border-border/80 bg-card shadow-md md:max-w-2xl",
             "transition-transform duration-300 ease-in-out",
             className
           )}

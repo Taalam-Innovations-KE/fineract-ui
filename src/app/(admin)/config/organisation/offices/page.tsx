@@ -10,11 +10,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  Drawer,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerContent,
+  DrawerClose,
+} from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import { OfficeForm } from '@/components/config/forms/office-form';
@@ -241,19 +243,24 @@ export default function OfficesPage() {
         </Card>
       </div>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogHeader>
-          <DialogTitle>Create New Office</DialogTitle>
-          <DialogDescription>
-            Add a new office to your organization hierarchy
-          </DialogDescription>
-        </DialogHeader>
-        <OfficeForm
-          offices={offices}
-          onSubmit={(data) => createMutation.mutateAsync(data)}
-          onCancel={() => setIsCreateDialogOpen(false)}
-        />
-      </Dialog>
+      <Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Create New Office</DrawerTitle>
+            <DrawerDescription>
+              Add a new office to your organization hierarchy
+            </DrawerDescription>
+          </div>
+          <DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
+        </DrawerHeader>
+        <DrawerContent>
+          <OfficeForm
+            offices={offices}
+            onSubmit={(data) => createMutation.mutateAsync(data)}
+            onCancel={() => setIsCreateDialogOpen(false)}
+          />
+        </DrawerContent>
+      </Drawer>
     </PageShell>
   );
 }

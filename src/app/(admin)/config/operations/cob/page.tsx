@@ -17,12 +17,13 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Drawer,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerContent,
+  DrawerClose,
+} from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -305,17 +306,20 @@ export default function COBPage() {
         </Card>
       </div>
 
-      {/* Confirmation Dialog */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogHeader>
-          <DialogTitle>Confirm COB Catch-up</DialogTitle>
-          <DialogDescription>
-            This operation will process all outstanding COB closures. Please confirm
-            you want to proceed.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <Alert variant="warning" className="mb-4">
+      {/* Confirmation Drawer */}
+      <Drawer open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Confirm COB Catch-up</DrawerTitle>
+            <DrawerDescription>
+              This operation will process all outstanding COB closures. Please confirm
+              you want to proceed.
+            </DrawerDescription>
+          </div>
+          <DrawerClose onClick={() => setIsConfirmDialogOpen(false)} />
+        </DrawerHeader>
+        <DrawerContent className="space-y-4">
+          <Alert variant="warning">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               This is a critical operation that affects loan account processing.
@@ -334,23 +338,23 @@ export default function COBPage() {
               Document why this catch-up is being performed
             </p>
           </div>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setIsConfirmDialogOpen(false)}
-            disabled={catchUpMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmCatchUp}
-            disabled={catchUpMutation.isPending}
-          >
-            {catchUpMutation.isPending ? 'Starting...' : 'Confirm & Start'}
-          </Button>
-        </DialogFooter>
-      </Dialog>
+          <div className="flex items-center justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsConfirmDialogOpen(false)}
+              disabled={catchUpMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmCatchUp}
+              disabled={catchUpMutation.isPending}
+            >
+              {catchUpMutation.isPending ? 'Starting...' : 'Confirm & Start'}
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </PageShell>
   );
 }

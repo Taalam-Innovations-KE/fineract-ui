@@ -12,11 +12,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  Drawer,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerContent,
+  DrawerClose,
+} from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -311,19 +313,24 @@ export default function StaffPage() {
         </Card>
       </div>
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogHeader>
-          <DialogTitle>Add Staff Member</DialogTitle>
-          <DialogDescription>
-            Add a new staff member to your organization
-          </DialogDescription>
-        </DialogHeader>
-        <StaffForm
-          offices={offices}
-          onSubmit={(data) => createMutation.mutateAsync(data)}
-          onCancel={() => setIsCreateDialogOpen(false)}
-        />
-      </Dialog>
+      <Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DrawerHeader>
+          <div>
+            <DrawerTitle>Add Staff Member</DrawerTitle>
+            <DrawerDescription>
+              Add a new staff member to your organization
+            </DrawerDescription>
+          </div>
+          <DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
+        </DrawerHeader>
+        <DrawerContent>
+          <StaffForm
+            offices={offices}
+            onSubmit={(data) => createMutation.mutateAsync(data)}
+            onCancel={() => setIsCreateDialogOpen(false)}
+          />
+        </DrawerContent>
+      </Drawer>
     </PageShell>
   );
 }

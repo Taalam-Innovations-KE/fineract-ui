@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate:api": "openapi-ts -i src/lib/fineract/openapi/fineract.json -o src/lib/fineract/generated -c @hey-api/client-fetch"
+    "generate:api": "openapi-ts -i src/lib/fineract/openapi/fineract.json -o src/lib/fineract/generated -c @hey-api/client-fetch",
+    "check:spacing": "node scripts/check-spacing.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

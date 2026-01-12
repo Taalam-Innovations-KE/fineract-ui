@@ -23,6 +23,13 @@ Use pnpm (see `package.json`).
 - Prefer Tailwind utility classes; shared styles live in `src/app/globals.css`.
 - No formatter is configured; match existing formatting and run `pnpm lint` before PRs.
 
+## Spacing Scale (Enforced)
+- Use only the existing Tailwind spacing sizes to keep layouts consistent.
+- Margin/padding sizes: `0`, `0.5`, `1`, `1.5`, `2`, `2.5`, `3`, `3.5`, `4`, `5`, `6`, `7`, `8`.
+- Gap sizes: `0.5`, `1`, `1.5`, `2`, `2.5`, `3`, `4`, `5`, `6`.
+- Space sizes (`space-x`/`space-y`): `1`, `1.5`, `2`, `3`, `4`, `6`, `12`.
+- Run `pnpm check:spacing` to verify new or edited components adhere to the scale.
+
 ## Testing Guidelines
 - No test framework is configured yet.
 - If you add tests, align naming with the framework you introduce (for example, `*.test.tsx`) and document the new command in `package.json` and here.

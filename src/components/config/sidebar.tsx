@@ -84,32 +84,36 @@ export function Sidebar() {
   };
 
   return (
-    <nav className="flex flex-col gap-2 px-4 py-4">
+    <nav className="flex flex-col gap-0.5 px-2.5 py-2">
       {navItems.map((item, index) => {
-        const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+        const hasChildren = item.children && item.children.length > 0;
+        // For items without children, only match exact path
+        // For items with children, match if path starts with the href
+        const isActive = hasChildren
+          ? pathname?.startsWith(item.href + '/')
+          : pathname === item.href;
         const isOpen = openSections.includes(item.href);
         const Icon = item.icon;
-        const hasChildren = item.children && item.children.length > 0;
 
         return (
           <div key={item.href}>
-            {index > 0 && <Separator className="my-3" />}
+            {index > 0 && <Separator className="my-1.5" />}
 
             {hasChildren ? (
               <button
                 onClick={() => toggleSection(item.href)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all duration-200',
+                  'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200',
                   isActive
                     ? 'bg-primary/8 text-primary font-semibold'
                     : 'text-sidebar-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-4 w-4" />
                 <span className="flex-1 text-left">{item.title}</span>
                 <ChevronDown
                   className={cn(
-                    'h-4 w-4 transition-transform duration-200',
+                    'h-3.5 w-3.5 transition-transform duration-200',
                     isOpen && 'rotate-180'
                   )}
                 />
@@ -118,19 +122,19 @@ export function Sidebar() {
               <Link
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-all duration-200',
+                  'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200',
                   isActive
                     ? 'bg-primary/8 text-primary font-semibold'
                     : 'text-sidebar-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
               >
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-4 w-4" />
                 {item.title}
               </Link>
             )}
 
             {hasChildren && isOpen && (
-              <div className="ml-5 mt-1.5 flex flex-col gap-1 overflow-hidden">
+              <div className="ml-3.5 mt-0.5 flex flex-col overflow-hidden">
                 {item.children!.map((child) => {
                   const ChildIcon = child.icon;
                   const isChildActive = pathname === child.href;
@@ -140,13 +144,13 @@ export function Sidebar() {
                       key={child.href}
                       href={child.href}
                       className={cn(
-                        'flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-all duration-200',
+                        'flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium transition-all duration-200',
                         isChildActive
                           ? 'bg-primary/8 text-primary font-semibold'
                           : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground'
                       )}
                     >
-                      <ChildIcon className="h-[15px] w-[15px]" />
+                      <ChildIcon className="h-3.5 w-3.5" />
                       {child.title}
                     </Link>
                   );

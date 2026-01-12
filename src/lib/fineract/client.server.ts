@@ -1,5 +1,5 @@
 import 'server-only';
-import { getAccessToken } from '@/lib/auth/session';
+import { getSession, getAccessToken, getUserCredentials } from '@/lib/auth/session';
 
 /**
  * Server-side Fineract client
@@ -13,38 +13,51 @@ const FINERACT_PASSWORD = process.env.FINERACT_PASSWORD || 'password';
 interface FineractRequestOptions {
   method?: string;
   body?: any;
-  tenantId: string;
+  tenantId?: string; // Made optional - will use session tenantId if not provided
   headers?: Record<string, string>;
   useBasicAuth?: boolean; // Optional flag to use basic auth instead of bearer token
 }
 
 /**
  * Makes authenticated requests to Fineract API
- * By default, uses the user's access token from the session.
- * Set useBasicAuth=true to use basic authentication instead.
+ * Automatically detects authentication method based on session:
+ * - For Keycloak provider: Uses Bearer token
+ * - For Credentials provider: Uses Basic auth with user's credentials
+ * - Fallback: Uses service-level basic auth from environment variables
  */
 export async function fineractFetch<T = any>(
   path: string,
   options: FineractRequestOptions
 ): Promise<T> {
-  const { method = 'GET', body, tenantId, headers = {}, useBasicAuth = false } = options;
+  const { method = 'GET', body, headers = {}, useBasicAuth = false } = options;
 
   let authHeader: string;
+  let tenantId = options.tenantId;
 
   if (useBasicAuth) {
     // Use Basic Auth for service-level operations
     const basicAuth = Buffer.from(`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`).toString('base64');
     authHeader = `Basic ${basicAuth}`;
+    tenantId = tenantId || 'default';
   } else {
-    // Use Bearer token from user session
-    try {
-      const accessToken = await getAccessToken();
-      authHeader = `Bearer ${accessToken}`;
-    } catch (error) {
-      // Fallback to basic auth if no session token is available
-      console.warn('No access token available, falling back to basic auth');
+    // Get session to determine authentication method
+    const session = await getSession();
+
+    if (session?.provider === 'keycloak' && session?.accessToken) {
+      // Use Keycloak Bearer token
+      authHeader = `Bearer ${session.accessToken}`;
+      tenantId = tenantId || session.tenantId || 'default';
+    } else if (session?.provider === 'credentials' && session?.credentials) {
+      // Use user's credentials with Basic Auth
+      // The credentials are stored as base64-encoded username:password in the JWT
+      authHeader = `Basic ${session.credentials}`;
+      tenantId = tenantId || session.tenantId || 'default';
+    } else {
+      // Fallback to service-level basic auth
+      console.warn('No session found or unknown provider, using service-level auth');
       const basicAuth = Buffer.from(`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`).toString('base64');
       authHeader = `Basic ${basicAuth}`;
+      tenantId = tenantId || 'default';
     }
   }
 

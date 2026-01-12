@@ -7,6 +7,10 @@ declare module "next-auth" {
     idToken?: string;
     refreshToken?: string;
     expiresAt?: number;
+    provider?: string;
+    username?: string;
+    tenantId?: string;
+    credentials?: string;
     user: {
       roles?: string[];
     } & DefaultSession["user"];
@@ -14,6 +18,9 @@ declare module "next-auth" {
 
   interface User {
     roles?: string[];
+    username?: string;
+    tenantId?: string;
+    credentials?: string;
   }
 }
 
@@ -24,5 +31,9 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     expiresAt?: number;
     roles?: string[];
+    provider?: string;
+    username?: string;
+    tenantId?: string;
+    credentials?: string;
   }
 }

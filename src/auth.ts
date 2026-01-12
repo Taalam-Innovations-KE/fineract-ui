@@ -1,9 +1,80 @@
 import NextAuth from "next-auth";
 import Keycloak from "next-auth/providers/keycloak";
+import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
+
+/**
+ * Authenticate user against Fineract API using basic auth
+ */
+async function authenticateWithFineract(username: string, password: string, tenantId: string = "default") {
+  const FINERACT_BASE_URL = process.env.FINERACT_BASE_URL || 'https://demo.fineract.dev/fineract-provider/api';
+
+  try {
+    const authHeader = Buffer.from(`${username}:${password}`).toString('base64');
+
+    // Try to authenticate by fetching user data
+    const response = await fetch(`${FINERACT_BASE_URL}/v1/self/user`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${authHeader}`,
+        'fineract-platform-tenantid': tenantId,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const userData = await response.json();
+
+    return {
+      id: userData.userId?.toString() || username,
+      username: userData.username || username,
+      email: userData.email || `${username}@fineract.local`,
+      name: `${userData.firstname || ''} ${userData.lastname || ''}`.trim() || username,
+      roles: userData.roles || [],
+      tenantId,
+    };
+  } catch (error) {
+    console.error('Fineract authentication error:', error);
+    return null;
+  }
+}
 
 export const authConfig: NextAuthConfig = {
   providers: [
+    Credentials({
+      id: "credentials",
+      name: "Username & Password",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+        tenantId: { label: "Tenant ID", type: "text" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) {
+          return null;
+        }
+
+        const user = await authenticateWithFineract(
+          credentials.username as string,
+          credentials.password as string,
+          (credentials.tenantId as string) || "default"
+        );
+
+        // Store credentials securely in the user object (will be encrypted in JWT)
+        if (user) {
+          return {
+            ...user,
+            credentials: Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64'),
+          };
+        }
+
+        return user;
+      },
+    }),
     Keycloak({
       clientId: process.env.AUTH_KEYCLOAK_ID!,
       clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
@@ -11,20 +82,33 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account, profile }) {
-      // Persist the access_token and id_token from Keycloak to the token
-      if (account) {
+    async jwt({ token, account, profile, user }) {
+      // For Keycloak provider
+      if (account?.provider === "keycloak") {
         token.accessToken = account.access_token;
         token.idToken = account.id_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        token.provider = "keycloak";
+
+        if (profile) {
+          token.email = profile.email;
+          token.name = profile.name;
+          token.roles = (profile as any).roles || [];
+        }
       }
 
-      // Add custom user info from Keycloak profile
-      if (profile) {
-        token.email = profile.email;
-        token.name = profile.name;
-        token.roles = (profile as any).roles || [];
+      // For Credentials provider
+      if (account?.provider === "credentials" && user) {
+        token.username = (user as any).username;
+        token.email = user.email;
+        token.name = user.name;
+        token.roles = (user as any).roles || [];
+        token.tenantId = (user as any).tenantId || "default";
+        token.provider = "credentials";
+        // Store password hash or encrypted password in token (JWT is already encrypted)
+        // This is necessary for Fineract basic auth which requires username:password
+        token.credentials = (user as any).credentials;
       }
 
       return token;
@@ -36,6 +120,10 @@ export const authConfig: NextAuthConfig = {
         session.idToken = token.idToken as string;
         session.refreshToken = token.refreshToken as string;
         session.expiresAt = token.expiresAt as number;
+        session.provider = token.provider as string;
+        session.username = token.username as string;
+        session.tenantId = token.tenantId as string;
+        session.credentials = token.credentials as string;
 
         if (session.user) {
           session.user.email = token.email as string;

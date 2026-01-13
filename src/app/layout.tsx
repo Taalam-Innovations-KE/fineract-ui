@@ -1,24 +1,15 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { auth } from "@/auth";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 
-// Plus Jakarta Sans - Modern sans-serif for dashboard UI
-// Variable font for optimal performance and flexibility
-const jakarta = Plus_Jakarta_Sans({
+// Inter - Modern fintech sans-serif across the application
+const inter = Inter({
 	subsets: ["latin"],
-	variable: "--font-jakarta",
-	display: "swap",
-});
-
-// JetBrains Mono - Monospace for financial data
-// Excellent for tabular numbers and account numbers
-const jetbrainsMono = JetBrains_Mono({
-	subsets: ["latin"],
-	variable: "--font-jetbrains-mono",
+	variable: "--font-inter",
 	display: "swap",
 });
 
@@ -38,7 +29,7 @@ export default async function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body
-				className={`${jakarta.variable} ${jetbrainsMono.variable} antialiased font-sans`}
+				className={`${inter.variable} antialiased font-sans`}
 			>
 				<AuthProvider session={session}>
 					<ThemeProvider>

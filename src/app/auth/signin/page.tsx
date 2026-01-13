@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -52,29 +53,36 @@ export default async function SignInPage({
 						</div>
 					)}
 
-					{/* Keycloak Form */}
+					{/* Credentials Form */}
 					<form
-						action={async () => {
+						action={async (formData: FormData) => {
 							"use server";
-							await signIn("keycloak", {
+							const username = formData.get("username");
+							const password = formData.get("password");
+							const tenantId = formData.get("tenantId") || "default";
+
+							await signIn("credentials", {
+								username,
+								password,
+								tenantId,
 								redirectTo: callbackUrl,
 							});
 						}}
 						className="space-y-6"
 					>
 						<div className="space-y-4">
-							{/* Email Address */}
+							{/* Username */}
 							<div className="space-y-2">
-								<Label htmlFor="email" className="text-sm font-medium">
-									Email Address
+								<Label htmlFor="username" className="text-sm font-medium">
+									Username
 								</Label>
 								<div className="relative">
 									<Input
-										id="email"
-										name="email"
-										type="email"
-										placeholder="Email Address"
-										disabled
+										id="username"
+										name="username"
+										type="text"
+										placeholder="Enter your username"
+										required
 										className="pl-10"
 									/>
 									<svg
@@ -87,8 +95,8 @@ export default async function SignInPage({
 										strokeLinejoin="round"
 										className="absolute left-3 top-3 h-5 w-5 text-muted-foreground"
 									>
-										<rect width="20" height="16" x="2" y="4" rx="2" />
-										<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+										<path d="M20 21a8 8 0 0 0-16 0" />
+										<circle cx="12" cy="7" r="4" />
 									</svg>
 								</div>
 							</div>
@@ -103,8 +111,8 @@ export default async function SignInPage({
 										id="password"
 										name="password"
 										type="password"
-										placeholder="Password"
-										disabled
+										placeholder="Enter your password"
+										required
 										className="pl-10"
 									/>
 									<svg
@@ -121,6 +129,20 @@ export default async function SignInPage({
 										<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 									</svg>
 								</div>
+							</div>
+
+							{/* Tenant ID */}
+							<div className="space-y-2">
+								<Label htmlFor="tenantId" className="text-sm font-medium">
+									Tenant ID
+								</Label>
+								<Input
+									id="tenantId"
+									name="tenantId"
+									type="text"
+									placeholder="default"
+									defaultValue="default"
+								/>
 							</div>
 						</div>
 
@@ -145,7 +167,37 @@ export default async function SignInPage({
 
 						{/* Login Button */}
 						<Button type="submit" className="w-full" size="lg">
-							Login
+							Sign in with Credentials
+						</Button>
+					</form>
+
+					<div className="relative">
+						<div className="absolute inset-0 flex items-center">
+							<Separator />
+						</div>
+						<div className="relative flex justify-center text-xs uppercase">
+							<span className="bg-background px-2 text-muted-foreground">
+								Or continue with
+							</span>
+						</div>
+					</div>
+
+					{/* Keycloak Form */}
+					<form
+						action={async () => {
+							"use server";
+							await signIn("keycloak", {
+								redirectTo: callbackUrl,
+							});
+						}}
+					>
+						<Button
+							type="submit"
+							variant="outline"
+							className="w-full"
+							size="lg"
+						>
+							Sign in with Keycloak
 						</Button>
 					</form>
 

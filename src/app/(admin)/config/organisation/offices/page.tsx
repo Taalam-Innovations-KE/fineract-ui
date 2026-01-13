@@ -1,268 +1,278 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PageShell } from '@/components/config/page-shell';
-import { Button } from '@/components/ui/button';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
+import { useState } from "react";
+import { OfficeForm } from "@/components/config/forms/office-form";
+import { PageShell } from "@/components/config/page-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { DataTable } from "@/components/ui/data-table";
 import {
-  Drawer,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-  DrawerContent,
-  DrawerClose,
-} from '@/components/ui/drawer';
-import { Badge } from '@/components/ui/badge';
-import { DataTable } from '@/components/ui/data-table';
-import { OfficeForm } from '@/components/config/forms/office-form';
-import { BFF_ROUTES } from '@/lib/fineract/endpoints';
-import { useTenantStore } from '@/store/tenant';
-import { Plus } from 'lucide-react';
-import type { OfficeData } from '@/lib/fineract/generated/types.gen';
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type {
+	OfficeData,
+	PostOfficesRequest,
+} from "@/lib/fineract/generated/types.gen";
+import { useTenantStore } from "@/store/tenant";
 
 async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
-  const response = await fetch(BFF_ROUTES.offices, {
-    headers: {
-      'x-tenant-id': tenantId,
-    },
-  });
+	const response = await fetch(BFF_ROUTES.offices, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch offices');
-  }
+	if (!response.ok) {
+		throw new Error("Failed to fetch offices");
+	}
 
-  return response.json();
+	return response.json();
 }
 
-async function createOffice(tenantId: string, data: any) {
-  const response = await fetch(BFF_ROUTES.offices, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tenant-id': tenantId,
-    },
-    body: JSON.stringify(data),
-  });
+async function createOffice(tenantId: string, data: PostOfficesRequest) {
+	const response = await fetch(BFF_ROUTES.offices, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(data),
+	});
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to create office');
-  }
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.message || "Failed to create office");
+	}
 
-  return response.json();
+	return response.json();
 }
 
 type OfficeNode = OfficeData & { children: OfficeNode[] };
 
 function buildOfficeTree(offices: OfficeData[]): OfficeNode[] {
-  const officeMap = new Map<number, OfficeNode>();
+	const officeMap = new Map<number, OfficeNode>();
 
-  offices.forEach((office) => {
-    officeMap.set(office.id!, { ...office, children: [] });
-  });
+	offices.forEach((office) => {
+		officeMap.set(office.id!, { ...office, children: [] });
+	});
 
-  const tree: OfficeNode[] = [];
+	const tree: OfficeNode[] = [];
 
-  offices.forEach((office) => {
-    const node = officeMap.get(office.id!);
-    if (!node) return;
+	offices.forEach((office) => {
+		const node = officeMap.get(office.id!);
+		if (!node) return;
 
-    if (office.parentId) {
-      const parent = officeMap.get(office.parentId);
-      if (parent) {
-        parent.children.push(node);
-      } else {
-        tree.push(node);
-      }
-    } else {
-      tree.push(node);
-    }
-  });
+		if (office.parentId) {
+			const parent = officeMap.get(office.parentId);
+			if (parent) {
+				parent.children.push(node);
+			} else {
+				tree.push(node);
+			}
+		} else {
+			tree.push(node);
+		}
+	});
 
-  return tree;
+	return tree;
 }
 
-function flattenOfficeTree(tree: OfficeNode[], level = 0): Array<{ office: OfficeNode; level: number }> {
-  return tree.flatMap((office) => [
-    { office, level },
-    ...flattenOfficeTree(office.children, level + 1),
-  ]);
+function flattenOfficeTree(
+	tree: OfficeNode[],
+	level = 0,
+): Array<{ office: OfficeNode; level: number }> {
+	return tree.flatMap((office) => [
+		{ office, level },
+		...flattenOfficeTree(office.children, level + 1),
+	]);
 }
 
 export default function OfficesPage() {
-  const { tenantId } = useTenantStore();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
+	const { tenantId } = useTenantStore();
+	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const queryClient = useQueryClient();
 
-  const {
-    data: offices = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['offices', tenantId],
-    queryFn: () => fetchOffices(tenantId),
-  });
+	const {
+		data: offices = [],
+		isLoading,
+		error,
+	} = useQuery({
+		queryKey: ["offices", tenantId],
+		queryFn: () => fetchOffices(tenantId),
+	});
 
-  const createMutation = useMutation({
-    mutationFn: (data: any) => createOffice(tenantId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['offices', tenantId] });
-      setIsCreateDialogOpen(false);
-    },
-  });
+	const createMutation = useMutation({
+		mutationFn: (data: PostOfficesRequest) => createOffice(tenantId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["offices", tenantId] });
+			setIsCreateDialogOpen(false);
+		},
+	});
 
-  const officeTree = buildOfficeTree(offices);
-  const flattenedOffices = flattenOfficeTree(officeTree);
-  const officeLookup = new Map(offices.map((office) => [office.id, office]));
-  const officeColumns = [
-    {
-      header: 'Office',
-      cell: ({ office, level }: { office: OfficeNode; level: number }) => (
-        <div className="flex items-center gap-2">
-          <div style={{ paddingLeft: `${level * 0.75}rem` }}>
-            <span className="font-medium">{office.name}</span>
-          </div>
-          {!office.parentId && (
-            <Badge variant="outline" className="text-xs px-2 py-0.5">
-              Head Office
-            </Badge>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: 'Parent',
-      cell: ({ office }: { office: OfficeNode; level: number }) => (
-        <span className={office.parentId ? '' : 'text-muted-foreground'}>
-          {office.parentId ? officeLookup.get(office.parentId)?.name || '—' : '—'}
-        </span>
-      ),
-    },
-    {
-      header: 'External ID',
-      cell: ({ office }: { office: OfficeNode; level: number }) => (
-        <span className={office.externalId ? '' : 'text-muted-foreground'}>
-          {office.externalId || '—'}
-        </span>
-      ),
-    },
-    {
-      header: 'Type',
-      cell: ({ office }: { office: OfficeNode; level: number }) =>
-        office.parentId ? (
-          <Badge variant="secondary" className="text-xs px-2 py-0.5">
-            Branch
-          </Badge>
-        ) : (
-          <Badge variant="default" className="text-xs px-2 py-0.5">
-            Head
-          </Badge>
-        ),
-    },
-  ];
+	const officeTree = buildOfficeTree(offices);
+	const flattenedOffices = flattenOfficeTree(officeTree);
+	const officeLookup = new Map(offices.map((office) => [office.id, office]));
+	const officeColumns = [
+		{
+			header: "Office",
+			cell: ({ office, level }: { office: OfficeNode; level: number }) => (
+				<div className="flex items-center gap-2">
+					<div style={{ paddingLeft: `${level * 0.75}rem` }}>
+						<span className="font-medium">{office.name}</span>
+					</div>
+					{!office.parentId && (
+						<Badge variant="outline" className="text-xs px-2 py-0.5">
+							Head Office
+						</Badge>
+					)}
+				</div>
+			),
+		},
+		{
+			header: "Parent",
+			cell: ({ office }: { office: OfficeNode; level: number }) => (
+				<span className={office.parentId ? "" : "text-muted-foreground"}>
+					{office.parentId
+						? officeLookup.get(office.parentId)?.name || "—"
+						: "—"}
+				</span>
+			),
+		},
+		{
+			header: "External ID",
+			cell: ({ office }: { office: OfficeNode; level: number }) => (
+				<span className={office.externalId ? "" : "text-muted-foreground"}>
+					{office.externalId || "—"}
+				</span>
+			),
+		},
+		{
+			header: "Type",
+			cell: ({ office }: { office: OfficeNode; level: number }) =>
+				office.parentId ? (
+					<Badge variant="secondary" className="text-xs px-2 py-0.5">
+						Branch
+					</Badge>
+				) : (
+					<Badge variant="default" className="text-xs px-2 py-0.5">
+						Head
+					</Badge>
+				),
+		},
+	];
 
-  return (
-    <PageShell
-      title="Offices"
-      subtitle="Manage your organization's office hierarchy"
-      actions={
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Office
-        </Button>
-      }
-    >
-      <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Offices</CardTitle>
-            <CardDescription>
-              Hierarchical listing of all offices in your organization
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading && (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading offices...
-              </div>
-            )}
-            {error && (
-              <div className="text-center py-8 text-destructive">
-                Failed to load offices. Please try again.
-              </div>
-            )}
-            {!isLoading && !error && offices.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                No offices found. Create your first office to get started.
-              </div>
-            )}
-            {!isLoading && !error && officeTree.length > 0 && (
-              <DataTable
-                data={flattenedOffices}
-                columns={officeColumns}
-                getRowId={(row) => row.office.id ?? row.office.name ?? 'office-row'}
-              />
-            )}
-          </CardContent>
-        </Card>
+	return (
+		<PageShell
+			title="Offices"
+			subtitle="Manage your organization's office hierarchy"
+			actions={
+				<Button onClick={() => setIsCreateDialogOpen(true)}>
+					<Plus className="h-4 w-4 mr-2" />
+					Create Office
+				</Button>
+			}
+		>
+			<div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+				<Card>
+					<CardHeader>
+						<CardTitle>Offices</CardTitle>
+						<CardDescription>
+							Hierarchical listing of all offices in your organization
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{isLoading && (
+							<div className="text-center py-8 text-muted-foreground">
+								Loading offices...
+							</div>
+						)}
+						{error && (
+							<div className="text-center py-8 text-destructive">
+								Failed to load offices. Please try again.
+							</div>
+						)}
+						{!isLoading && !error && offices.length === 0 && (
+							<div className="text-center py-8 text-muted-foreground">
+								No offices found. Create your first office to get started.
+							</div>
+						)}
+						{!isLoading && !error && officeTree.length > 0 && (
+							<DataTable
+								data={flattenedOffices}
+								columns={officeColumns}
+								getRowId={(row) =>
+									row.office.id ?? row.office.name ?? "office-row"
+								}
+							/>
+						)}
+					</CardContent>
+				</Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-            <CardDescription>Office statistics</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Total Offices
-              </span>
-              <span className="text-2xl font-bold">{offices.length}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Head Offices
-              </span>
-              <span className="text-2xl font-bold">
-                {offices.filter((o) => !o.parentId).length}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Branch Offices
-              </span>
-              <span className="text-2xl font-bold">
-                {offices.filter((o) => o.parentId).length}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+				<Card>
+					<CardHeader>
+						<CardTitle>Summary</CardTitle>
+						<CardDescription>Office statistics</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="flex items-center justify-between">
+							<span className="text-sm text-muted-foreground">
+								Total Offices
+							</span>
+							<span className="text-2xl font-bold">{offices.length}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-sm text-muted-foreground">
+								Head Offices
+							</span>
+							<span className="text-2xl font-bold">
+								{offices.filter((o) => !o.parentId).length}
+							</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-sm text-muted-foreground">
+								Branch Offices
+							</span>
+							<span className="text-2xl font-bold">
+								{offices.filter((o) => o.parentId).length}
+							</span>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
 
-      <Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DrawerHeader>
-          <div>
-            <DrawerTitle>Create New Office</DrawerTitle>
-            <DrawerDescription>
-              Add a new office to your organization hierarchy
-            </DrawerDescription>
-          </div>
-          <DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
-        </DrawerHeader>
-        <DrawerContent>
-          <OfficeForm
-            offices={offices}
-            onSubmit={(data) => createMutation.mutateAsync(data)}
-            onCancel={() => setIsCreateDialogOpen(false)}
-          />
-        </DrawerContent>
-      </Drawer>
-    </PageShell>
-  );
+			<Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+				<DrawerHeader>
+					<div>
+						<DrawerTitle>Create New Office</DrawerTitle>
+						<DrawerDescription>
+							Add a new office to your organization hierarchy
+						</DrawerDescription>
+					</div>
+					<DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
+				</DrawerHeader>
+				<DrawerContent>
+					<OfficeForm
+						offices={offices}
+						onSubmit={(data) => createMutation.mutateAsync(data)}
+						onCancel={() => setIsCreateDialogOpen(false)}
+					/>
+				</DrawerContent>
+			</Drawer>
+		</PageShell>
+	);
 }

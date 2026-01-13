@@ -4,343 +4,355 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* ============================================
+	/* ============================================
      TAILWIND CSS v4 THEME CONFIGURATION
      Maps CSS variables to Tailwind utilities
      ============================================ */
 
-  /* Typography - Modern Dashboard Fonts */
-  --font-sans: var(--font-jakarta);
-  --font-mono: var(--font-jetbrains-mono);
+	/* Typography - Modern Dashboard Fonts */
+	--font-sans: var(--font-jakarta);
+	--font-mono: var(--font-jetbrains-mono);
 
-  /* Base Colors */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+	/* Base Colors */
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
 
-  /* Card */
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+	/* Card */
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
 
-  /* Popover */
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
+	/* Popover */
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
 
-  /* Primary Brand */
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
+	/* Primary Brand */
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
 
-  /* Secondary */
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
+	/* Secondary */
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
 
-  /* Muted */
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+	/* Muted */
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
 
-  /* Accent */
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+	/* Accent */
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
 
-  /* Destructive/Error */
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
+	/* Destructive/Error */
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
 
-  /* Success (NEW - Banking specific) */
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
+	/* Success (NEW - Banking specific) */
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
 
-  /* Warning (NEW - Banking specific) */
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
+	/* Warning (NEW - Banking specific) */
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
 
-  /* Info (NEW - Banking specific) */
-  --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
+	/* Info (NEW - Banking specific) */
+	--color-info: var(--info);
+	--color-info-foreground: var(--info-foreground);
 
-  /* Borders & Inputs */
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+	/* Borders & Inputs */
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
 
-  /* Charts - Financial Data Visualization */
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
+	/* Charts - Financial Data Visualization */
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
 
-  /* Sidebar Navigation */
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+	/* Sidebar Navigation */
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
 
-  /* Border Radius Scale - Modern, comfortable curves */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 5px);
-  --radius-2xl: calc(var(--radius) + 9px);
-  --radius-3xl: calc(var(--radius) + 13px);
-  --radius-4xl: calc(var(--radius) + 17px);
+	/* Border Radius Scale - Modern, comfortable curves */
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 5px);
+	--radius-2xl: calc(var(--radius) + 9px);
+	--radius-3xl: calc(var(--radius) + 13px);
+	--radius-4xl: calc(var(--radius) + 17px);
 
-  /* Minimal Shadows - Barely visible elevation */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
-  --shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.04);
-  --shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.05);
-  --shadow-xl: 0 8px 16px 0 rgb(0 0 0 / 0.06);
+	/* Minimal Shadows - Barely visible elevation */
+	--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+	--shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.04);
+	--shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.05);
+	--shadow-xl: 0 8px 16px 0 rgb(0 0 0 / 0.06);
 }
 
 :root {
-  /* ============================================
+	/* ============================================
      FINERACT UI - MODERN LIGHT THEME
      Inspired by contemporary dashboard aesthetics
      Clean, spacious, with vibrant orange accents
      ============================================ */
 
-  /* Border Radius - Softer, more modern */
-  --radius: 0.75rem;
+	/* Border Radius - Softer, more modern */
+	--radius: 0.75rem;
 
-  /* ============================================
+	/* ============================================
      BASE COLORS - Backgrounds & Surfaces
      Ultra-light, clean aesthetic
      ============================================ */
-  --background: #fafafa;
-  --background-subtle: #f5f5f5;
-  --background-tint: #ffffff;
-  --foreground: #1a1a1a;
+	--background: #fafafa;
+	--background-subtle: #f5f5f5;
+	--background-tint: #ffffff;
+	--foreground: #1a1a1a;
 
-  /* Card surfaces - Pure white with subtle elevation */
-  --card: #ffffff;
-  --card-foreground: #1a1a1a;
+	/* Card surfaces - Pure white with subtle elevation */
+	--card: #ffffff;
+	--card-foreground: #1a1a1a;
 
-  /* Popovers & dropdowns */
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
+	/* Popovers & dropdowns */
+	--popover: #ffffff;
+	--popover-foreground: #1a1a1a;
 
-  /* ============================================
+	/* ============================================
      PRIMARY - Vibrant Orange
      Base: #FF6B35 (More vibrant, matches inspiration)
      ============================================ */
-  --primary: #ff6b35;
-  --primary-foreground: #ffffff;
+	--primary: #ff6b35;
+	--primary-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      SECONDARY - Soft Neutral Gray
      ============================================ */
-  --secondary: #f3f4f6;
-  --secondary-foreground: #374151;
+	--secondary: #f3f4f6;
+	--secondary-foreground: #374151;
 
-  /* ============================================
+	/* ============================================
      MUTED - Subtle Backgrounds
      ============================================ */
-  --muted: #f9fafb;
-  --muted-foreground: #6b7280;
+	--muted: #f9fafb;
+	--muted-foreground: #6b7280;
 
-  /* ============================================
+	/* ============================================
      ACCENT - Soft Orange Tint
      ============================================ */
-  --accent: #fff5f2;
-  --accent-foreground: #374151;
+	--accent: #fff5f2;
+	--accent-foreground: #374151;
 
-  /* ============================================
+	/* ============================================
      DESTRUCTIVE - Error Red
      ============================================ */
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+	--destructive: #ef4444;
+	--destructive-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      SUCCESS - Fresh Green
      ============================================ */
-  --success: #10b981;
-  --success-foreground: #ffffff;
+	--success: #10b981;
+	--success-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      WARNING - Warm Amber
      ============================================ */
-  --warning: #f59e0b;
-  --warning-foreground: #ffffff;
+	--warning: #f59e0b;
+	--warning-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      INFO - Cool Blue
      ============================================ */
-  --info: #3b82f6;
-  --info-foreground: #ffffff;
+	--info: #3b82f6;
+	--info-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      BORDERS & INPUTS - Very subtle
      ============================================ */
-  --border: #e5e7eb;
-  --input: #f3f4f6;
-  --ring: #ff6b35;
+	--border: #e5e7eb;
+	--input: #f3f4f6;
+	--ring: #ff6b35;
 
-  /* ============================================
+	/* ============================================
      CHARTS - Dashboard Data Visualization
      Multi-color vibrant palette
      ============================================ */
-  --chart-1: #ff6b35;
-  --chart-2: #3b82f6;
-  --chart-3: #8b5cf6;
-  --chart-4: #10b981;
-  --chart-5: #f59e0b;
+	--chart-1: #ff6b35;
+	--chart-2: #3b82f6;
+	--chart-3: #8b5cf6;
+	--chart-4: #10b981;
+	--chart-5: #f59e0b;
 
-  /* ============================================
+	/* ============================================
      SIDEBAR - Navigation
      ============================================ */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #374151;
-  --sidebar-primary: #ff6b35;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #fff5f2;
-  --sidebar-accent-foreground: #374151;
-  --sidebar-border: #f3f4f6;
-  --sidebar-ring: #ff6b35;
+	--sidebar: #ffffff;
+	--sidebar-foreground: #374151;
+	--sidebar-primary: #ff6b35;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #fff5f2;
+	--sidebar-accent-foreground: #374151;
+	--sidebar-border: #f3f4f6;
+	--sidebar-ring: #ff6b35;
 }
 
 .dark {
-  /* ============================================
+	/* ============================================
      FINERACT UI - MODERN DARK THEME
      Deep backgrounds with vibrant orange accents
      ============================================ */
 
-  /* ============================================
+	/* ============================================
      BASE COLORS - Dark Backgrounds
      ============================================ */
-  --background: #0a0a0a;
-  --background-subtle: #141414;
-  --background-tint: #1f1f1f;
-  --foreground: #fafafa;
+	--background: #0a0a0a;
+	--background-subtle: #141414;
+	--background-tint: #1f1f1f;
+	--foreground: #fafafa;
 
-  /* Card surfaces - Elevated */
-  --card: #171717;
-  --card-foreground: #fafafa;
+	/* Card surfaces - Elevated */
+	--card: #171717;
+	--card-foreground: #fafafa;
 
-  /* Popovers & dropdowns */
-  --popover: #171717;
-  --popover-foreground: #fafafa;
+	/* Popovers & dropdowns */
+	--popover: #171717;
+	--popover-foreground: #fafafa;
 
-  /* ============================================
+	/* ============================================
      PRIMARY - Vibrant Orange
      ============================================ */
-  --primary: #ff7849;
-  --primary-foreground: #ffffff;
+	--primary: #ff7849;
+	--primary-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      SECONDARY - Deep Gray
      ============================================ */
-  --secondary: #262626;
-  --secondary-foreground: #d4d4d4;
+	--secondary: #262626;
+	--secondary-foreground: #d4d4d4;
 
-  /* ============================================
+	/* ============================================
      MUTED - Dark Backgrounds & Disabled
      ============================================ */
-  --muted: #1f1f1f;
-  --muted-foreground: #a3a3a3;
+	--muted: #1f1f1f;
+	--muted-foreground: #a3a3a3;
 
-  /* ============================================
+	/* ============================================
      ACCENT - Warm Dark Tint
      ============================================ */
-  --accent: #2a1f1a;
-  --accent-foreground: #fafafa;
+	--accent: #2a1f1a;
+	--accent-foreground: #fafafa;
 
-  /* ============================================
+	/* ============================================
      DESTRUCTIVE - Error Red
      ============================================ */
-  --destructive: #f87171;
-  --destructive-foreground: #ffffff;
+	--destructive: #f87171;
+	--destructive-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      SUCCESS - Emerald Green
      ============================================ */
-  --success: #34d399;
-  --success-foreground: #ffffff;
+	--success: #34d399;
+	--success-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      WARNING - Amber
      ============================================ */
-  --warning: #fbbf24;
-  --warning-foreground: #ffffff;
+	--warning: #fbbf24;
+	--warning-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      INFO - Cool Blue
      ============================================ */
-  --info: #60a5fa;
-  --info-foreground: #ffffff;
+	--info: #60a5fa;
+	--info-foreground: #ffffff;
 
-  /* ============================================
+	/* ============================================
      BORDERS & INPUTS
      ============================================ */
-  --border: #262626;
-  --input: #262626;
-  --ring: #ff7849;
+	--border: #262626;
+	--input: #262626;
+	--ring: #ff7849;
 
-  /* ============================================
+	/* ============================================
      CHARTS - Financial Data Visualization
      ============================================ */
-  --chart-1: #ff7849;
-  --chart-2: #60a5fa;
-  --chart-3: #a78bfa;
-  --chart-4: #34d399;
-  --chart-5: #fbbf24;
+	--chart-1: #ff7849;
+	--chart-2: #60a5fa;
+	--chart-3: #a78bfa;
+	--chart-4: #34d399;
+	--chart-5: #fbbf24;
 
-  /* ============================================
+	/* ============================================
      SIDEBAR - Dark Navigation
      ============================================ */
-  --sidebar: #0f0f0f;
-  --sidebar-foreground: #d4d4d4;
-  --sidebar-primary: #ff7849;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1f1f1f;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #262626;
-  --sidebar-ring: #ff7849;
+	--sidebar: #0f0f0f;
+	--sidebar-foreground: #d4d4d4;
+	--sidebar-primary: #ff7849;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #1f1f1f;
+	--sidebar-accent-foreground: #fafafa;
+	--sidebar-border: #262626;
+	--sidebar-ring: #ff7849;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+	* {
+		@apply border-border outline-ring/50;
+	}
 
-  body {
-    @apply text-foreground;
-    background-color: var(--background);
-    background-image:
-      radial-gradient(1200px 600px at -10% -10%, var(--background-tint), transparent 60%),
-      radial-gradient(900px 500px at 110% -20%, var(--background-tint), transparent 55%),
-      linear-gradient(180deg, var(--background) 0%, var(--background-subtle) 100%);
-    font-feature-settings: 'cv11', 'ss01';
-    font-variation-settings: 'opsz' 32;
-  }
+	body {
+		@apply text-foreground;
+		background-color: var(--background);
+		background-image:
+			radial-gradient(
+				1200px 600px at -10% -10%,
+				var(--background-tint),
+				transparent 60%
+			),
+			radial-gradient(
+				900px 500px at 110% -20%,
+				var(--background-tint),
+				transparent 55%
+			),
+			linear-gradient(
+				180deg,
+				var(--background) 0%,
+				var(--background-subtle) 100%
+			);
+		font-feature-settings: "cv11", "ss01";
+		font-variation-settings: "opsz" 32;
+	}
 
-  /* ============================================
+	/* ============================================
      TABULAR NUMBERS FOR FINANCIAL DATA
      Essential for aligning currency amounts
      ============================================ */
-  .tabular-nums,
-  [class*='currency'],
-  [class*='amount'],
-  [class*='balance'] {
-    font-feature-settings: 'tnum';
-    font-variant-numeric: tabular-nums;
-  }
+	.tabular-nums,
+	[class*="currency"],
+	[class*="amount"],
+	[class*="balance"] {
+		font-feature-settings: "tnum";
+		font-variant-numeric: tabular-nums;
+	}
 
-  /* ============================================
+	/* ============================================
      SMOOTH SCROLLING
      ============================================ */
-  html {
-    font-size: 16px;
-    scroll-behavior: smooth;
-  }
+	html {
+		font-size: 16px;
+		scroll-behavior: smooth;
+	}
 
-  /* ============================================
+	/* ============================================
      FOCUS VISIBLE - Accessibility
      ============================================ */
-  *:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-  }
+	*:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
 }

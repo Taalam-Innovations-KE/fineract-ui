@@ -1,502 +1,2345 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import {
-  loanProductBasicsSchema,
-  loanProductTermsSchema,
-  loanProductInterestSchema,
-  loanProductSettingsSchema,
-  loanProductAccountingSchema,
-  loanProductFormToRequest,
-  type CreateLoanProductFormData,
-} from '@/lib/schemas/loan-product';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+	Check,
+	ChevronLeft,
+	ChevronRight,
+	Copy,
+	Info,
+	Plus,
+	X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { type FieldPath, useForm } from "react-hook-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { mapFineractError } from "@/lib/fineract/error-mapping";
+import type {
+	GetLoanProductsChargeOptions,
+	GetLoanProductsTemplateResponse,
+	PostLoanProductsRequest,
+} from "@/lib/fineract/generated/types.gen";
+import {
+	buildLoanProductRequest,
+	chargesApi,
+	loanProductsApi,
+	mapFeeUiToChargeRequest,
+	mapPenaltyUiToChargeRequest,
+} from "@/lib/fineract/loan-products";
+import {
+	type CreateLoanProductFormData,
+	createLoanProductSchema,
+	type FeeFormData,
+	type FeeSelection,
+	feeChargeFormSchema,
+	loanProductAccountingSchema,
+	loanProductAmountSchema,
+	loanProductFeesSchema,
+	loanProductIdentitySchema,
+	loanProductInterestSchema,
+	loanProductPenaltiesSchema,
+	loanProductScheduleSchema,
+	type PenaltyFormData,
+	type PenaltySelection,
+	penaltyChargeFormSchema,
+} from "@/lib/schemas/loan-product";
+import { cn } from "@/lib/utils";
+import { useTenantStore } from "@/store/tenant";
 
 interface LoanProductWizardProps {
-  currencies: string[];
-  onSubmit: (data: any) => Promise<void>;
-  onCancel: () => void;
+	currencies: string[];
+	isOpen: boolean;
+	onSubmit: (data: PostLoanProductsRequest) => Promise<void>;
+	onCancel: () => void;
 }
 
+type FeeItem = FeeSelection & { summary?: string };
+
+type PenaltyItem = PenaltySelection & {
+	summary?: string;
+	gracePeriodOverride?: number;
+};
+
 const steps = [
-  { id: 1, name: 'Basics', schema: loanProductBasicsSchema },
-  { id: 2, name: 'Terms', schema: loanProductTermsSchema },
-  { id: 3, name: 'Interest', schema: loanProductInterestSchema },
-  { id: 4, name: 'Settings', schema: loanProductSettingsSchema },
-  { id: 5, name: 'Accounting', schema: loanProductAccountingSchema },
+	{
+		id: 1,
+		name: "Identity & Currency",
+		schema: loanProductIdentitySchema,
+		fields: [
+			"name",
+			"shortName",
+			"description",
+			"currencyCode",
+			"digitsAfterDecimal",
+		] as const,
+	},
+	{
+		id: 2,
+		name: "Loan Amount Rules",
+		schema: loanProductAmountSchema,
+		fields: [
+			"minPrincipal",
+			"principal",
+			"maxPrincipal",
+			"inMultiplesOf",
+		] as const,
+	},
+	{
+		id: 3,
+		name: "Tenure & Schedule",
+		schema: loanProductScheduleSchema,
+		fields: [
+			"minNumberOfRepayments",
+			"numberOfRepayments",
+			"maxNumberOfRepayments",
+			"repaymentEvery",
+			"repaymentFrequencyType",
+			"minimumDaysBetweenDisbursalAndFirstRepayment",
+		] as const,
+	},
+	{
+		id: 4,
+		name: "Interest & Calculation",
+		schema: loanProductInterestSchema,
+		fields: [
+			"interestType",
+			"amortizationType",
+			"interestRatePerPeriod",
+			"interestRateFrequencyType",
+			"interestCalculationPeriodType",
+			"allowPartialPeriodInterestCalculation",
+		] as const,
+	},
+	{
+		id: 5,
+		name: "Fees",
+		schema: loanProductFeesSchema,
+		fields: ["fees"] as const,
+	},
+	{
+		id: 6,
+		name: "Penalties",
+		schema: loanProductPenaltiesSchema,
+		fields: ["penalties"] as const,
+	},
+	{
+		id: 7,
+		name: "Delinquency, Accounting & Review",
+		schema: loanProductAccountingSchema,
+		fields: [
+			"transactionProcessingStrategyCode",
+			"graceOnArrearsAgeing",
+			"inArrearsTolerance",
+			"overdueDaysForNPA",
+			"accountingRule",
+			"fundSourceAccountId",
+			"loanPortfolioAccountId",
+			"interestOnLoanAccountId",
+			"incomeFromFeeAccountId",
+			"incomeFromPenaltyAccountId",
+			"writeOffAccountId",
+			"receivableInterestAccountId",
+			"receivableFeeAccountId",
+			"receivablePenaltyAccountId",
+			"incomeFromRecoveryAccountId",
+			"overpaymentLiabilityAccountId",
+			"transfersInSuspenseAccountId",
+		] as const,
+	},
 ];
 
-export function LoanProductWizard({ currencies, onSubmit, onCancel }: LoanProductWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<Partial<CreateLoanProductFormData>>({
-    accountingRule: 1,
-    daysInYearType: 1,
-    daysInMonthType: 1,
-    isInterestRecalculationEnabled: false,
-    amortizationType: 1,
-    interestType: 0, // Declining balance
-    interestCalculationPeriodType: 1,
-    repaymentFrequencyType: 2, // Months
-    interestRateFrequencyType: 3, // Per year
-  });
+function optionLabel(option?: {
+	code?: string;
+	description?: string;
+	value?: string;
+	name?: string;
+}) {
+	return (
+		option?.description ||
+		option?.value ||
+		option?.name ||
+		option?.code ||
+		"Unknown"
+	);
+}
 
-  const currentSchema = steps.find(s => s.id === currentStep)?.schema;
+function toAmountLabel(
+	amount?: number,
+	currencyCode?: string,
+	calculation?: "flat" | "percent",
+) {
+	if (amount === undefined) return "Amount not set";
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    trigger,
-    reset,
-  } = useForm<Partial<CreateLoanProductFormData>>({
-    resolver: currentSchema ? zodResolver(currentSchema) as any : undefined,
-    defaultValues: formData,
-  });
+	if (calculation === "percent") {
+		return `${amount}%`;
+	}
 
-  const handleNext = async (data: any) => {
-    const isValid = await trigger();
-    if (!isValid) return;
+	if (!currencyCode) {
+		return `${amount}`;
+	}
 
-    setFormData(prev => ({ ...prev, ...data }));
+	return `${currencyCode} ${amount}`;
+}
 
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
-      reset({ ...formData, ...data });
-    }
-  };
+function formatFeeSummary(fee: FeeItem, currencyCode?: string) {
+	if (fee.summary) return fee.summary;
 
-  const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+	const amountLabel = toAmountLabel(
+		fee.amount,
+		fee.currencyCode || currencyCode,
+		fee.calculationMethod,
+	);
+	const chargeTimeLabel =
+		fee.chargeTimeType === "disbursement"
+			? "at disbursement"
+			: fee.chargeTimeType === "approval"
+				? "on approval"
+				: "on specified due date";
+	const paymentModeLabel =
+		fee.paymentMode === "deduct"
+			? "deducted from disbursement"
+			: "payable separately";
 
-  const handleFinalSubmit = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const finalData = { ...formData, ...data };
-      const requestData = loanProductFormToRequest(finalData as CreateLoanProductFormData);
-      await onSubmit(requestData);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+	return `${fee.name} - ${amountLabel} - ${chargeTimeLabel}, ${paymentModeLabel}`;
+}
 
-  return (
-    <div className="space-y-6">
-      {/* Step Indicator */}
-      <div className="flex items-center justify-between">
-        {steps.map((step, idx) => (
-          <div key={step.id} className="flex items-center flex-1">
-            <div className="flex flex-col items-center">
-              <div
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors",
-                  currentStep > step.id
-                    ? "bg-primary border-primary text-primary-foreground"
-                    : currentStep === step.id
-                    ? "border-primary text-primary"
-                    : "border-muted text-muted-foreground"
-                )}
-              >
-                {currentStep > step.id ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  <span>{step.id}</span>
-                )}
-              </div>
-              <span className={cn(
-                "mt-2 text-xs font-medium",
-                currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
-              )}>
-                {step.name}
-              </span>
-            </div>
-            {idx < steps.length - 1 && (
-              <div
-                className={cn(
-                  "h-[2px] flex-1 mx-2",
-                  currentStep > step.id ? "bg-primary" : "bg-muted"
-                )}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+function formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
+	if (penalty.summary) return penalty.summary;
 
-      {/* Form Content */}
-      <form onSubmit={handleSubmit(currentStep === steps.length ? handleFinalSubmit : handleNext)}>
-        {/* Step 1: Basics */}
-        {currentStep === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name <span className="text-destructive">*</span></Label>
-              <Input id="name" {...register('name')} placeholder="e.g. Personal Loan" />
-              {errors.name && <p className="text-sm text-destructive">{String(errors.name.message)}</p>}
-            </div>
+	const amountLabel = toAmountLabel(
+		penalty.amount,
+		penalty.currencyCode || currencyCode,
+		penalty.calculationMethod,
+	);
+	const basisLabel =
+		penalty.penaltyBasis === "overduePrincipal"
+			? "overdue principal"
+			: penalty.penaltyBasis === "overdueInterest"
+				? "overdue interest"
+				: "entire overdue amount";
 
-            <div className="space-y-2">
-              <Label htmlFor="shortName">Short Name <span className="text-destructive">*</span></Label>
-              <Input id="shortName" {...register('shortName')} placeholder="e.g. PL" maxLength={4} />
-              {errors.shortName && <p className="text-sm text-destructive">{String(errors.shortName.message)}</p>}
-            </div>
+	const graceLabel = penalty.gracePeriodOverride
+		? ` after ${penalty.gracePeriodOverride} grace days`
+		: "";
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input id="description" {...register('description')} placeholder="Product description" />
-            </div>
+	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}`;
+}
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="currencyCode">Currency <span className="text-destructive">*</span></Label>
-                <Select id="currencyCode" {...register('currencyCode')}>
-                  <option value="">Select</option>
-                  {currencies.map(c => <option key={c} value={c}>{c}</option>)}
-                </Select>
-                {errors.currencyCode && <p className="text-sm text-destructive">{String(errors.currencyCode.message)}</p>}
-              </div>
+function waterfallLabel(option?: { code?: string; name?: string }) {
+	if (!option?.code) return option?.name || "Strategy";
 
-              <div className="space-y-2">
-                <Label htmlFor="digitsAfterDecimal">Decimal Places <span className="text-destructive">*</span></Label>
-                <Input
-                  id="digitsAfterDecimal"
-                  type="number"
-                  {...register('digitsAfterDecimal', { valueAsNumber: true })}
-                  min={0}
-                  max={6}
-                  defaultValue={2}
-                />
-                {errors.digitsAfterDecimal && <p className="text-sm text-destructive">{String(errors.digitsAfterDecimal.message)}</p>}
-              </div>
+	const mapping: Record<string, string> = {
+		"mifos-standard-strategy":
+			"Standard (Penalties -> Fees -> Interest -> Principal)",
+		"principal-interest-penalties-fees-order-strategy":
+			"Principal -> Interest -> Penalties -> Fees",
+		"interest-principal-penalties-fees-order-strategy":
+			"Interest -> Principal -> Penalties -> Fees",
+	};
 
-              <div className="space-y-2">
-                <Label htmlFor="inMultiplesOf">Multiples Of</Label>
-                <Input
-                  id="inMultiplesOf"
-                  type="number"
-                  {...register('inMultiplesOf', { valueAsNumber: true })}
-                  min={0}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+	return mapping[option.code] || option?.name || option.code;
+}
 
-        {/* Step 2: Terms */}
-        {currentStep === 2 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="minPrincipal">Min Principal</Label>
-                <Input
-                  id="minPrincipal"
-                  type="number"
-                  {...register('minPrincipal', { valueAsNumber: true })}
-                  placeholder="1000"
-                />
-              </div>
+function getTemplateCurrencyOptions(
+	template?: GetLoanProductsTemplateResponse,
+	allowedCurrencies?: string[],
+) {
+	const options = template?.currencyOptions || [];
+	if (!allowedCurrencies?.length) return options;
 
-              <div className="space-y-2">
-                <Label htmlFor="principal">Principal <span className="text-destructive">*</span></Label>
-                <Input
-                  id="principal"
-                  type="number"
-                  {...register('principal', { valueAsNumber: true })}
-                  placeholder="10000"
-                />
-                {errors.principal && <p className="text-sm text-destructive">{String(errors.principal.message)}</p>}
-              </div>
+	return options.filter(
+		(option) => option.code && allowedCurrencies.includes(option.code),
+	);
+}
 
-              <div className="space-y-2">
-                <Label htmlFor="maxPrincipal">Max Principal</Label>
-                <Input
-                  id="maxPrincipal"
-                  type="number"
-                  {...register('maxPrincipal', { valueAsNumber: true })}
-                  placeholder="100000"
-                />
-              </div>
-            </div>
+export function LoanProductWizard({
+	currencies,
+	isOpen,
+	onSubmit,
+	onCancel,
+}: LoanProductWizardProps) {
+	const { tenantId } = useTenantStore();
+	const [currentStep, setCurrentStep] = useState(1);
+	const [fees, setFees] = useState<FeeItem[]>([]);
+	const [penalties, setPenalties] = useState<PenaltyItem[]>([]);
+	const [isFeeDrawerOpen, setIsFeeDrawerOpen] = useState(false);
+	const [isPenaltyDrawerOpen, setIsPenaltyDrawerOpen] = useState(false);
+	const [isFeeSelectOpen, setIsFeeSelectOpen] = useState(false);
+	const [isPenaltySelectOpen, setIsPenaltySelectOpen] = useState(false);
+	const [feeSubmitError, setFeeSubmitError] = useState<string | null>(null);
+	const [penaltySubmitError, setPenaltySubmitError] = useState<string | null>(
+		null,
+	);
+	const [isCreatingFee, setIsCreatingFee] = useState(false);
+	const [isCreatingPenalty, setIsCreatingPenalty] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [copyMessage, setCopyMessage] = useState<string | null>(null);
+	const [draftMessage, setDraftMessage] = useState<string | null>(null);
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="minNumberOfRepayments">Min Repayments</Label>
-                <Input
-                  id="minNumberOfRepayments"
-                  type="number"
-                  {...register('minNumberOfRepayments', { valueAsNumber: true })}
-                  placeholder="6"
-                />
-              </div>
+	const templateQuery = useQuery({
+		queryKey: ["loanProductTemplate", tenantId],
+		queryFn: () => loanProductsApi.getTemplate(tenantId),
+		enabled: isOpen,
+		staleTime: 1000 * 60 * 5,
+	});
 
-              <div className="space-y-2">
-                <Label htmlFor="numberOfRepayments">Repayments <span className="text-destructive">*</span></Label>
-                <Input
-                  id="numberOfRepayments"
-                  type="number"
-                  {...register('numberOfRepayments', { valueAsNumber: true })}
-                  placeholder="12"
-                />
-                {errors.numberOfRepayments && <p className="text-sm text-destructive">{String(errors.numberOfRepayments.message)}</p>}
-              </div>
+	const template = templateQuery.data;
+	const currencyOptions = useMemo(
+		() => getTemplateCurrencyOptions(template, currencies),
+		[template, currencies],
+	);
 
-              <div className="space-y-2">
-                <Label htmlFor="maxNumberOfRepayments">Max Repayments</Label>
-                <Input
-                  id="maxNumberOfRepayments"
-                  type="number"
-                  {...register('maxNumberOfRepayments', { valueAsNumber: true })}
-                  placeholder="24"
-                />
-              </div>
-            </div>
+	const form = useForm<CreateLoanProductFormData>({
+		resolver: zodResolver(createLoanProductSchema),
+		mode: "onChange",
+		defaultValues: {
+			fees: [],
+			penalties: [],
+			inMultiplesOf: 1,
+			allowPartialPeriodInterestCalculation: false,
+			graceOnArrearsAgeing: 0,
+			inArrearsTolerance: 0,
+			overdueDaysForNPA: 0,
+		},
+	});
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="repaymentEvery">Repayment Every <span className="text-destructive">*</span></Label>
-                <Input
-                  id="repaymentEvery"
-                  type="number"
-                  {...register('repaymentEvery', { valueAsNumber: true })}
-                  placeholder="1"
-                />
-                {errors.repaymentEvery && <p className="text-sm text-destructive">{String(errors.repaymentEvery.message)}</p>}
-              </div>
+	const {
+		register,
+		handleSubmit,
+		trigger,
+		setValue,
+		watch,
+		getValues,
+		setError,
+		formState: { errors },
+	} = form;
 
-              <div className="space-y-2">
-                <Label htmlFor="repaymentFrequencyType">Frequency <span className="text-destructive">*</span></Label>
-                <Select id="repaymentFrequencyType" {...register('repaymentFrequencyType', { valueAsNumber: true })}>
-                  <option value={0}>Days</option>
-                  <option value={1}>Weeks</option>
-                  <option value={2}>Months</option>
-                  <option value={3}>Years</option>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
+	const feeForm = useForm<FeeFormData>({
+		resolver: zodResolver(feeChargeFormSchema),
+		mode: "onChange",
+		defaultValues: {
+			calculationMethod: "flat",
+			chargeTimeType: "disbursement",
+			paymentMode: "deduct",
+			currencyCode: currencyOptions[0]?.code || "KES",
+		},
+	});
 
-        {/* Step 3: Interest */}
-        {currentStep === 3 && (
-          <div className="space-y-4">
-            <Badge variant="info" className="w-full justify-center py-2">
-              Interest Type: Declining Balance (Recommended for digital lending)
-            </Badge>
+	const penaltyForm = useForm<PenaltyFormData>({
+		resolver: zodResolver(penaltyChargeFormSchema),
+		mode: "onChange",
+		defaultValues: {
+			calculationMethod: "percent",
+			penaltyBasis: "totalOverdue",
+			currencyCode: currencyOptions[0]?.code || "KES",
+		},
+	});
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="minInterestRatePerPeriod">Min Rate</Label>
-                <Input
-                  id="minInterestRatePerPeriod"
-                  type="number"
-                  step="0.01"
-                  {...register('minInterestRatePerPeriod', { valueAsNumber: true })}
-                  placeholder="5.00"
-                />
-              </div>
+	const shortNameValue = watch("shortName");
+	const currencyCode = watch("currencyCode");
+	const accountingRule = watch("accountingRule");
+	const watchedValues = watch();
 
-              <div className="space-y-2">
-                <Label htmlFor="interestRatePerPeriod">Interest Rate <span className="text-destructive">*</span></Label>
-                <Input
-                  id="interestRatePerPeriod"
-                  type="number"
-                  step="0.01"
-                  {...register('interestRatePerPeriod', { valueAsNumber: true })}
-                  placeholder="12.00"
-                />
-                {errors.interestRatePerPeriod && <p className="text-sm text-destructive">{String(errors.interestRatePerPeriod.message)}</p>}
-              </div>
+	useEffect(() => {
+		if (!template) return;
 
-              <div className="space-y-2">
-                <Label htmlFor="maxInterestRatePerPeriod">Max Rate</Label>
-                <Input
-                  id="maxInterestRatePerPeriod"
-                  type="number"
-                  step="0.01"
-                  {...register('maxInterestRatePerPeriod', { valueAsNumber: true })}
-                  placeholder="18.00"
-                />
-              </div>
-            </div>
+		if (!getValues("currencyCode") && currencyOptions[0]?.code) {
+			setValue("currencyCode", currencyOptions[0]?.code);
+		}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="interestRateFrequencyType">Rate Frequency <span className="text-destructive">*</span></Label>
-                <Select id="interestRateFrequencyType" {...register('interestRateFrequencyType', { valueAsNumber: true })}>
-                  <option value={2}>Per Month</option>
-                  <option value={3}>Per Year</option>
-                </Select>
-              </div>
+		if (
+			getValues("digitsAfterDecimal") === undefined &&
+			currencyOptions[0]?.decimalPlaces !== undefined
+		) {
+			setValue("digitsAfterDecimal", currencyOptions[0].decimalPlaces);
+		}
 
-              <div className="space-y-2">
-                <Label htmlFor="amortizationType">Amortization <span className="text-destructive">*</span></Label>
-                <Select id="amortizationType" {...register('amortizationType', { valueAsNumber: true })}>
-                  <option value={0}>Equal Principal Payments</option>
-                  <option value={1}>Equal Installments</option>
-                </Select>
-              </div>
-            </div>
+		if (
+			getValues("repaymentFrequencyType") === undefined &&
+			template.repaymentFrequencyTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"repaymentFrequencyType",
+				template.repaymentFrequencyTypeOptions[0].id,
+			);
+		}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="interestType">Interest Type <span className="text-destructive">*</span></Label>
-                <Select id="interestType" {...register('interestType', { valueAsNumber: true })}>
-                  <option value={0}>Declining Balance</option>
-                  <option value={1}>Flat</option>
-                </Select>
-              </div>
+		if (
+			getValues("interestType") === undefined &&
+			template.interestTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue("interestType", template.interestTypeOptions[0].id);
+		}
 
-              <div className="space-y-2">
-                <Label htmlFor="interestCalculationPeriodType">Calculation Period <span className="text-destructive">*</span></Label>
-                <Select id="interestCalculationPeriodType" {...register('interestCalculationPeriodType', { valueAsNumber: true })}>
-                  <option value={0}>Daily</option>
-                  <option value={1}>Same as Repayment</option>
-                </Select>
-              </div>
-            </div>
+		if (
+			getValues("amortizationType") === undefined &&
+			template.amortizationTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue("amortizationType", template.amortizationTypeOptions[0].id);
+		}
 
-            <div className="flex items-center gap-2">
-              <Checkbox id="isInterestRecalculationEnabled" {...register('isInterestRecalculationEnabled')} />
-              <Label htmlFor="isInterestRecalculationEnabled" className="cursor-pointer">
-                Enable interest recalculation
-              </Label>
-            </div>
-          </div>
-        )}
+		if (
+			getValues("interestRateFrequencyType") === undefined &&
+			template.interestRateFrequencyTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"interestRateFrequencyType",
+				template.interestRateFrequencyTypeOptions[0].id,
+			);
+		}
 
-        {/* Step 4: Settings */}
-        {currentStep === 4 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="transactionProcessingStrategyCode">Transaction Processing Strategy <span className="text-destructive">*</span></Label>
-              <Select id="transactionProcessingStrategyCode" {...register('transactionProcessingStrategyCode')}>
-                <option value="">Select strategy</option>
-                <option value="mifos-standard-strategy">Mifos Standard</option>
-                <option value="heavensfamily-strategy">Heavensfamily</option>
-                <option value="creocore-strategy">Creocore</option>
-                <option value="rbi-india-strategy">RBI India</option>
-                <option value="principal-interest-penalties-fees-order-strategy">Principal, Interest, Penalties, Fees</option>
-                <option value="interest-principal-penalties-fees-order-strategy">Interest, Principal, Penalties, Fees</option>
-                <option value="early-repayment-strategy">Early Repayment</option>
-              </Select>
-              {errors.transactionProcessingStrategyCode && <p className="text-sm text-destructive">{String(errors.transactionProcessingStrategyCode.message)}</p>}
-            </div>
+		if (
+			getValues("interestCalculationPeriodType") === undefined &&
+			template.interestCalculationPeriodTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"interestCalculationPeriodType",
+				template.interestCalculationPeriodTypeOptions[0].id,
+			);
+		}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="graceOnPrincipalPayment">Grace on Principal</Label>
-                <Input
-                  id="graceOnPrincipalPayment"
-                  type="number"
-                  {...register('graceOnPrincipalPayment', { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
+		if (
+			!getValues("transactionProcessingStrategyCode") &&
+			template.transactionProcessingStrategyOptions?.[0]?.code
+		) {
+			setValue(
+				"transactionProcessingStrategyCode",
+				template.transactionProcessingStrategyOptions[0].code,
+			);
+		}
 
-              <div className="space-y-2">
-                <Label htmlFor="graceOnInterestPayment">Grace on Interest</Label>
-                <Input
-                  id="graceOnInterestPayment"
-                  type="number"
-                  {...register('graceOnInterestPayment', { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
-            </div>
+		if (
+			getValues("accountingRule") === undefined &&
+			template.accountingRuleOptions?.[0]?.id !== undefined
+		) {
+			setValue("accountingRule", template.accountingRuleOptions[0].id);
+		}
+	}, [template, currencyOptions, getValues, setValue]);
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="graceOnArrearsAgeing">Grace on Arrears Ageing</Label>
-                <Input
-                  id="graceOnArrearsAgeing"
-                  type="number"
-                  {...register('graceOnArrearsAgeing', { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
+	useEffect(() => {
+		if (!currencyCode) return;
+		const match = currencyOptions.find(
+			(option) => option.code === currencyCode,
+		);
+		if (match?.decimalPlaces !== undefined) {
+			setValue("digitsAfterDecimal", match.decimalPlaces);
+		}
 
-              <div className="space-y-2">
-                <Label htmlFor="inArrearsTolerance">In Arrears Tolerance</Label>
-                <Input
-                  id="inArrearsTolerance"
-                  type="number"
-                  {...register('inArrearsTolerance', { valueAsNumber: true })}
-                  placeholder="0"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+		feeForm.setValue("currencyCode", currencyCode);
+		penaltyForm.setValue("currencyCode", currencyCode);
+	}, [currencyCode, currencyOptions, setValue, feeForm, penaltyForm]);
 
-        {/* Step 5: Accounting */}
-        {currentStep === 5 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="accountingRule">Accounting Rule <span className="text-destructive">*</span></Label>
-              <Select id="accountingRule" {...register('accountingRule', { valueAsNumber: true })}>
-                <option value={1}>None</option>
-                <option value={2}>Cash Based</option>
-                <option value={3}>Accrual (Periodic)</option>
-                <option value={4}>Accrual (Upfront)</option>
-              </Select>
-              {errors.accountingRule && <p className="text-sm text-destructive">{String(errors.accountingRule.message)}</p>}
-            </div>
+	useEffect(() => {
+		setValue(
+			"fees",
+			fees.map(({ summary, ...fee }) => fee),
+		);
+	}, [fees, setValue]);
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="daysInYearType">Days in Year <span className="text-destructive">*</span></Label>
-                <Select id="daysInYearType" {...register('daysInYearType', { valueAsNumber: true })}>
-                  <option value={1}>Actual</option>
-                  <option value={2}>360 Days</option>
-                  <option value={3}>364 Days</option>
-                  <option value={4}>365 Days</option>
-                </Select>
-              </div>
+	useEffect(() => {
+		setValue(
+			"penalties",
+			penalties.map(({ summary, gracePeriodOverride, ...penalty }) => penalty),
+		);
+	}, [penalties, setValue]);
 
-              <div className="space-y-2">
-                <Label htmlFor="daysInMonthType">Days in Month <span className="text-destructive">*</span></Label>
-                <Select id="daysInMonthType" {...register('daysInMonthType', { valueAsNumber: true })}>
-                  <option value={1}>Actual</option>
-                  <option value={2}>30 Days</option>
-                </Select>
-              </div>
-            </div>
-          </div>
-        )}
+	useEffect(() => {
+		if (!draftMessage) return;
+		const timeout = setTimeout(() => setDraftMessage(null), 2500);
+		return () => clearTimeout(timeout);
+	}, [draftMessage]);
 
-        {/* Navigation */}
-        <div className="flex justify-between pt-6 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={currentStep === 1 ? onCancel : handleBack}
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            {currentStep === 1 ? 'Cancel' : 'Back'}
-          </Button>
+	useEffect(() => {
+		if (!copyMessage) return;
+		const timeout = setTimeout(() => setCopyMessage(null), 2000);
+		return () => clearTimeout(timeout);
+	}, [copyMessage]);
 
-          <Button type="submit" disabled={isSubmitting}>
-            {currentStep === steps.length ? (
-              isSubmitting ? 'Creating...' : 'Create Product'
-            ) : (
-              <>
-                Next
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
+	useEffect(() => {
+		if (isFeeDrawerOpen) {
+			setFeeSubmitError(null);
+		}
+	}, [isFeeDrawerOpen]);
+
+	useEffect(() => {
+		if (isPenaltyDrawerOpen) {
+			setPenaltySubmitError(null);
+		}
+	}, [isPenaltyDrawerOpen]);
+
+	const handleNext = async (_data: CreateLoanProductFormData) => {
+		const step = steps[currentStep - 1];
+		const fields = step.fields as FieldPath<CreateLoanProductFormData>[];
+
+		const isValid = await trigger(fields);
+		if (!isValid) return;
+
+		if (currentStep < steps.length) {
+			setCurrentStep(currentStep + 1);
+		}
+	};
+
+	const handleBack = () => {
+		if (currentStep > 1) {
+			setCurrentStep(currentStep - 1);
+		}
+	};
+
+	const handleSaveDraft = () => {
+		try {
+			const draft = getValues();
+			localStorage.setItem("loanProductDraft", JSON.stringify(draft));
+			setDraftMessage("Draft saved locally");
+		} catch (_error) {
+			setDraftMessage("Unable to save draft");
+		}
+	};
+
+	const handleFinalSubmit = async (data: CreateLoanProductFormData) => {
+		setSubmitError(null);
+		setIsSubmitting(true);
+
+		try {
+			const payload = buildLoanProductRequest(data);
+			await onSubmit(payload);
+			localStorage.removeItem("loanProductDraft");
+		} catch (error) {
+			const err = error as {
+				message?: string;
+				details?: Record<string, string[]>;
+			};
+			if (err?.details) {
+				Object.entries(err.details).forEach(([field, messages]) => {
+					setError(field as FieldPath<CreateLoanProductFormData>, {
+						type: "server",
+						message: messages[0],
+					});
+				});
+				setSubmitError(err.message || "Validation failed");
+			} else {
+				const mapped = mapFineractError(error);
+				if (mapped.details) {
+					Object.entries(mapped.details).forEach(([field, messages]) => {
+						setError(field as FieldPath<CreateLoanProductFormData>, {
+							type: "server",
+							message: messages[0],
+						});
+					});
+				}
+				setSubmitError(mapped.message);
+			}
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	const handleCopyPayload = async () => {
+		try {
+			const payload = buildLoanProductRequest(
+				getValues() as CreateLoanProductFormData,
+			);
+			await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+			setCopyMessage("Copied");
+		} catch (_error) {
+			setCopyMessage("Copy failed");
+		}
+	};
+
+	const handleAddExistingFee = (option: GetLoanProductsChargeOptions) => {
+		if (!option?.id) return;
+		if (fees.some((fee) => fee.id === option.id)) return;
+
+		const summary =
+			`${option.name || "Fee"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
+
+		setFees((prev) => [
+			...prev,
+			{
+				id: option.id,
+				name: option.name || "Fee",
+				amount: option.amount,
+				currencyCode: option.currency?.code,
+				summary,
+			},
+		]);
+	};
+
+	const handleAddExistingPenalty = (option: GetLoanProductsChargeOptions) => {
+		if (!option?.id) return;
+		if (penalties.some((penalty) => penalty.id === option.id)) return;
+
+		const summary =
+			`${option.name || "Penalty"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
+
+		setPenalties((prev) => [
+			...prev,
+			{
+				id: option.id,
+				name: option.name || "Penalty",
+				amount: option.amount,
+				currencyCode: option.currency?.code,
+				summary,
+			},
+		]);
+	};
+
+	const handleCreateFee = feeForm.handleSubmit(async (values) => {
+		setFeeSubmitError(null);
+		setIsCreatingFee(true);
+		try {
+			const payload = mapFeeUiToChargeRequest(values);
+			const response = await chargesApi.create(tenantId, payload);
+			const chargeId = response.resourceId;
+
+			if (!chargeId) {
+				throw new Error("Charge ID missing from response");
+			}
+
+			setFees((prev) => [
+				...prev,
+				{
+					id: chargeId,
+					name: values.name,
+					amount: values.amount,
+					currencyCode: values.currencyCode,
+					calculationMethod: values.calculationMethod,
+					chargeTimeType: values.chargeTimeType,
+					paymentMode: values.paymentMode,
+				},
+			]);
+
+			feeForm.reset({
+				calculationMethod: "flat",
+				chargeTimeType: "disbursement",
+				paymentMode: "deduct",
+				currencyCode: values.currencyCode,
+				amount: undefined,
+				name: "",
+			});
+			setIsFeeDrawerOpen(false);
+		} catch (error) {
+			const mapped = mapFineractError(error);
+			setFeeSubmitError(mapped.message);
+		} finally {
+			setIsCreatingFee(false);
+		}
+	});
+
+	const handleCreatePenalty = penaltyForm.handleSubmit(async (values) => {
+		setPenaltySubmitError(null);
+		setIsCreatingPenalty(true);
+		try {
+			const payload = mapPenaltyUiToChargeRequest(values);
+			const response = await chargesApi.create(tenantId, payload);
+			const chargeId = response.resourceId;
+
+			if (!chargeId) {
+				throw new Error("Charge ID missing from response");
+			}
+
+			setPenalties((prev) => [
+				...prev,
+				{
+					id: chargeId,
+					name: values.name,
+					amount: values.amount,
+					currencyCode: values.currencyCode,
+					calculationMethod: values.calculationMethod,
+					penaltyBasis: values.penaltyBasis,
+					gracePeriodOverride: values.gracePeriodOverride,
+				},
+			]);
+
+			penaltyForm.reset({
+				calculationMethod: "percent",
+				penaltyBasis: "totalOverdue",
+				currencyCode: values.currencyCode,
+				amount: undefined,
+				name: "",
+				gracePeriodOverride: undefined,
+			});
+			setIsPenaltyDrawerOpen(false);
+		} catch (error) {
+			const mapped = mapFineractError(error);
+			setPenaltySubmitError(mapped.message);
+		} finally {
+			setIsCreatingPenalty(false);
+		}
+	});
+
+	const payloadPreview = buildLoanProductRequest(
+		watchedValues as CreateLoanProductFormData,
+	);
+
+	const chargeOptions = template?.chargeOptions || [];
+	const feeOptions = chargeOptions.filter(
+		(option) => option.penalty === false && option.active !== false,
+	);
+	const penaltyOptions = chargeOptions.filter(
+		(option) => option.penalty === true && option.active !== false,
+	);
+
+	const assetOptions =
+		template?.accountingMappingOptions?.assetAccountOptions || [];
+	const incomeOptions =
+		template?.accountingMappingOptions?.incomeAccountOptions || [];
+	const expenseOptions =
+		template?.accountingMappingOptions?.expenseAccountOptions || [];
+	const liabilityOptions =
+		template?.accountingMappingOptions?.liabilityAccountOptions || [];
+
+	return (
+		<div className="space-y-6">
+			<div className="flex items-center justify-between">
+				{steps.map((step, index) => (
+					<div key={step.id} className="flex items-center flex-1">
+						<div className="flex flex-col items-center">
+							<div
+								className={cn(
+									"flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors",
+									currentStep > step.id
+										? "bg-primary border-primary text-primary-foreground"
+										: currentStep === step.id
+											? "border-primary text-primary"
+											: "border-muted text-muted-foreground",
+								)}
+							>
+								{currentStep > step.id ? (
+									<Check className="h-5 w-5" />
+								) : (
+									<span>{step.id}</span>
+								)}
+							</div>
+							<span
+								className={cn(
+									"mt-2 text-xs font-medium text-center",
+									currentStep >= step.id
+										? "text-foreground"
+										: "text-muted-foreground",
+								)}
+							>
+								{step.name}
+							</span>
+						</div>
+						{index < steps.length - 1 && (
+							<div
+								className={cn(
+									"h-[2px] flex-1 mx-2",
+									currentStep > step.id ? "bg-primary" : "bg-muted",
+								)}
+							/>
+						)}
+					</div>
+				))}
+			</div>
+
+			{templateQuery.isLoading && (
+				<Card>
+					<CardContent className="py-6 text-sm text-muted-foreground">
+						Loading loan product template...
+					</CardContent>
+				</Card>
+			)}
+
+			{templateQuery.error && (
+				<Alert variant="destructive">
+					<AlertTitle>Unable to load template</AlertTitle>
+					<AlertDescription>Please refresh and try again.</AlertDescription>
+				</Alert>
+			)}
+
+			{!templateQuery.isLoading && !templateQuery.error && (
+				<form
+					onSubmit={handleSubmit(
+						currentStep === steps.length ? handleFinalSubmit : handleNext,
+					)}
+				>
+					{currentStep === 1 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Identity & Currency</CardTitle>
+								<CardDescription>
+									Set the core product identity and currency defaults.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="space-y-2">
+									<Label htmlFor="name">
+										Product Name <span className="text-destructive">*</span>
+									</Label>
+									<Input
+										id="name"
+										{...register("name")}
+										placeholder="e.g. Working Capital Loan"
+									/>
+									{errors.name && (
+										<p className="text-sm text-destructive">
+											{String(errors.name.message)}
+										</p>
+									)}
+								</div>
+
+								<div className="space-y-2">
+									<div className="flex items-center justify-between">
+										<Label htmlFor="shortName">
+											Short Name <span className="text-destructive">*</span>
+										</Label>
+										<span className="text-xs text-muted-foreground">
+											{shortNameValue?.length || 0}/4
+										</span>
+									</div>
+									<Input
+										id="shortName"
+										{...register("shortName")}
+										placeholder="e.g. SWCL"
+										maxLength={4}
+									/>
+									<p className="text-xs text-muted-foreground">
+										Short code appears in reports and account references. Max 4
+										characters (e.g. SWCL).
+									</p>
+									{errors.shortName && (
+										<p className="text-sm text-destructive">
+											{String(errors.shortName.message)}
+										</p>
+									)}
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="description">Description</Label>
+									<Input
+										id="description"
+										{...register("description")}
+										placeholder="Describe the product purpose"
+									/>
+								</div>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="currencyCode">
+											Currency <span className="text-destructive">*</span>
+										</Label>
+										<Select id="currencyCode" {...register("currencyCode")}>
+											<option value="">Select currency</option>
+											{currencyOptions.map((option) => (
+												<option key={option.code} value={option.code}>
+													{option.code} - {option.name}
+												</option>
+											))}
+										</Select>
+										{errors.currencyCode && (
+											<p className="text-sm text-destructive">
+												{String(errors.currencyCode.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label
+											htmlFor="digitsAfterDecimal"
+											className="flex items-center gap-2"
+										>
+											Decimal Places <span className="text-destructive">*</span>
+											<Tooltip>
+												<TooltipTrigger>
+													<Info className="h-4 w-4 text-muted-foreground" />
+												</TooltipTrigger>
+												<TooltipContent>
+													Default decimal places for the selected currency.
+												</TooltipContent>
+											</Tooltip>
+										</Label>
+										<Input
+											id="digitsAfterDecimal"
+											type="number"
+											min={0}
+											max={6}
+											{...register("digitsAfterDecimal", {
+												valueAsNumber: true,
+											})}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Controls decimal precision for currency amounts. Example:
+											2 for KES.
+										</p>
+										{errors.digitsAfterDecimal && (
+											<p className="text-sm text-destructive">
+												{String(errors.digitsAfterDecimal.message)}
+											</p>
+										)}
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 2 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Loan Amount Rules</CardTitle>
+								<CardDescription>
+									Define the minimum, typical, and maximum loan sizes.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<p className="text-xs text-muted-foreground">
+									Typical loan size is the default amount shown when creating a
+									loan; borrowers can still request any amount within min/max.
+								</p>
+								<div className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="minPrincipal">
+											Minimum Principal{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="minPrincipal"
+											type="number"
+											{...register("minPrincipal", { valueAsNumber: true })}
+											placeholder="1000"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Lowest amount allowed. Example: 1,000.
+										</p>
+										{errors.minPrincipal && (
+											<p className="text-sm text-destructive">
+												{String(errors.minPrincipal.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="principal">
+											Default Principal{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="principal"
+											type="number"
+											{...register("principal", { valueAsNumber: true })}
+											placeholder="10000"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Default amount shown. Example: 10,000.
+										</p>
+										{errors.principal && (
+											<p className="text-sm text-destructive">
+												{String(errors.principal.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="maxPrincipal">
+											Maximum Principal{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="maxPrincipal"
+											type="number"
+											{...register("maxPrincipal", { valueAsNumber: true })}
+											placeholder="100000"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Highest amount allowed. Example: 100,000.
+										</p>
+										{errors.maxPrincipal && (
+											<p className="text-sm text-destructive">
+												{String(errors.maxPrincipal.message)}
+											</p>
+										)}
+									</div>
+								</div>
+								<div className="space-y-2">
+									<Label
+										htmlFor="inMultiplesOf"
+										className="flex items-center gap-2"
+									>
+										In Multiples Of
+										<Tooltip>
+											<TooltipTrigger>
+												<Info className="h-4 w-4 text-muted-foreground" />
+											</TooltipTrigger>
+											<TooltipContent>
+												Restrict approved amounts to this multiple (e.g. 1,000).
+											</TooltipContent>
+										</Tooltip>
+									</Label>
+									<Input
+										id="inMultiplesOf"
+										type="number"
+										{...register("inMultiplesOf", { valueAsNumber: true })}
+										placeholder="1"
+									/>
+									<p className="text-xs text-muted-foreground">
+										Approved amounts must be in this multiple. Example: 500.
+									</p>
+									{errors.inMultiplesOf && (
+										<p className="text-sm text-destructive">
+											{String(errors.inMultiplesOf.message)}
+										</p>
+									)}
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 3 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Tenure & Repayment Schedule</CardTitle>
+								<CardDescription>
+									Define repayment counts and frequency.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<p className="text-xs text-muted-foreground">
+									6 repayments + monthly = a 6-month loan.
+								</p>
+								<div className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="minNumberOfRepayments">
+											Min Repayments <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="minNumberOfRepayments"
+											type="number"
+											{...register("minNumberOfRepayments", {
+												valueAsNumber: true,
+											})}
+											placeholder="6"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Minimum installments allowed. Example: 6 months if
+											monthly.
+										</p>
+										{errors.minNumberOfRepayments && (
+											<p className="text-sm text-destructive">
+												{String(errors.minNumberOfRepayments.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="numberOfRepayments">
+											Default Repayments{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="numberOfRepayments"
+											type="number"
+											{...register("numberOfRepayments", {
+												valueAsNumber: true,
+											})}
+											placeholder="12"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Default schedule length. Example: 12 monthly repayments.
+										</p>
+										{errors.numberOfRepayments && (
+											<p className="text-sm text-destructive">
+												{String(errors.numberOfRepayments.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="maxNumberOfRepayments">
+											Max Repayments <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="maxNumberOfRepayments"
+											type="number"
+											{...register("maxNumberOfRepayments", {
+												valueAsNumber: true,
+											})}
+											placeholder="24"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Maximum installments allowed. Example: 24 monthly
+											repayments.
+										</p>
+										{errors.maxNumberOfRepayments && (
+											<p className="text-sm text-destructive">
+												{String(errors.maxNumberOfRepayments.message)}
+											</p>
+										)}
+									</div>
+								</div>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="repaymentEvery">
+											Repayment Every{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="repaymentEvery"
+											type="number"
+											{...register("repaymentEvery", { valueAsNumber: true })}
+											placeholder="1"
+										/>
+										{errors.repaymentEvery && (
+											<p className="text-sm text-destructive">
+												{String(errors.repaymentEvery.message)}
+											</p>
+										)}
+										<p className="text-xs text-muted-foreground">
+											How often the borrower pays. Example: 1 with Months =
+											monthly.
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="repaymentFrequencyType">
+											Frequency <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="repaymentFrequencyType"
+											{...register("repaymentFrequencyType", {
+												valueAsNumber: true,
+											})}
+										>
+											<option value="">Select frequency</option>
+											{template?.repaymentFrequencyTypeOptions?.map(
+												(option) => (
+													<option key={option.id} value={option.id}>
+														{optionLabel(option)}
+													</option>
+												),
+											)}
+										</Select>
+										{errors.repaymentFrequencyType && (
+											<p className="text-sm text-destructive">
+												{String(errors.repaymentFrequencyType.message)}
+											</p>
+										)}
+									</div>
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="minimumDaysBetweenDisbursalAndFirstRepayment">
+										Minimum Days Before First Repayment
+									</Label>
+									<Input
+										id="minimumDaysBetweenDisbursalAndFirstRepayment"
+										type="number"
+										{...register(
+											"minimumDaysBetweenDisbursalAndFirstRepayment",
+											{ valueAsNumber: true },
+										)}
+										placeholder="0"
+									/>
+									<p className="text-xs text-muted-foreground">
+										Buffer before first due date. Example: 7 days after
+										disbursement.
+									</p>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 4 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Interest & Calculation Rules</CardTitle>
+								<CardDescription>
+									Control how interest is calculated and amortized.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="interestType">
+											Interest Type <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="interestType"
+											{...register("interestType", { valueAsNumber: true })}
+										>
+											<option value="">Select type</option>
+											{template?.interestTypeOptions?.map((option) => (
+												<option key={option.id} value={option.id}>
+													{optionLabel(option)}
+												</option>
+											))}
+										</Select>
+										{errors.interestType && (
+											<p className="text-sm text-destructive">
+												{String(errors.interestType.message)}
+											</p>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<Label htmlFor="amortizationType">
+											Amortization <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="amortizationType"
+											{...register("amortizationType", { valueAsNumber: true })}
+										>
+											<option value="">Select amortization</option>
+											{template?.amortizationTypeOptions?.map((option) => (
+												<option key={option.id} value={option.id}>
+													{optionLabel(option)}
+												</option>
+											))}
+										</Select>
+										{errors.amortizationType && (
+											<p className="text-sm text-destructive">
+												{String(errors.amortizationType.message)}
+											</p>
+										)}
+									</div>
+								</div>
+
+								<div className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="interestRatePerPeriod">
+											Interest Rate <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="interestRatePerPeriod"
+											type="number"
+											step="0.01"
+											{...register("interestRatePerPeriod", {
+												valueAsNumber: true,
+											})}
+											placeholder="15"
+										/>
+										{errors.interestRatePerPeriod && (
+											<p className="text-sm text-destructive">
+												{String(errors.interestRatePerPeriod.message)}
+											</p>
+										)}
+										<p className="text-xs text-muted-foreground">
+											Rate applied per selected frequency. Example: 15% per
+											year.
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="interestRateFrequencyType">
+											Rate Frequency <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="interestRateFrequencyType"
+											{...register("interestRateFrequencyType", {
+												valueAsNumber: true,
+											})}
+										>
+											<option value="">Select frequency</option>
+											{template?.interestRateFrequencyTypeOptions?.map(
+												(option) => (
+													<option key={option.id} value={option.id}>
+														{optionLabel(option)}
+													</option>
+												),
+											)}
+										</Select>
+										{errors.interestRateFrequencyType && (
+											<p className="text-sm text-destructive">
+												{String(errors.interestRateFrequencyType.message)}
+											</p>
+										)}
+										<p className="text-xs text-muted-foreground">
+											15% per year ~ 1.25% per month (approx).
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="interestCalculationPeriodType">
+											Calculation Period{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="interestCalculationPeriodType"
+											{...register("interestCalculationPeriodType", {
+												valueAsNumber: true,
+											})}
+										>
+											<option value="">Select period</option>
+											{template?.interestCalculationPeriodTypeOptions?.map(
+												(option) => (
+													<option key={option.id} value={option.id}>
+														{optionLabel(option)}
+													</option>
+												),
+											)}
+										</Select>
+										{errors.interestCalculationPeriodType && (
+											<p className="text-sm text-destructive">
+												{String(errors.interestCalculationPeriodType.message)}
+											</p>
+										)}
+										<p className="text-xs text-muted-foreground">
+											Controls whether interest is computed daily or per
+											installment.
+										</p>
+									</div>
+								</div>
+
+								<div className="flex items-center gap-2">
+									<Checkbox
+										id="allowPartialPeriodInterestCalculation"
+										{...register("allowPartialPeriodInterestCalculation")}
+									/>
+									<Label
+										htmlFor="allowPartialPeriodInterestCalculation"
+										className="cursor-pointer"
+									>
+										Allow partial period interest calculation
+									</Label>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 5 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Fees</CardTitle>
+								<CardDescription>
+									Fees charged before or at disbursement.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<p className="text-xs text-muted-foreground">
+									Fees can be deducted immediately when the loan is disbursed or
+									billed separately depending on configuration.
+								</p>
+
+								<div className="flex flex-wrap gap-2">
+									{fees.length === 0 && (
+										<span className="text-xs text-muted-foreground">
+											No fees selected yet.
+										</span>
+									)}
+									{fees.map((fee) => (
+										<Badge
+											key={fee.id}
+											variant="outline"
+											className="flex items-center gap-2"
+										>
+											<span>{formatFeeSummary(fee, currencyCode)}</span>
+											<button
+												type="button"
+												onClick={() =>
+													setFees((prev) =>
+														prev.filter((item) => item.id !== fee.id),
+													)
+												}
+											>
+												<X className="h-3 w-3" />
+											</button>
+										</Badge>
+									))}
+								</div>
+
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsFeeDrawerOpen(true)}
+									>
+										<Plus className="h-4 w-4 mr-2" />
+										Add Fee
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsFeeSelectOpen(true)}
+									>
+										Select Existing Fee
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 6 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Penalties</CardTitle>
+								<CardDescription>
+									Late payment penalties based on overdue balances.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<p className="text-xs text-muted-foreground">
+									Penalties are charged when installments become overdue and are
+									marked as penalties in Fineract.
+								</p>
+
+								<div className="flex flex-wrap gap-2">
+									{penalties.length === 0 && (
+										<span className="text-xs text-muted-foreground">
+											No penalties selected yet.
+										</span>
+									)}
+									{penalties.map((penalty) => (
+										<Badge
+											key={penalty.id}
+											variant="outline"
+											className="flex items-center gap-2"
+										>
+											<span>{formatPenaltySummary(penalty, currencyCode)}</span>
+											<button
+												type="button"
+												onClick={() =>
+													setPenalties((prev) =>
+														prev.filter((item) => item.id !== penalty.id),
+													)
+												}
+											>
+												<X className="h-3 w-3" />
+											</button>
+										</Badge>
+									))}
+								</div>
+
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsPenaltyDrawerOpen(true)}
+									>
+										<Plus className="h-4 w-4 mr-2" />
+										Add Penalty
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsPenaltySelectOpen(true)}
+									>
+										Select Existing Penalty
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					)}
+
+					{currentStep === 7 && (
+						<div className="space-y-4">
+							<Card>
+								<CardHeader>
+									<CardTitle>Delinquency & NPA</CardTitle>
+									<CardDescription>
+										Control delinquency behavior and NPA thresholds.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="graceOnArrearsAgeing">
+											Grace on Arrears Ageing (days)
+										</Label>
+										<Input
+											id="graceOnArrearsAgeing"
+											type="number"
+											{...register("graceOnArrearsAgeing", {
+												valueAsNumber: true,
+											})}
+											placeholder="0"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Days before arrears ageing starts. Example: 3 days.
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="inArrearsTolerance">
+											In Arrears Tolerance
+										</Label>
+										<Input
+											id="inArrearsTolerance"
+											type="number"
+											{...register("inArrearsTolerance", {
+												valueAsNumber: true,
+											})}
+											placeholder="0"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Tolerance amount before marking in arrears. Example: 100.
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="overdueDaysForNPA">
+											Overdue Days for NPA
+										</Label>
+										<Input
+											id="overdueDaysForNPA"
+											type="number"
+											{...register("overdueDaysForNPA", {
+												valueAsNumber: true,
+											})}
+											placeholder="90"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Days overdue to classify NPA. Example: 90 days.
+										</p>
+									</div>
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>Repayment Waterfall</CardTitle>
+									<CardDescription>
+										This decides how repayments are allocated.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-2">
+									<Label htmlFor="transactionProcessingStrategyCode">
+										Transaction Processing Strategy{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Select
+										id="transactionProcessingStrategyCode"
+										{...register("transactionProcessingStrategyCode")}
+									>
+										<option value="">Select strategy</option>
+										{template?.transactionProcessingStrategyOptions?.map(
+											(option) => (
+												<option key={option.code} value={option.code}>
+													{waterfallLabel(option)}
+												</option>
+											),
+										)}
+									</Select>
+									{errors.transactionProcessingStrategyCode && (
+										<p className="text-sm text-destructive">
+											{String(errors.transactionProcessingStrategyCode.message)}
+										</p>
+									)}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>Accounting</CardTitle>
+									<CardDescription>
+										Enable accounting rule and map GL accounts.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="space-y-2">
+										<Label htmlFor="accountingRule">
+											Accounting Rule{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Select
+											id="accountingRule"
+											{...register("accountingRule", { valueAsNumber: true })}
+										>
+											<option value="">Select rule</option>
+											{template?.accountingRuleOptions?.map((option) => (
+												<option key={option.id} value={option.id}>
+													{optionLabel(option)}
+												</option>
+											))}
+										</Select>
+										{errors.accountingRule && (
+											<p className="text-sm text-destructive">
+												{String(errors.accountingRule.message)}
+											</p>
+										)}
+									</div>
+
+									{accountingRule && accountingRule !== 1 && (
+										<div className="space-y-4">
+											<Separator />
+											<div className="grid gap-4 md:grid-cols-2">
+												<div className="space-y-2">
+													<Label htmlFor="fundSourceAccountId">
+														Fund Source Account{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="fundSourceAccountId"
+														{...register("fundSourceAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{assetOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.fundSourceAccountId && (
+														<p className="text-sm text-destructive">
+															{String(errors.fundSourceAccountId.message)}
+														</p>
+													)}
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="loanPortfolioAccountId">
+														Loan Portfolio Account{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="loanPortfolioAccountId"
+														{...register("loanPortfolioAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{assetOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.loanPortfolioAccountId && (
+														<p className="text-sm text-destructive">
+															{String(errors.loanPortfolioAccountId.message)}
+														</p>
+													)}
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="interestOnLoanAccountId">
+														Interest on Loan Account{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="interestOnLoanAccountId"
+														{...register("interestOnLoanAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{incomeOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.interestOnLoanAccountId && (
+														<p className="text-sm text-destructive">
+															{String(errors.interestOnLoanAccountId.message)}
+														</p>
+													)}
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="incomeFromFeeAccountId">
+														Income from Fees{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="incomeFromFeeAccountId"
+														{...register("incomeFromFeeAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{incomeOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.incomeFromFeeAccountId && (
+														<p className="text-sm text-destructive">
+															{String(errors.incomeFromFeeAccountId.message)}
+														</p>
+													)}
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="incomeFromPenaltyAccountId">
+														Income from Penalties{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="incomeFromPenaltyAccountId"
+														{...register("incomeFromPenaltyAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{incomeOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.incomeFromPenaltyAccountId && (
+														<p className="text-sm text-destructive">
+															{String(
+																errors.incomeFromPenaltyAccountId.message,
+															)}
+														</p>
+													)}
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor="writeOffAccountId">
+														Write-off Account{" "}
+														<span className="text-destructive">*</span>
+													</Label>
+													<Select
+														id="writeOffAccountId"
+														{...register("writeOffAccountId", {
+															valueAsNumber: true,
+														})}
+													>
+														<option value="">Select account</option>
+														{expenseOptions.map((option) => (
+															<option key={option.id} value={option.id}>
+																{option.name}
+															</option>
+														))}
+													</Select>
+													{errors.writeOffAccountId && (
+														<p className="text-sm text-destructive">
+															{String(errors.writeOffAccountId.message)}
+														</p>
+													)}
+												</div>
+											</div>
+
+											{(accountingRule === 3 || accountingRule === 4) && (
+												<div className="space-y-4">
+													<Separator />
+													<div className="grid gap-4 md:grid-cols-2">
+														<div className="space-y-2">
+															<Label htmlFor="receivableInterestAccountId">
+																Receivable Interest{" "}
+																<span className="text-destructive">*</span>
+															</Label>
+															<Select
+																id="receivableInterestAccountId"
+																{...register("receivableInterestAccountId", {
+																	valueAsNumber: true,
+																})}
+															>
+																<option value="">Select account</option>
+																{assetOptions.map((option) => (
+																	<option key={option.id} value={option.id}>
+																		{option.name}
+																	</option>
+																))}
+															</Select>
+															{errors.receivableInterestAccountId && (
+																<p className="text-sm text-destructive">
+																	{String(
+																		errors.receivableInterestAccountId.message,
+																	)}
+																</p>
+															)}
+														</div>
+														<div className="space-y-2">
+															<Label htmlFor="receivableFeeAccountId">
+																Receivable Fees{" "}
+																<span className="text-destructive">*</span>
+															</Label>
+															<Select
+																id="receivableFeeAccountId"
+																{...register("receivableFeeAccountId", {
+																	valueAsNumber: true,
+																})}
+															>
+																<option value="">Select account</option>
+																{assetOptions.map((option) => (
+																	<option key={option.id} value={option.id}>
+																		{option.name}
+																	</option>
+																))}
+															</Select>
+															{errors.receivableFeeAccountId && (
+																<p className="text-sm text-destructive">
+																	{String(
+																		errors.receivableFeeAccountId.message,
+																	)}
+																</p>
+															)}
+														</div>
+														<div className="space-y-2">
+															<Label htmlFor="receivablePenaltyAccountId">
+																Receivable Penalties{" "}
+																<span className="text-destructive">*</span>
+															</Label>
+															<Select
+																id="receivablePenaltyAccountId"
+																{...register("receivablePenaltyAccountId", {
+																	valueAsNumber: true,
+																})}
+															>
+																<option value="">Select account</option>
+																{assetOptions.map((option) => (
+																	<option key={option.id} value={option.id}>
+																		{option.name}
+																	</option>
+																))}
+															</Select>
+															{errors.receivablePenaltyAccountId && (
+																<p className="text-sm text-destructive">
+																	{String(
+																		errors.receivablePenaltyAccountId.message,
+																	)}
+																</p>
+															)}
+														</div>
+														<div className="space-y-2">
+															<Label htmlFor="overpaymentLiabilityAccountId">
+																Overpayment Liability{" "}
+																<span className="text-destructive">*</span>
+															</Label>
+															<Select
+																id="overpaymentLiabilityAccountId"
+																{...register("overpaymentLiabilityAccountId", {
+																	valueAsNumber: true,
+																})}
+															>
+																<option value="">Select account</option>
+																{liabilityOptions.map((option) => (
+																	<option key={option.id} value={option.id}>
+																		{option.name}
+																	</option>
+																))}
+															</Select>
+															{errors.overpaymentLiabilityAccountId && (
+																<p className="text-sm text-destructive">
+																	{String(
+																		errors.overpaymentLiabilityAccountId
+																			.message,
+																	)}
+																</p>
+															)}
+														</div>
+														<div className="space-y-2">
+															<Label htmlFor="transfersInSuspenseAccountId">
+																Transfers in Suspense{" "}
+																<span className="text-destructive">*</span>
+															</Label>
+															<Select
+																id="transfersInSuspenseAccountId"
+																{...register("transfersInSuspenseAccountId", {
+																	valueAsNumber: true,
+																})}
+															>
+																<option value="">Select account</option>
+																{liabilityOptions.map((option) => (
+																	<option key={option.id} value={option.id}>
+																		{option.name}
+																	</option>
+																))}
+															</Select>
+															{errors.transfersInSuspenseAccountId && (
+																<p className="text-sm text-destructive">
+																	{String(
+																		errors.transfersInSuspenseAccountId.message,
+																	)}
+																</p>
+															)}
+														</div>
+													</div>
+												</div>
+											)}
+										</div>
+									)}
+								</CardContent>
+							</Card>
+
+							<Card>
+								<CardHeader>
+									<CardTitle>Review</CardTitle>
+									<CardDescription>
+										Confirm the loan product details before submission.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="space-y-2 text-sm">
+										<p>
+											<strong>{watchedValues.name || "Loan Product"}</strong>
+										</p>
+										<p>
+											{currencyCode || "Currency"}{" "}
+											{watchedValues.minPrincipal || "-"} -{" "}
+											{watchedValues.maxPrincipal || "-"},{" "}
+											{watchedValues.minNumberOfRepayments || "-"} -{" "}
+											{watchedValues.maxNumberOfRepayments || "-"} repayments
+										</p>
+										<p>
+											{watchedValues.interestRatePerPeriod || "-"}%{" "}
+											{optionLabel(
+												template?.interestRateFrequencyTypeOptions?.find(
+													(option) =>
+														option.id ===
+														watchedValues.interestRateFrequencyType,
+												),
+											)}
+											, {watchedValues.repaymentEvery || "-"}{" "}
+											{optionLabel(
+												template?.repaymentFrequencyTypeOptions?.find(
+													(option) =>
+														option.id === watchedValues.repaymentFrequencyType,
+												),
+											)}
+										</p>
+										<p>
+											Fees:{" "}
+											{fees.length
+												? fees
+														.map((fee) => formatFeeSummary(fee, currencyCode))
+														.join("; ")
+												: "None"}
+										</p>
+										<p>
+											Late penalties:{" "}
+											{penalties.length
+												? penalties
+														.map((penalty) =>
+															formatPenaltySummary(penalty, currencyCode),
+														)
+														.join("; ")
+												: "None"}
+										</p>
+										<p>
+											Repayment order:{" "}
+											{waterfallLabel(
+												template?.transactionProcessingStrategyOptions?.find(
+													(option) =>
+														option.code ===
+														watchedValues.transactionProcessingStrategyCode,
+												),
+											)}
+										</p>
+									</div>
+
+									<div className="flex items-center justify-between">
+										<span className="text-sm font-medium">JSON Preview</span>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={handleCopyPayload}
+										>
+											<Copy className="h-4 w-4 mr-2" />
+											Copy
+										</Button>
+									</div>
+									{copyMessage && (
+										<p className="text-xs text-muted-foreground">
+											{copyMessage}
+										</p>
+									)}
+									<pre className="rounded-lg border border-border/80 bg-muted/30 p-3 text-xs text-foreground overflow-auto max-h-64">
+										{JSON.stringify(payloadPreview, null, 2)}
+									</pre>
+								</CardContent>
+							</Card>
+						</div>
+					)}
+
+					{submitError && (
+						<Alert variant="destructive" className="mt-4">
+							<AlertTitle>Unable to submit</AlertTitle>
+							<AlertDescription>{submitError}</AlertDescription>
+						</Alert>
+					)}
+
+					{draftMessage && (
+						<Alert variant="success" className="mt-4">
+							<AlertTitle>Draft status</AlertTitle>
+							<AlertDescription>{draftMessage}</AlertDescription>
+						</Alert>
+					)}
+
+					<div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={currentStep === 1 ? onCancel : handleBack}
+						>
+							<ChevronLeft className="h-4 w-4 mr-2" />
+							{currentStep === 1 ? "Cancel" : "Back"}
+						</Button>
+
+						<div className="flex items-center gap-2">
+							<Button type="button" variant="outline" onClick={handleSaveDraft}>
+								Save Draft
+							</Button>
+							<Button type="submit" disabled={isSubmitting}>
+								{currentStep === steps.length ? (
+									isSubmitting ? (
+										"Submitting..."
+									) : (
+										"Submit Loan Product"
+									)
+								) : (
+									<>
+										Next
+										<ChevronRight className="h-4 w-4 ml-2" />
+									</>
+								)}
+							</Button>
+						</div>
+					</div>
+				</form>
+			)}
+
+			<Drawer
+				open={isFeeDrawerOpen}
+				onOpenChange={setIsFeeDrawerOpen}
+				className="md:max-w-xl"
+			>
+				<DrawerHeader>
+					<div className="flex items-center justify-between flex-1">
+						<div>
+							<DrawerTitle>Add Fee</DrawerTitle>
+							<DrawerDescription className="mt-1">
+								Create a new fee charge.
+							</DrawerDescription>
+						</div>
+						<DrawerClose onClick={() => setIsFeeDrawerOpen(false)} />
+					</div>
+				</DrawerHeader>
+				<DrawerContent>
+					<form onSubmit={handleCreateFee} className="space-y-4">
+						{feeSubmitError && (
+							<Alert variant="destructive">
+								<AlertTitle>Fee creation failed</AlertTitle>
+								<AlertDescription>{feeSubmitError}</AlertDescription>
+							</Alert>
+						)}
+						<div className="space-y-2">
+							<Label htmlFor="fee-name">Fee Name</Label>
+							<Input
+								id="fee-name"
+								{...feeForm.register("name")}
+								placeholder="Processing Fee"
+							/>
+							{feeForm.formState.errors.name && (
+								<p className="text-sm text-destructive">
+									{String(feeForm.formState.errors.name.message)}
+								</p>
+							)}
+						</div>
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="fee-calculation">Fee Type</Label>
+								<Select
+									id="fee-calculation"
+									{...feeForm.register("calculationMethod")}
+								>
+									<option value="flat">Flat amount</option>
+									<option value="percent">Percentage</option>
+								</Select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="fee-amount">Amount</Label>
+								<Input
+									id="fee-amount"
+									type="number"
+									{...feeForm.register("amount", { valueAsNumber: true })}
+								/>
+								<p className="text-xs text-muted-foreground">
+									Fee value for the charge. Example: 500.
+								</p>
+								{feeForm.formState.errors.amount && (
+									<p className="text-sm text-destructive">
+										{String(feeForm.formState.errors.amount.message)}
+									</p>
+								)}
+							</div>
+						</div>
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="fee-charge-time">When Charged</Label>
+								<Select
+									id="fee-charge-time"
+									{...feeForm.register("chargeTimeType")}
+								>
+									<option value="disbursement">At disbursement</option>
+									<option value="specifiedDueDate">
+										On specified due date
+									</option>
+									<option value="approval">On approval</option>
+								</Select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="fee-payment-mode">Payment Mode</Label>
+								<Select
+									id="fee-payment-mode"
+									{...feeForm.register("paymentMode")}
+								>
+									<option value="deduct">Deduct from disbursement</option>
+									<option value="payable">Payable separately</option>
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									Deducted fees reduce the disbursed amount; payable fees are
+									billed separately.
+								</p>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="fee-currency">Currency</Label>
+							<Input id="fee-currency" {...feeForm.register("currencyCode")} />
+							{feeForm.formState.errors.currencyCode && (
+								<p className="text-sm text-destructive">
+									{String(feeForm.formState.errors.currencyCode.message)}
+								</p>
+							)}
+						</div>
+						<div className="flex items-center justify-between">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setIsFeeDrawerOpen(false)}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={isCreatingFee}>
+								{isCreatingFee ? "Saving..." : "Save Fee"}
+							</Button>
+						</div>
+					</form>
+				</DrawerContent>
+			</Drawer>
+
+			<Drawer
+				open={isFeeSelectOpen}
+				onOpenChange={setIsFeeSelectOpen}
+				className="md:max-w-xl"
+			>
+				<DrawerHeader>
+					<div className="flex items-center justify-between flex-1">
+						<div>
+							<DrawerTitle>Select Existing Fees</DrawerTitle>
+							<DrawerDescription className="mt-1">
+								Choose from configured fee charges.
+							</DrawerDescription>
+						</div>
+						<DrawerClose onClick={() => setIsFeeSelectOpen(false)} />
+					</div>
+				</DrawerHeader>
+				<DrawerContent className="space-y-3">
+					{feeOptions.length === 0 && (
+						<p className="text-sm text-muted-foreground">
+							No fee charges available.
+						</p>
+					)}
+					{feeOptions.map((option) => (
+						<div
+							key={option.id}
+							className="flex items-center justify-between rounded-lg border border-border/80 p-3"
+						>
+							<div>
+								<div className="text-sm font-medium">{option.name}</div>
+								<div className="text-xs text-muted-foreground">
+									{option.currency?.code} {option.amount}
+								</div>
+							</div>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() => handleAddExistingFee(option)}
+							>
+								Add
+							</Button>
+						</div>
+					))}
+				</DrawerContent>
+			</Drawer>
+
+			<Drawer
+				open={isPenaltyDrawerOpen}
+				onOpenChange={setIsPenaltyDrawerOpen}
+				className="md:max-w-xl"
+			>
+				<DrawerHeader>
+					<div className="flex items-center justify-between flex-1">
+						<div>
+							<DrawerTitle>Add Penalty</DrawerTitle>
+							<DrawerDescription className="mt-1">
+								Create a new penalty charge.
+							</DrawerDescription>
+						</div>
+						<DrawerClose onClick={() => setIsPenaltyDrawerOpen(false)} />
+					</div>
+				</DrawerHeader>
+				<DrawerContent>
+					<form onSubmit={handleCreatePenalty} className="space-y-4">
+						{penaltySubmitError && (
+							<Alert variant="destructive">
+								<AlertTitle>Penalty creation failed</AlertTitle>
+								<AlertDescription>{penaltySubmitError}</AlertDescription>
+							</Alert>
+						)}
+						<p className="text-xs text-muted-foreground">
+							Applied when an installment becomes overdue.
+						</p>
+						<div className="space-y-2">
+							<Label htmlFor="penalty-name">Penalty Name</Label>
+							<Input
+								id="penalty-name"
+								{...penaltyForm.register("name")}
+								placeholder="Late Payment Penalty"
+							/>
+							{penaltyForm.formState.errors.name && (
+								<p className="text-sm text-destructive">
+									{String(penaltyForm.formState.errors.name.message)}
+								</p>
+							)}
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="penalty-basis">Penalty Basis</Label>
+							<Select
+								id="penalty-basis"
+								{...penaltyForm.register("penaltyBasis")}
+							>
+								<option value="totalOverdue">Entire overdue amount</option>
+								<option value="overduePrincipal">Overdue principal only</option>
+								<option value="overdueInterest">Overdue interest only</option>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Example: 2% on overdue principal means if KES 10,000 is overdue,
+								penalty = KES 200.
+							</p>
+						</div>
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="penalty-method">Calculation Method</Label>
+								<Select
+									id="penalty-method"
+									{...penaltyForm.register("calculationMethod")}
+								>
+									<option value="flat">Flat amount</option>
+									<option value="percent">Percentage</option>
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									Flat fee means the same penalty regardless of overdue amount.
+								</p>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="penalty-amount">Amount</Label>
+								<Input
+									id="penalty-amount"
+									type="number"
+									{...penaltyForm.register("amount", { valueAsNumber: true })}
+								/>
+								<p className="text-xs text-muted-foreground">
+									Penalty value. Example: 2 for 2% or 500 for flat.
+								</p>
+								{penaltyForm.formState.errors.amount && (
+									<p className="text-sm text-destructive">
+										{String(penaltyForm.formState.errors.amount.message)}
+									</p>
+								)}
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="penalty-grace">
+								Grace Period Override (days)
+							</Label>
+							<Input
+								id="penalty-grace"
+								type="number"
+								{...penaltyForm.register("gracePeriodOverride", {
+									valueAsNumber: true,
+								})}
+								placeholder="3"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Optional. Overrides the delinquency grace period for this
+								penalty. Example: 3 days.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="penalty-currency">Currency</Label>
+							<Input
+								id="penalty-currency"
+								{...penaltyForm.register("currencyCode")}
+							/>
+							{penaltyForm.formState.errors.currencyCode && (
+								<p className="text-sm text-destructive">
+									{String(penaltyForm.formState.errors.currencyCode.message)}
+								</p>
+							)}
+						</div>
+						<div className="flex items-center justify-between">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setIsPenaltyDrawerOpen(false)}
+							>
+								Cancel
+							</Button>
+							<Button type="submit" disabled={isCreatingPenalty}>
+								{isCreatingPenalty ? "Saving..." : "Save Penalty"}
+							</Button>
+						</div>
+					</form>
+				</DrawerContent>
+			</Drawer>
+
+			<Drawer
+				open={isPenaltySelectOpen}
+				onOpenChange={setIsPenaltySelectOpen}
+				className="md:max-w-xl"
+			>
+				<DrawerHeader>
+					<div className="flex items-center justify-between flex-1">
+						<div>
+							<DrawerTitle>Select Existing Penalties</DrawerTitle>
+							<DrawerDescription className="mt-1">
+								Choose from configured penalty charges.
+							</DrawerDescription>
+						</div>
+						<DrawerClose onClick={() => setIsPenaltySelectOpen(false)} />
+					</div>
+				</DrawerHeader>
+				<DrawerContent className="space-y-3">
+					{penaltyOptions.length === 0 && (
+						<p className="text-sm text-muted-foreground">
+							No penalty charges available.
+						</p>
+					)}
+					{penaltyOptions.map((option) => (
+						<div
+							key={option.id}
+							className="flex items-center justify-between rounded-lg border border-border/80 p-3"
+						>
+							<div>
+								<div className="text-sm font-medium">{option.name}</div>
+								<div className="text-xs text-muted-foreground">
+									{option.currency?.code} {option.amount}
+								</div>
+							</div>
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() => handleAddExistingPenalty(option)}
+							>
+								Add
+							</Button>
+						</div>
+					))}
+				</DrawerContent>
+			</Drawer>
+		</div>
+	);
 }

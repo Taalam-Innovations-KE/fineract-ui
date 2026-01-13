@@ -1,0 +1,194 @@
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type {
+	ChargeRequest,
+	GetLoanProductsTemplateResponse,
+	PostLoanProductsRequest,
+} from "@/lib/fineract/generated/types.gen";
+import type {
+	CreateLoanProductFormData,
+	FeeFormData,
+	PenaltyFormData,
+} from "@/lib/schemas/loan-product";
+
+const LOAN_CHARGE_APPLIES_TO = 1;
+const CHARGE_CALCULATION = {
+	flat: 1,
+	percent: 2,
+	percentOfInterest: 3,
+	percentOfPrincipal: 4,
+} as const;
+
+const CHARGE_TIME_TYPE = {
+	disbursement: 1,
+	specifiedDueDate: 2,
+	approval: 5, // Adjust if your instance maps approval charges to a different ID.
+	overdue: 4,
+} as const;
+
+const CHARGE_PAYMENT_MODE = {
+	payable: 0,
+	deduct: 1,
+} as const;
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+	const payload = await response.json();
+
+	if (!response.ok) {
+		throw payload;
+	}
+
+	return payload as T;
+}
+
+export const loanProductsApi = {
+	async getTemplate(
+		tenantId: string,
+	): Promise<GetLoanProductsTemplateResponse> {
+		const response = await fetch(BFF_ROUTES.loanProductTemplate, {
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		});
+
+		return parseJsonResponse(response);
+	},
+	async create(tenantId: string, payload: PostLoanProductsRequest) {
+		const response = await fetch(BFF_ROUTES.loanProducts, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		return parseJsonResponse(response);
+	},
+	async list(tenantId: string) {
+		const response = await fetch(BFF_ROUTES.loanProducts, {
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		});
+
+		return parseJsonResponse(response);
+	},
+};
+
+export const chargesApi = {
+	async list(tenantId: string) {
+		const response = await fetch(BFF_ROUTES.charges, {
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		});
+
+		return parseJsonResponse(response);
+	},
+	async create(tenantId: string, payload: ChargeRequest) {
+		const response = await fetch(BFF_ROUTES.charges, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		return parseJsonResponse(response);
+	},
+};
+
+export function mapFeeUiToChargeRequest(fee: FeeFormData): ChargeRequest {
+	return {
+		name: fee.name,
+		amount: fee.amount,
+		currencyCode: fee.currencyCode,
+		chargeAppliesTo: LOAN_CHARGE_APPLIES_TO,
+		chargeCalculationType:
+			fee.calculationMethod === "flat"
+				? CHARGE_CALCULATION.flat
+				: CHARGE_CALCULATION.percent,
+		chargeTimeType: CHARGE_TIME_TYPE[fee.chargeTimeType],
+		chargePaymentMode: CHARGE_PAYMENT_MODE[fee.paymentMode],
+		penalty: false,
+		locale: "en",
+	};
+}
+
+export function mapPenaltyUiToChargeRequest(
+	penalty: PenaltyFormData,
+): ChargeRequest {
+	const calculationType =
+		penalty.calculationMethod === "flat"
+			? CHARGE_CALCULATION.flat
+			: penalty.penaltyBasis === "overduePrincipal"
+				? CHARGE_CALCULATION.percentOfPrincipal
+				: penalty.penaltyBasis === "overdueInterest"
+					? CHARGE_CALCULATION.percentOfInterest
+					: CHARGE_CALCULATION.percent;
+
+	return {
+		name: penalty.name,
+		amount: penalty.amount,
+		currencyCode: penalty.currencyCode,
+		chargeAppliesTo: LOAN_CHARGE_APPLIES_TO,
+		chargeCalculationType: calculationType,
+		chargeTimeType: CHARGE_TIME_TYPE.overdue,
+		penalty: true,
+		locale: "en",
+	};
+}
+
+export function buildLoanProductRequest(
+	data: CreateLoanProductFormData,
+): PostLoanProductsRequest {
+	const chargeIds = [...data.fees, ...data.penalties]
+		.map((charge) => charge.id)
+		.filter((id, index, all) => all.indexOf(id) === index);
+
+	return {
+		locale: "en",
+		name: data.name,
+		shortName: data.shortName,
+		description: data.description,
+		currencyCode: data.currencyCode,
+		digitsAfterDecimal: data.digitsAfterDecimal,
+		principal: data.principal,
+		minPrincipal: data.minPrincipal,
+		maxPrincipal: data.maxPrincipal,
+		inMultiplesOf: data.inMultiplesOf ?? 1,
+		numberOfRepayments: data.numberOfRepayments,
+		minNumberOfRepayments: data.minNumberOfRepayments,
+		maxNumberOfRepayments: data.maxNumberOfRepayments,
+		repaymentEvery: data.repaymentEvery,
+		repaymentFrequencyType: data.repaymentFrequencyType,
+		minimumDaysBetweenDisbursalAndFirstRepayment:
+			data.minimumDaysBetweenDisbursalAndFirstRepayment,
+		interestType: data.interestType,
+		amortizationType: data.amortizationType,
+		interestRatePerPeriod: data.interestRatePerPeriod,
+		interestRateFrequencyType: data.interestRateFrequencyType,
+		interestCalculationPeriodType: data.interestCalculationPeriodType,
+		allowPartialPeriodInterestCalculation:
+			data.allowPartialPeriodInterestCalculation,
+		transactionProcessingStrategyCode: data.transactionProcessingStrategyCode,
+		graceOnArrearsAgeing: data.graceOnArrearsAgeing,
+		inArrearsTolerance: data.inArrearsTolerance,
+		overdueDaysForNPA: data.overdueDaysForNPA,
+		accountingRule: data.accountingRule,
+		fundSourceAccountId: data.fundSourceAccountId,
+		loanPortfolioAccountId: data.loanPortfolioAccountId,
+		interestOnLoanAccountId: data.interestOnLoanAccountId,
+		incomeFromFeeAccountId: data.incomeFromFeeAccountId,
+		incomeFromPenaltyAccountId: data.incomeFromPenaltyAccountId,
+		writeOffAccountId: data.writeOffAccountId,
+		receivableInterestAccountId: data.receivableInterestAccountId,
+		receivableFeeAccountId: data.receivableFeeAccountId,
+		receivablePenaltyAccountId: data.receivablePenaltyAccountId,
+		incomeFromRecoveryAccountId: data.incomeFromRecoveryAccountId,
+		overpaymentLiabilityAccountId: data.overpaymentLiabilityAccountId,
+		transfersInSuspenseAccountId: data.transfersInSuspenseAccountId,
+		charges: chargeIds.map((id) => ({ id })),
+	};
+}

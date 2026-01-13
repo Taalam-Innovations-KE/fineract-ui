@@ -5,7 +5,7 @@ export default function ThemeTest() {
 				{/* Header */}
 				<div className="space-y-2">
 					<h1 className="text-4xl font-bold text-foreground">
-						Fineract Banking UI Theme
+						Taalam FinCore UI Theme
 					</h1>
 					<p className="text-lg text-muted-foreground">
 						Professional color scheme for financial applications
@@ -135,27 +135,27 @@ export default function ThemeTest() {
 					<h2 className="text-2xl font-semibold text-foreground">Buttons</h2>
 
 					<div className="flex flex-wrap gap-4">
-						<button className="rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+						<button className="rounded-sm bg-primary px-6 py-3 font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
 							Primary Button
 						</button>
 
-						<button className="rounded-lg bg-secondary px-6 py-3 font-semibold text-secondary-foreground transition-colors hover:bg-secondary/80">
+						<button className="rounded-sm bg-secondary px-6 py-3 font-semibold text-secondary-foreground transition-colors hover:bg-secondary/80">
 							Secondary Button
 						</button>
 
-						<button className="rounded-lg border border-border bg-background px-6 py-3 font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+						<button className="rounded-sm border border-border bg-background px-6 py-3 font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
 							Outline Button
 						</button>
 
-						<button className="rounded-lg bg-destructive px-6 py-3 font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90">
+						<button className="rounded-sm bg-destructive px-6 py-3 font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90">
 							Destructive Button
 						</button>
 
-						<button className="rounded-lg bg-success px-6 py-3 font-semibold text-success-foreground transition-colors hover:bg-success/90">
+						<button className="rounded-sm bg-success px-6 py-3 font-semibold text-success-foreground transition-colors hover:bg-success/90">
 							Success Button
 						</button>
 
-						<button className="rounded-lg bg-warning px-6 py-3 font-semibold text-warning-foreground transition-colors hover:bg-warning/90">
+						<button className="rounded-sm bg-warning px-6 py-3 font-semibold text-warning-foreground transition-colors hover:bg-warning/90">
 							Warning Button
 						</button>
 					</div>

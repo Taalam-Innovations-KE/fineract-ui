@@ -166,16 +166,14 @@ export default async function SignInPage({
 
 			{/* Right Side - Illustration */}
 			<div className="relative hidden bg-primary lg:block lg:w-1/2">
-				<div className="flex h-full items-center justify-center p-12">
-					<Image
-						src="/login-illustration.svg"
-						alt="Taalam FinCore - Financial Management"
-						width={800}
-						height={600}
-						className="h-auto w-full max-w-2xl"
-						priority
-					/>
-				</div>
+				<Image
+					src="/login-illustration.svg"
+					alt="Taalam FinCore - Financial Management"
+					fill
+					className="object-cover"
+					sizes="(min-width: 1024px) 50vw, 100vw"
+					priority
+				/>
 			</div>
 		</div>
 	);

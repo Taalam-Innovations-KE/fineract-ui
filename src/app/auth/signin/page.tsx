@@ -201,17 +201,8 @@ export default async function SignInPage({
 						</Button>
 					</form>
 
-					{/* Register Link */}
-					<div className="text-center text-sm">
-						<span className="text-muted-foreground">
-							Don't have an account?{" "}
-						</span>
-						<Link
-							href="/auth/register"
-							className="font-medium text-primary hover:underline"
-						>
-							Register here
-						</Link>
+					<div className="text-center text-sm text-muted-foreground">
+						Authorized access only.
 					</div>
 				</div>
 			</div>

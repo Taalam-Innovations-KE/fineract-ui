@@ -808,7 +808,7 @@ export default function CodesPage() {
 	return (
 		<PageShell
 			title="System Configuration"
-			subtitle="Manage Fineract codes, values, and metadata in one place"
+			subtitle="Manage Taalam FinCore codes, values, and metadata in one place"
 		>
 			<Card>
 				<CardHeader>
@@ -873,7 +873,7 @@ export default function CodesPage() {
 					/>
 				</DrawerHeader>
 				<DrawerContent className="flex flex-col gap-4">
-					<div className="rounded-lg border border-border/60 p-4 space-y-3">
+					<div className="rounded-sm border border-border/60 p-4 space-y-3">
 						<div className="text-sm font-semibold text-muted-foreground">
 							Add Value
 						</div>
@@ -956,7 +956,7 @@ export default function CodesPage() {
 								return (
 									<div
 										key={value.id || value.name}
-										className="rounded-lg border border-border/60 p-3 space-y-2 cursor-pointer"
+										className="rounded-sm border border-border/60 p-3 space-y-2 cursor-pointer"
 										onClick={() => setSelectedCodeValue(value)}
 									>
 										<div className="flex items-start justify-between gap-3">
@@ -1084,7 +1084,7 @@ export default function CodesPage() {
 							})}
 
 							{filteredValues.length === 0 && (
-								<div className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
 									No code values available.
 								</div>
 							)}
@@ -1142,7 +1142,7 @@ export default function CodesPage() {
 									onChange={(event) => setDatatableName(event.target.value)}
 								/>
 							</div>
-							<div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
+							<div className="rounded-sm border border-border/60 p-3 text-xs text-muted-foreground">
 								Default columns: Kenya_Local_Name (String), Risk_Weighting
 								(Decimal)
 							</div>
@@ -1173,7 +1173,7 @@ export default function CodesPage() {
 								<Label htmlFor="datatable-select">Datatable</Label>
 								<select
 									id="datatable-select"
-									className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+									className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
 									value={datatableName}
 									onChange={(event) => setDatatableName(event.target.value)}
 								>
@@ -1299,7 +1299,7 @@ export default function CodesPage() {
 										})}
 								</div>
 							) : (
-								<div className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
 									No editable metadata fields found.
 								</div>
 							)}

@@ -21,7 +21,7 @@ export default function ThemeTest() {
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 						{/* Primary */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-primary flex items-center justify-center">
+							<div className="h-24 rounded-sm bg-primary flex items-center justify-center">
 								<span className="text-primary-foreground font-semibold">
 									Primary
 								</span>
@@ -33,7 +33,7 @@ export default function ThemeTest() {
 
 						{/* Success */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-success flex items-center justify-center">
+							<div className="h-24 rounded-sm bg-success flex items-center justify-center">
 								<span className="text-success-foreground font-semibold">
 									Success
 								</span>
@@ -45,7 +45,7 @@ export default function ThemeTest() {
 
 						{/* Warning */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-warning flex items-center justify-center">
+							<div className="h-24 rounded-sm bg-warning flex items-center justify-center">
 								<span className="text-warning-foreground font-semibold">
 									Warning
 								</span>
@@ -57,7 +57,7 @@ export default function ThemeTest() {
 
 						{/* Destructive */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-destructive flex items-center justify-center">
+							<div className="h-24 rounded-sm bg-destructive flex items-center justify-center">
 								<span className="text-destructive-foreground font-semibold">
 									Destructive
 								</span>
@@ -69,7 +69,7 @@ export default function ThemeTest() {
 
 						{/* Accent */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-accent flex items-center justify-center">
+							<div className="h-24 rounded-sm bg-accent flex items-center justify-center">
 								<span className="text-accent-foreground font-semibold">
 									Accent
 								</span>
@@ -81,7 +81,7 @@ export default function ThemeTest() {
 
 						{/* Muted */}
 						<div className="space-y-3">
-							<div className="h-24 rounded-lg bg-muted flex items-center justify-center border border-border">
+							<div className="h-24 rounded-sm bg-muted flex items-center justify-center border border-border">
 								<span className="text-muted-foreground font-semibold">
 									Muted
 								</span>
@@ -100,7 +100,7 @@ export default function ThemeTest() {
 					</h2>
 
 					<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-						<div className="rounded-lg border border-border bg-card p-6 space-y-2">
+						<div className="rounded-sm border border-border bg-card p-6 space-y-2">
 							<h3 className="font-semibold text-card-foreground">
 								Account Balance
 							</h3>
@@ -108,7 +108,7 @@ export default function ThemeTest() {
 							<p className="text-sm text-muted-foreground">Available balance</p>
 						</div>
 
-						<div className="rounded-lg border border-border bg-card p-6 space-y-2">
+						<div className="rounded-sm border border-border bg-card p-6 space-y-2">
 							<h3 className="font-semibold text-card-foreground">
 								Monthly Income
 							</h3>
@@ -118,7 +118,7 @@ export default function ThemeTest() {
 							<p className="text-sm text-muted-foreground">This month</p>
 						</div>
 
-						<div className="rounded-lg border border-border bg-card p-6 space-y-2">
+						<div className="rounded-sm border border-border bg-card p-6 space-y-2">
 							<h3 className="font-semibold text-card-foreground">
 								Outstanding Loan
 							</h3>
@@ -236,7 +236,7 @@ export default function ThemeTest() {
 						Financial Data Display
 					</h2>
 
-					<div className="rounded-lg border border-border bg-card">
+					<div className="rounded-sm border border-border bg-card">
 						<table className="w-full">
 							<thead>
 								<tr className="border-b border-border">
@@ -309,7 +309,7 @@ export default function ThemeTest() {
 				</section>
 
 				{/* Dark Mode Toggle Note */}
-				<section className="rounded-lg border border-border bg-muted p-6">
+				<section className="rounded-sm border border-border bg-muted p-6">
 					<h3 className="font-semibold text-foreground mb-2">Dark Mode</h3>
 					<p className="text-sm text-muted-foreground">
 						To toggle dark mode, add or remove the{" "}

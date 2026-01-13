@@ -23,9 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Fineract Admin UI",
+	title: "Taalam FinCore",
 	description:
-		"Modern banking administration interface built with Apache Fineract, Next.js 15, and shadcn/ui",
+		"Modern financial core platform for banking and financial services management",
 };
 
 export default async function RootLayout({

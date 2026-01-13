@@ -15,9 +15,9 @@ export default async function SignInPage({
 	const callbackUrl = resolvedSearchParams?.callbackUrl || "/config";
 
 	return (
-		<div className="flex min-h-screen">
+		<div className="flex h-screen overflow-hidden">
 			{/* Left Side - Sign In Form */}
-			<div className="flex w-full flex-col justify-center px-8 lg:w-1/2 lg:px-16">
+			<div className="flex h-full w-full flex-col justify-center overflow-y-auto px-8 lg:w-1/2 lg:px-16">
 				<div className="mx-auto w-full max-w-md space-y-8">
 					{/* Logo/Brand */}
 					<div className="space-y-2">
@@ -165,7 +165,7 @@ export default async function SignInPage({
 			</div>
 
 			{/* Right Side - Illustration */}
-			<div className="relative hidden bg-primary lg:block lg:w-1/2">
+			<div className="relative hidden h-full bg-primary lg:block lg:w-1/2">
 				<Image
 					src="/login-illustration.svg"
 					alt="Taalam FinCore - Financial Management"

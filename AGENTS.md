@@ -36,6 +36,6 @@ Use pnpm (see `package.json`).
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`, optional scope like `feat(ui):`).
-- Commit after each task; keep commits focused and avoid batching unrelated changes.
+- Commit after each task; always commit after every task and keep commits focused without batching unrelated changes.
 - PRs should include a short summary, linked issue (if any), and screenshots/GIFs for UI changes.
 - If you modify the OpenAPI spec, regenerate the client and include generated changes in the same PR.

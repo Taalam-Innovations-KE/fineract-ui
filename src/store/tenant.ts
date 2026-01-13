@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 interface TenantState {
-  tenantId: string;
-  setTenantId: (tenantId: string) => void;
+	tenantId: string;
+	setTenantId: (tenantId: string) => void;
 }
 
 /**
@@ -13,14 +13,14 @@ interface TenantState {
  * Persisted to localStorage for session persistence
  */
 export const useTenantStore = create<TenantState>()(
-  persist(
-    (set) => ({
-      tenantId: 'default',
-      setTenantId: (tenantId: string) => set({ tenantId }),
-    }),
-    {
-      name: 'fineract-tenant-storage',
-      storage: createJSONStorage(() => localStorage),
-    }
-  )
+	persist(
+		(set) => ({
+			tenantId: "default",
+			setTenantId: (tenantId: string) => set({ tenantId }),
+		}),
+		{
+			name: "fineract-tenant-storage",
+			storage: createJSONStorage(() => localStorage),
+		},
+	),
 );

@@ -1,32 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { fineractFetch, getTenantFromRequest } from '@/lib/fineract/client.server';
-import { FINERACT_ENDPOINTS } from '@/lib/fineract/endpoints';
-import { mapFineractError } from '@/lib/fineract/error-mapping';
-import type { OfficeData, PostOfficesRequest } from '@/lib/fineract/generated/types.gen';
+import { NextRequest, NextResponse } from "next/server";
+import {
+	fineractFetch,
+	getTenantFromRequest,
+} from "@/lib/fineract/client.server";
+import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
+import { mapFineractError } from "@/lib/fineract/error-mapping";
+import type {
+	OfficeData,
+	PostOfficesRequest,
+} from "@/lib/fineract/generated/types.gen";
 
 /**
  * GET /api/fineract/offices
  * Fetches all offices
  */
 export async function GET(request: NextRequest) {
-  try {
-    const tenantId = getTenantFromRequest(request);
+	try {
+		const tenantId = getTenantFromRequest(request);
 
-    const offices = await fineractFetch<OfficeData[]>(
-      FINERACT_ENDPOINTS.offices,
-      {
-        method: 'GET',
-        tenantId,
-      }
-    );
+		const offices = await fineractFetch<OfficeData[]>(
+			FINERACT_ENDPOINTS.offices,
+			{
+				method: "GET",
+				tenantId,
+			},
+		);
 
-    return NextResponse.json(offices);
-  } catch (error) {
-    const mappedError = mapFineractError(error);
-    return NextResponse.json(mappedError, {
-      status: mappedError.statusCode || 500,
-    });
-  }
+		return NextResponse.json(offices);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
 }
 
 /**
@@ -34,24 +40,21 @@ export async function GET(request: NextRequest) {
  * Creates a new office
  */
 export async function POST(request: NextRequest) {
-  try {
-    const tenantId = getTenantFromRequest(request);
-    const body = await request.json() as PostOfficesRequest;
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const body = (await request.json()) as PostOfficesRequest;
 
-    const result = await fineractFetch(
-      FINERACT_ENDPOINTS.offices,
-      {
-        method: 'POST',
-        body,
-        tenantId,
-      }
-    );
+		const result = await fineractFetch(FINERACT_ENDPOINTS.offices, {
+			method: "POST",
+			body,
+			tenantId,
+		});
 
-    return NextResponse.json(result);
-  } catch (error) {
-    const mappedError = mapFineractError(error);
-    return NextResponse.json(mappedError, {
-      status: mappedError.statusCode || 500,
-    });
-  }
+		return NextResponse.json(result);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
 }

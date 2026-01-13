@@ -11,11 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-export default function SignInPage({
+export default async function SignInPage({
 	searchParams,
 }: {
-	searchParams: { callbackUrl?: string; error?: string };
+	searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
+	const resolvedSearchParams = await searchParams;
+	const callbackUrl = resolvedSearchParams?.callbackUrl || "/config";
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
 			<Card className="w-full max-w-md">
@@ -28,7 +30,7 @@ export default function SignInPage({
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{searchParams.error && (
+					{resolvedSearchParams?.error && (
 						<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
 							Authentication failed. Please check your credentials.
 						</div>
@@ -46,7 +48,7 @@ export default function SignInPage({
 								username,
 								password,
 								tenantId,
-								redirectTo: searchParams.callbackUrl || "/config",
+								redirectTo: callbackUrl,
 							});
 						}}
 						className="space-y-4"
@@ -105,7 +107,7 @@ export default function SignInPage({
 						action={async () => {
 							"use server";
 							await signIn("keycloak", {
-								redirectTo: searchParams.callbackUrl || "/config",
+								redirectTo: callbackUrl,
 							});
 						}}
 					>

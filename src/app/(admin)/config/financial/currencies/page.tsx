@@ -1,268 +1,383 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PageShell } from '@/components/config/page-shell';
-import { Button } from '@/components/ui/button';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { PageShell } from "@/components/config/page-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { BFF_ROUTES } from '@/lib/fineract/endpoints';
-import { useTenantStore } from '@/store/tenant';
-import { ChevronRight, ChevronLeft, Save, DollarSign } from 'lucide-react';
-import type { CurrencyConfigurationData, CurrencyData } from '@/lib/fineract/generated/types.gen';
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable } from "@/components/ui/data-table";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type {
+	CurrencyConfigurationData,
+	CurrencyData,
+} from "@/lib/fineract/generated/types.gen";
+import { useTenantStore } from "@/store/tenant";
 
-async function fetchCurrencies(tenantId: string): Promise<CurrencyConfigurationData> {
-  const response = await fetch(BFF_ROUTES.currencies, {
-    headers: {
-      'x-tenant-id': tenantId,
-    },
-  });
+async function fetchCurrencies(
+	tenantId: string,
+): Promise<CurrencyConfigurationData> {
+	const response = await fetch(BFF_ROUTES.currencies, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch currencies');
-  }
+	if (!response.ok) {
+		throw new Error("Failed to fetch currencies");
+	}
 
-  return response.json();
+	return response.json();
 }
 
 async function updateCurrencies(tenantId: string, currencies: string[]) {
-  const response = await fetch(BFF_ROUTES.currencies, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tenant-id': tenantId,
-    },
-    body: JSON.stringify({ currencies }),
-  });
+	const response = await fetch(BFF_ROUTES.currencies, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify({ currencies }),
+	});
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to update currencies');
-  }
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.message || "Failed to update currencies");
+	}
 
-  return response.json();
+	return response.json();
+}
+
+function areSetsEqual(a: Set<string>, b: Set<string>) {
+	if (a.size !== b.size) return false;
+	for (const value of a) {
+		if (!b.has(value)) return false;
+	}
+	return true;
 }
 
 export default function CurrenciesPage() {
-  const { tenantId } = useTenantStore();
-  const queryClient = useQueryClient();
-  const [selectedAvailable, setSelectedAvailable] = useState<Set<string>>(new Set());
-  const [selectedEnabled, setSelectedEnabled] = useState<Set<string>>(new Set());
+	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
+	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const {
-    data: currencyConfig,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['currencies', tenantId],
-    queryFn: () => fetchCurrencies(tenantId),
-  });
+	const {
+		data: currencyConfig,
+		isLoading,
+		isFetching,
+		error,
+		refetch,
+	} = useQuery({
+		queryKey: ["currencies", tenantId],
+		queryFn: () => fetchCurrencies(tenantId),
+	});
 
-  const updateMutation = useMutation({
-    mutationFn: (currencies: string[]) => updateCurrencies(tenantId, currencies),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currencies', tenantId] });
-      setSelectedAvailable(new Set());
-      setSelectedEnabled(new Set());
-    },
-  });
+	const updateMutation = useMutation({
+		mutationFn: (currencies: string[]) =>
+			updateCurrencies(tenantId, currencies),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["currencies", tenantId] });
+			setIsDrawerOpen(false);
+			setToastMessage("Currencies updated successfully");
+		},
+	});
 
-  const availableCurrencies = currencyConfig?.currencyOptions || [];
-  const enabledCurrencies = currencyConfig?.selectedCurrencyOptions || [];
+	useEffect(() => {
+		if (!toastMessage) return;
+		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
+		return () => window.clearTimeout(timeout);
+	}, [toastMessage]);
 
-  const enabledCodes = new Set(enabledCurrencies.map((c) => c.code!));
-  const actuallyAvailable = availableCurrencies.filter((c) => !enabledCodes.has(c.code!));
+	const activeCurrencies = useMemo(
+		() => currencyConfig?.selectedCurrencyOptions || [],
+		[currencyConfig],
+	);
+	const currencyOptions = useMemo(
+		() => currencyConfig?.currencyOptions || [],
+		[currencyConfig],
+	);
 
-  const handleMoveToEnabled = () => {
-    const newEnabled = [
-      ...enabledCurrencies,
-      ...actuallyAvailable.filter((c) => selectedAvailable.has(c.code!)),
-    ];
-    const codes = newEnabled.map((c) => c.code!);
-    updateMutation.mutate(codes);
-  };
+	const activeCodes = useMemo(
+		() =>
+			new Set(
+				activeCurrencies
+					.map((currency) => currency.code)
+					.filter((code): code is string => Boolean(code)),
+			),
+		[activeCurrencies],
+	);
 
-  const handleMoveToAvailable = () => {
-    const newEnabled = enabledCurrencies.filter((c) => !selectedEnabled.has(c.code!));
-    const codes = newEnabled.map((c) => c.code!);
-    updateMutation.mutate(codes);
-  };
+	const filteredOptions = useMemo(() => {
+		const normalized = searchTerm.trim().toLowerCase();
+		const sortedOptions = [...currencyOptions].sort((a, b) =>
+			(a.code || "").localeCompare(b.code || ""),
+		);
 
-  const toggleAvailable = (code: string) => {
-    const newSet = new Set(selectedAvailable);
-    if (newSet.has(code)) {
-      newSet.delete(code);
-    } else {
-      newSet.add(code);
-    }
-    setSelectedAvailable(newSet);
-  };
+		if (!normalized) {
+			return sortedOptions;
+		}
 
-  const toggleEnabled = (code: string) => {
-    const newSet = new Set(selectedEnabled);
-    if (newSet.has(code)) {
-      newSet.delete(code);
-    } else {
-      newSet.add(code);
-    }
-    setSelectedEnabled(newSet);
-  };
+		return sortedOptions.filter((currency) => {
+			const code = currency.code || "";
+			const name = currency.name || currency.displayLabel || "";
+			return (
+				code.toLowerCase().includes(normalized) ||
+				name.toLowerCase().includes(normalized)
+			);
+		});
+	}, [currencyOptions, searchTerm]);
 
-  return (
-    <PageShell
-      title="Currencies"
-      subtitle="Manage enabled currencies for your platform"
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>Currency Configuration</CardTitle>
-          <CardDescription>
-            Select which currencies are enabled for use in your system. Move currencies
-            between available and enabled lists.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading && (
-            <div className="text-center py-8 text-muted-foreground">
-              Loading currencies...
-            </div>
-          )}
-          {error && (
-            <div className="text-center py-8 text-destructive">
-              Failed to load currencies. Please try again.
-            </div>
-          )}
-          {!isLoading && !error && (
-            <div className="grid grid-cols-[1fr_auto_1fr] gap-4">
-              {/* Available Currencies */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium">Available Currencies</h4>
-                  <Badge variant="secondary">{actuallyAvailable.length}</Badge>
-                </div>
-                <div className="border rounded-lg min-h-[400px] max-h-[400px] overflow-y-auto">
-                  {actuallyAvailable.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      All currencies are enabled
-                    </div>
-                  ) : (
-                    <div className="p-2 space-y-1">
-                      {actuallyAvailable.map((currency) => (
-                        <div
-                          key={currency.code}
-                          onClick={() => toggleAvailable(currency.code!)}
-                          className={`p-3 rounded-md cursor-pointer transition-colors ${
-                            selectedAvailable.has(currency.code!)
-                              ? 'bg-primary/10 border border-primary'
-                              : 'hover:bg-accent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="font-medium text-sm">
-                                {currency.code} - {currency.displayLabel}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Symbol: {currency.displaySymbol} | Decimals:{' '}
-                                {currency.decimalPlaces}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+	const isSelectionDirty = !areSetsEqual(selectedCodes, activeCodes);
 
-              {/* Control Buttons */}
-              <div className="flex flex-col items-center justify-center gap-2">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={handleMoveToEnabled}
-                  disabled={selectedAvailable.size === 0 || updateMutation.isPending}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={handleMoveToAvailable}
-                  disabled={selectedEnabled.size === 0 || updateMutation.isPending}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              </div>
+	const currencyColumns = [
+		{
+			header: "ISO Code",
+			cell: (currency: CurrencyData) => (
+				<span className="font-medium">{currency.code || "—"}</span>
+			),
+		},
+		{
+			header: "Name",
+			cell: (currency: CurrencyData) => (
+				<span>{currency.name || currency.displayLabel || "—"}</span>
+			),
+		},
+		{
+			header: "Decimal Places",
+			cell: (currency: CurrencyData) => (
+				<span>{currency.decimalPlaces ?? "—"}</span>
+			),
+			headerClassName: "text-right",
+			className: "text-right",
+		},
+	];
 
-              {/* Enabled Currencies */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium">Enabled Currencies</h4>
-                  <Badge variant="default">{enabledCurrencies.length}</Badge>
-                </div>
-                <div className="border rounded-lg min-h-[400px] max-h-[400px] overflow-y-auto">
-                  {enabledCurrencies.length === 0 ? (
-                    <div className="text-center py-8 text-sm text-muted-foreground">
-                      No currencies enabled
-                    </div>
-                  ) : (
-                    <div className="p-2 space-y-1">
-                      {enabledCurrencies.map((currency) => (
-                        <div
-                          key={currency.code}
-                          onClick={() => toggleEnabled(currency.code!)}
-                          className={`p-3 rounded-md cursor-pointer transition-colors ${
-                            selectedEnabled.has(currency.code!)
-                              ? 'bg-primary/10 border border-primary'
-                              : 'hover:bg-accent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="h-4 w-4 text-primary" />
-                            <div>
-                              <div className="font-medium text-sm">
-                                {currency.code} - {currency.displayLabel}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                Symbol: {currency.displaySymbol} | Decimals:{' '}
-                                {currency.decimalPlaces}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+	const toggleCurrency = (code?: string) => {
+		if (!code) return;
+		const nextSelected = new Set(selectedCodes);
+		if (nextSelected.has(code)) {
+			nextSelected.delete(code);
+		} else {
+			nextSelected.add(code);
+		}
+		setSelectedCodes(nextSelected);
+	};
 
-          {updateMutation.isPending && (
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              Updating currencies...
-            </div>
-          )}
-          {updateMutation.isError && (
-            <div className="mt-4 text-center text-sm text-destructive">
-              Failed to update currencies. Please try again.
-            </div>
-          )}
-          {updateMutation.isSuccess && (
-            <div className="mt-4 text-center text-sm text-success">
-              Currencies updated successfully!
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </PageShell>
-  );
+	const handleOpenDrawer = () => {
+		// Refetch fresh data and reset state when opening the drawer
+		refetch();
+		setSearchTerm("");
+		// Initialize selection from current config
+		const initialCodes = new Set(
+			(currencyConfig?.selectedCurrencyOptions || [])
+				.map((currency) => currency.code)
+				.filter((code): code is string => Boolean(code)),
+		);
+		setSelectedCodes(initialCodes);
+		setIsDrawerOpen(true);
+	};
+
+	const handleSaveChanges = () => {
+		updateMutation.mutate(Array.from(selectedCodes));
+	};
+
+	const handleCloseDrawer = () => {
+		setIsDrawerOpen(false);
+	};
+
+	return (
+		<>
+			<PageShell
+				title="Currencies"
+				subtitle="Manage active currencies without leaving the dashboard"
+				actions={
+					<Button onClick={handleOpenDrawer}>Configure Currencies</Button>
+				}
+			>
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle>Active Currencies</CardTitle>
+								<CardDescription>
+									View which currencies are enabled across the platform.
+								</CardDescription>
+							</div>
+							<Badge variant="secondary">
+								{activeCurrencies.length} Active
+							</Badge>
+						</div>
+					</CardHeader>
+					<CardContent>
+						{isLoading && (
+							<div className="text-center py-6 text-muted-foreground">
+								Loading currencies...
+							</div>
+						)}
+						{error && (
+							<div className="text-center py-6 text-destructive">
+								Failed to load currencies. Please try again.
+							</div>
+						)}
+						{!isLoading && !error && (
+							<DataTable
+								data={activeCurrencies}
+								columns={currencyColumns}
+								getRowId={(currency) =>
+									currency.code || currency.name || "currency-row"
+								}
+								emptyMessage="No active currencies configured."
+							/>
+						)}
+					</CardContent>
+				</Card>
+			</PageShell>
+
+			<Drawer
+				open={isDrawerOpen}
+				onOpenChange={setIsDrawerOpen}
+				className="flex flex-col"
+			>
+				<DrawerHeader>
+					<div>
+						<DrawerTitle>Manage Active Currencies</DrawerTitle>
+						<DrawerDescription className="mt-1">
+							Search and toggle currencies to control availability in the
+							system.
+						</DrawerDescription>
+					</div>
+					<DrawerClose onClick={handleCloseDrawer} />
+				</DrawerHeader>
+				<DrawerContent className="flex flex-col gap-4">
+					<div className="space-y-2">
+						<Label htmlFor="currency-search">Search currencies</Label>
+						<Input
+							id="currency-search"
+							placeholder="Search by ISO code or name"
+							value={searchTerm}
+							onChange={(event) => setSearchTerm(event.target.value)}
+						/>
+					</div>
+
+					<div className="flex items-center justify-between text-sm text-muted-foreground">
+						<span>{selectedCodes.size} selected</span>
+						<span>{currencyOptions.length} available</span>
+					</div>
+
+					{isFetching && (
+						<div className="text-sm text-muted-foreground">
+							Refreshing currency list...
+						</div>
+					)}
+
+					{error && (
+						<Alert variant="destructive">
+							<AlertTitle>Unable to load currencies</AlertTitle>
+							<AlertDescription>
+								{(error as Error)?.message ||
+									"Failed to load currencies. Please try again."}
+							</AlertDescription>
+						</Alert>
+					)}
+
+					{updateMutation.isError && (
+						<Alert variant="destructive">
+							<AlertTitle>Update failed</AlertTitle>
+							<AlertDescription>
+								{(updateMutation.error as Error)?.message ||
+									"Failed to update currencies. Please try again."}
+							</AlertDescription>
+						</Alert>
+					)}
+
+					<div className="space-y-3">
+						{filteredOptions.length === 0 ? (
+							<div className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+								No currencies match your search.
+							</div>
+						) : (
+							filteredOptions.map((currency, index) => {
+								const code = currency.code;
+								const label =
+									currency.name || currency.displayLabel || "Unknown currency";
+								const decimalPlaces = currency.decimalPlaces ?? "—";
+								const isChecked = code ? selectedCodes.has(code) : false;
+								const checkboxId = code
+									? `currency-${code}`
+									: `currency-option-${index}`;
+
+								return (
+									<div
+										key={code || `${label}-${index}`}
+										className="flex items-start gap-3 rounded-lg border border-border/60 p-3"
+									>
+										<Checkbox
+											id={checkboxId}
+											checked={isChecked}
+											onChange={() => toggleCurrency(code)}
+										/>
+										<Label
+											htmlFor={checkboxId}
+											className="flex-1 cursor-pointer"
+										>
+											<div className="text-sm font-medium">
+												{code || "—"}
+												{code ? " · " : ""}
+												{label}
+											</div>
+											<div className="text-xs text-muted-foreground">
+												Decimal places: {decimalPlaces}
+											</div>
+										</Label>
+									</div>
+								);
+							})
+						)}
+					</div>
+				</DrawerContent>
+				<div className="flex items-center justify-end gap-2 border-t border-border/80 px-7 py-4">
+					<Button type="button" variant="outline" onClick={handleCloseDrawer}>
+						Cancel
+					</Button>
+					<Button
+						type="button"
+						onClick={handleSaveChanges}
+						disabled={!isSelectionDirty || updateMutation.isPending}
+					>
+						{updateMutation.isPending ? "Saving..." : "Save Changes"}
+					</Button>
+				</div>
+			</Drawer>
+
+			{toastMessage && (
+				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
+					<Alert variant="success">
+						<AlertTitle>Success</AlertTitle>
+						<AlertDescription>{toastMessage}</AlertDescription>
+					</Alert>
+				</div>
+			)}
+		</>
+	);
 }

@@ -126,7 +126,7 @@ export default function RolesPage() {
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
 								<Shield className="h-5 w-5 text-primary" />
 							</div>
 							<div>
@@ -135,7 +135,7 @@ export default function RolesPage() {
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-destructive/10">
 								<Shield className="h-5 w-5 text-destructive" />
 							</div>
 							<div>
@@ -144,7 +144,7 @@ export default function RolesPage() {
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
 								<Users className="h-5 w-5 text-info" />
 							</div>
 							<div>

@@ -73,7 +73,7 @@ export default function ConfigOverviewPage() {
 							<Card className="h-full transition-colors hover:bg-accent/50 cursor-pointer">
 								<CardHeader>
 									<div className="flex items-center gap-3">
-										<div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+										<div className="flex h-12 w-12 items-center justify-center rounded-sm bg-primary/10">
 											<Icon className="h-6 w-6 text-primary" />
 										</div>
 										<div>

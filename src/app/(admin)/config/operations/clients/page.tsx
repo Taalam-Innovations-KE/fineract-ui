@@ -526,7 +526,7 @@ export default function ClientsPage() {
 								</Label>
 								<select
 									id="officeId"
-									className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+									className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
 									{...register("officeId", {
 										valueAsNumber: true,
 										required: "Office is required",
@@ -620,7 +620,7 @@ export default function ClientsPage() {
 									</Label>
 									<select
 										id="genderId"
-										className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
 										{...register("genderId", {
 											valueAsNumber: true,
 											required: "Gender is required",
@@ -657,7 +657,7 @@ export default function ClientsPage() {
 									</Label>
 									<select
 										id="clientTypeId"
-										className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
 										{...register("clientTypeId", {
 											valueAsNumber: true,
 											required: "Client type is required",
@@ -694,7 +694,7 @@ export default function ClientsPage() {
 									<Label htmlFor="legalFormId">Legal form</Label>
 									<select
 										id="legalFormId"
-										className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
 										{...register("legalFormId", { valueAsNumber: true })}
 										disabled={!legalFormOptions.length}
 									>

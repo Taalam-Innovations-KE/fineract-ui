@@ -286,7 +286,7 @@ export function TeamMemberForm({
 					<Label>
 						Roles <span className="text-destructive">*</span>
 					</Label>
-					<div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+					<div className="border rounded-sm p-3 space-y-2 max-h-48 overflow-y-auto">
 						{roles.map((role) => (
 							<div key={role.id} className="flex items-center gap-2">
 								<Checkbox

@@ -3,7 +3,7 @@ import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const alertVariants = cva("relative w-full rounded-xl border bg-card p-5", {
+const alertVariants = cva("relative w-full rounded-sm border bg-card p-5", {
 	variants: {
 		variant: {
 			default: "border-border/60 bg-card text-foreground",

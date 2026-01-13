@@ -313,7 +313,7 @@ export default function CurrenciesPage() {
 
 					<div className="space-y-3">
 						{filteredOptions.length === 0 ? (
-							<div className="rounded-lg border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+							<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
 								No currencies match your search.
 							</div>
 						) : (
@@ -330,7 +330,7 @@ export default function CurrenciesPage() {
 								return (
 									<div
 										key={code || `${label}-${index}`}
-										className="flex items-start gap-3 rounded-lg border border-border/60 p-3"
+										className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
 									>
 										<Checkbox
 											id={checkboxId}

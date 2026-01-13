@@ -1944,7 +1944,7 @@ export function LoanProductWizard({
 											{copyMessage}
 										</p>
 									)}
-									<pre className="rounded-lg border border-border/80 bg-muted/30 p-3 text-xs text-foreground overflow-auto max-h-64">
+									<pre className="rounded-sm border border-border/80 bg-muted/30 p-3 text-xs text-foreground overflow-auto max-h-64">
 										{JSON.stringify(payloadPreview, null, 2)}
 									</pre>
 								</CardContent>
@@ -2143,7 +2143,7 @@ export function LoanProductWizard({
 					{feeOptions.map((option) => (
 						<div
 							key={option.id}
-							className="flex items-center justify-between rounded-lg border border-border/80 p-3"
+							className="flex items-center justify-between rounded-sm border border-border/80 p-3"
 						>
 							<div>
 								<div className="text-sm font-medium">{option.name}</div>
@@ -2320,7 +2320,7 @@ export function LoanProductWizard({
 					{penaltyOptions.map((option) => (
 						<div
 							key={option.id}
-							className="flex items-center justify-between rounded-lg border border-border/80 p-3"
+							className="flex items-center justify-between rounded-sm border border-border/80 p-3"
 						>
 							<div>
 								<div className="text-sm font-medium">{option.name}</div>

@@ -133,7 +133,7 @@ export function Sidebar() {
 							<button
 								onClick={() => toggleSection(item.href)}
 								className={cn(
-									"flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200",
+									"flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200",
 									isActive
 										? "bg-primary/8 text-primary font-semibold"
 										: "text-sidebar-foreground hover:bg-accent hover:text-accent-foreground",
@@ -152,7 +152,7 @@ export function Sidebar() {
 							<Link
 								href={item.href}
 								className={cn(
-									"flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200",
+									"flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200",
 									isActive
 										? "bg-primary/8 text-primary font-semibold"
 										: "text-sidebar-foreground hover:bg-accent hover:text-accent-foreground",
@@ -174,7 +174,7 @@ export function Sidebar() {
 											key={child.href}
 											href={child.href}
 											className={cn(
-												"flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium transition-all duration-200",
+												"flex items-center gap-1.5 rounded-sm px-2 py-1 text-[13px] font-medium transition-all duration-200",
 												isChildActive
 													? "bg-primary/8 text-primary font-semibold"
 													: "text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",

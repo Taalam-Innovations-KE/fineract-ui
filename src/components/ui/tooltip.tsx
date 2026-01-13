@@ -32,7 +32,7 @@ const TooltipContent = React.forwardRef<
 	<span
 		ref={ref}
 		className={cn(
-			"pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-lg border border-border/80 bg-card px-2.5 py-1.5 text-xs text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100",
+			"pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-sm border border-border/80 bg-card px-2.5 py-1.5 text-xs text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100",
 			className,
 		)}
 		{...props}

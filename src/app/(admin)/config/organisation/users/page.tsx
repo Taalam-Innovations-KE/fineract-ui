@@ -234,7 +234,7 @@ export default function UsersPage() {
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
 								<UserCog className="h-5 w-5 text-primary" />
 							</div>
 							<div>
@@ -243,7 +243,7 @@ export default function UsersPage() {
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-info/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
 								<Shield className="h-5 w-5 text-info" />
 							</div>
 							<div>
@@ -254,7 +254,7 @@ export default function UsersPage() {
 							</div>
 						</div>
 						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success/10">
+							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
 								<Building2 className="h-5 w-5 text-success" />
 							</div>
 							<div>

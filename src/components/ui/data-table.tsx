@@ -44,7 +44,7 @@ export function DataTable<T>({
 
 	return (
 		<div className={cn("space-y-2", className)}>
-			<div className="rounded-md border border-border/60">
+			<div className="rounded-sm border border-border/60">
 				<table className="w-full text-left text-sm">
 					<thead className="border-b border-border/60 bg-muted/40">
 						<tr>

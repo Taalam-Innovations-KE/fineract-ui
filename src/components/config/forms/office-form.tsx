@@ -2,11 +2,17 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import type {
 	OfficeData,
 	PostOfficesRequest,
@@ -28,6 +34,7 @@ export function OfficeForm({ offices, onSubmit, onCancel }: OfficeFormProps) {
 	const {
 		register,
 		handleSubmit,
+		control,
 		formState: { errors },
 	} = useForm<CreateOfficeFormData>({
 		resolver: zodResolver(createOfficeSchema),
@@ -66,17 +73,31 @@ export function OfficeForm({ offices, onSubmit, onCancel }: OfficeFormProps) {
 				<Label htmlFor="parentId">
 					Parent Office <span className="text-destructive">*</span>
 				</Label>
-				<Select
-					id="parentId"
-					{...register("parentId", { valueAsNumber: true })}
-				>
-					<option value="">Select parent office</option>
-					{offices.map((office) => (
-						<option key={office.id} value={office.id}>
-							{office.nameDecorated || office.name}
-						</option>
-					))}
-				</Select>
+				<Controller
+					control={control}
+					name="parentId"
+					render={({ field }) => (
+						<Select
+							value={
+								field.value !== undefined && field.value !== null
+									? String(field.value)
+									: undefined
+							}
+							onValueChange={(value) => field.onChange(Number(value))}
+						>
+							<SelectTrigger id="parentId">
+								<SelectValue placeholder="Select parent office" />
+							</SelectTrigger>
+							<SelectContent>
+								{offices.map((office) => (
+									<SelectItem key={office.id} value={String(office.id)}>
+										{office.nameDecorated || office.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+				/>
 				{errors.parentId && (
 					<p className="text-sm text-destructive">{errors.parentId.message}</p>
 				)}

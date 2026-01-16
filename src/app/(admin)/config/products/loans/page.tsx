@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Plus, TrendingUp } from "lucide-react";
+import { CreditCard, Plus, TrendingUp, X } from "lucide-react";
 import { useState } from "react";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
@@ -260,7 +260,11 @@ export default function LoanProductsPage() {
 								Configure a new loan product with a multi-step wizard
 							</DrawerDescription>
 						</div>
-						<DrawerClose onClick={() => setIsDrawerOpen(false)} />
+						<DrawerClose asChild>
+							<Button variant="ghost" size="icon" aria-label="Close">
+								<X className="h-4 w-4" />
+							</Button>
+						</DrawerClose>
 					</div>
 				</DrawerHeader>
 				<DrawerContent>

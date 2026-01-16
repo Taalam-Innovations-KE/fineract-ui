@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,6 +26,14 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+
 import {
 	formatDateForFineract,
 	getFineractDateConfig,
@@ -856,7 +865,6 @@ export default function CodesPage() {
 						setSelectedCodeValue(null);
 					}
 				}}
-				className="flex flex-col"
 			>
 				<DrawerHeader>
 					<div>
@@ -865,12 +873,11 @@ export default function CodesPage() {
 							Add, edit, or deactivate code values for this category.
 						</DrawerDescription>
 					</div>
-					<DrawerClose
-						onClick={() => {
-							setSelectedCode(null);
-							setSelectedCodeValue(null);
-						}}
-					/>
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent className="flex flex-col gap-4">
 					<div className="rounded-sm border border-border/60 p-4 space-y-3">
@@ -904,7 +911,7 @@ export default function CodesPage() {
 								<Checkbox
 									id="new-value-active"
 									checked={newValueActive}
-									onChange={() => setNewValueActive((prev) => !prev)}
+									onCheckedChange={() => setNewValueActive((prev) => !prev)}
 								/>
 								<Label htmlFor="new-value-active" className="cursor-pointer">
 									Active
@@ -1041,7 +1048,7 @@ export default function CodesPage() {
 														<Checkbox
 															id="edit-value-active"
 															checked={editValueActive}
-															onChange={() =>
+															onCheckedChange={() =>
 																setEditValueActive((prev) => !prev)
 															}
 														/>
@@ -1098,7 +1105,6 @@ export default function CodesPage() {
 				onOpenChange={(open) => {
 					if (!open) setSelectedCodeValue(null);
 				}}
-				className="flex flex-col md:max-w-xl"
 			>
 				<DrawerHeader>
 					<div>
@@ -1109,7 +1115,11 @@ export default function CodesPage() {
 							Attach custom metadata fields to this code value.
 						</DrawerDescription>
 					</div>
-					<DrawerClose onClick={() => setSelectedCodeValue(null)} />
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent className="flex flex-col gap-4">
 					{datatablesQuery.isLoading && (
@@ -1171,18 +1181,18 @@ export default function CodesPage() {
 						<div className="space-y-4">
 							<div className="space-y-2">
 								<Label htmlFor="datatable-select">Datatable</Label>
-								<select
-									id="datatable-select"
-									className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
-									value={datatableName}
-									onChange={(event) => setDatatableName(event.target.value)}
-								>
-									{datatableOptions.map((option) => (
-										<option key={option} value={option}>
-											{option}
-										</option>
-									))}
-								</select>
+								<Select value={datatableName} onValueChange={setDatatableName}>
+									<SelectTrigger id="datatable-select">
+										<SelectValue placeholder="Select datatable" />
+									</SelectTrigger>
+									<SelectContent>
+										{datatableOptions.map((option) => (
+											<SelectItem key={option} value={option}>
+												{option}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 
 							{datatableDefinitionQuery.isLoading && (
@@ -1221,7 +1231,7 @@ export default function CodesPage() {
 														<Checkbox
 															id={inputId}
 															checked={Boolean(value)}
-															onChange={() => {
+															onCheckedChange={() => {
 																setMetadataValues((prev) => ({
 																	...prev,
 																	[columnName]: !Boolean(value),

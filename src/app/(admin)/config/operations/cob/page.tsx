@@ -7,6 +7,7 @@ import {
 	CheckCircle,
 	Clock,
 	Play,
+	X,
 } from "lucide-react";
 import { useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
@@ -322,7 +323,11 @@ export default function COBPage() {
 							confirm you want to proceed.
 						</DrawerDescription>
 					</div>
-					<DrawerClose onClick={() => setIsConfirmDialogOpen(false)} />
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent className="space-y-4">
 					<Alert variant="warning">

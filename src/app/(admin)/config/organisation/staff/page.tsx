@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, UserCheck, Users } from "lucide-react";
+import { Building2, Plus, UserCheck, Users, X } from "lucide-react";
 import { useState } from "react";
 import { StaffForm } from "@/components/config/forms/staff-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -24,7 +24,13 @@ import {
 	DrawerTitle,
 } from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	OfficeData,
@@ -211,50 +217,67 @@ export default function StaffPage() {
 								<div className="space-y-2">
 									<Label htmlFor="officeFilter">Office</Label>
 									<Select
-										id="officeFilter"
-										value={filters.officeId}
-										onChange={(e) =>
-											handleFilterChange("officeId", e.target.value)
+										value={filters.officeId || "all"}
+										onValueChange={(value) =>
+											handleFilterChange(
+												"officeId",
+												value === "all" ? "" : value,
+											)
 										}
 									>
-										<option value="">All Offices</option>
-										{offices.map((office) => (
-											<option key={office.id} value={office.id}>
-												{office.name}
-											</option>
-										))}
+										<SelectTrigger id="officeFilter">
+											<SelectValue placeholder="All Offices" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">All Offices</SelectItem>
+											{offices.map((office) => (
+												<SelectItem key={office.id} value={String(office.id)}>
+													{office.name}
+												</SelectItem>
+											))}
+										</SelectContent>
 									</Select>
 								</div>
 
 								<div className="space-y-2">
 									<Label htmlFor="statusFilter">Status</Label>
 									<Select
-										id="statusFilter"
-										value={filters.status}
-										onChange={(e) =>
-											handleFilterChange("status", e.target.value)
+										value={filters.status || "all"}
+										onValueChange={(value) =>
+											handleFilterChange("status", value)
 										}
 									>
-										<option value="all">All</option>
-										<option value="active">Active</option>
-										<option value="inactive">Inactive</option>
+										<SelectTrigger id="statusFilter">
+											<SelectValue placeholder="All" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">All</SelectItem>
+											<SelectItem value="active">Active</SelectItem>
+											<SelectItem value="inactive">Inactive</SelectItem>
+										</SelectContent>
 									</Select>
 								</div>
 
 								<div className="space-y-2">
 									<Label htmlFor="roleFilter">Role</Label>
 									<Select
-										id="roleFilter"
 										value={filters.loanOfficersOnly ? "loanOfficer" : "all"}
-										onChange={(e) =>
+										onValueChange={(value) =>
 											handleFilterChange(
 												"loanOfficersOnly",
-												e.target.value === "loanOfficer",
+												value === "loanOfficer",
 											)
 										}
 									>
-										<option value="all">All Staff</option>
-										<option value="loanOfficer">Loan Officers Only</option>
+										<SelectTrigger id="roleFilter">
+											<SelectValue placeholder="All Staff" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">All Staff</SelectItem>
+											<SelectItem value="loanOfficer">
+												Loan Officers Only
+											</SelectItem>
+										</SelectContent>
 									</Select>
 								</div>
 							</div>
@@ -347,7 +370,11 @@ export default function StaffPage() {
 							Add a new staff member to your organization
 						</DrawerDescription>
 					</div>
-					<DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent>
 					<StaffForm

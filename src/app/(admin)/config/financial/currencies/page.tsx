@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -254,11 +255,7 @@ export default function CurrenciesPage() {
 				</Card>
 			</PageShell>
 
-			<Drawer
-				open={isDrawerOpen}
-				onOpenChange={setIsDrawerOpen}
-				className="flex flex-col"
-			>
+			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<DrawerHeader>
 					<div>
 						<DrawerTitle>Manage Active Currencies</DrawerTitle>
@@ -267,7 +264,11 @@ export default function CurrenciesPage() {
 							system.
 						</DrawerDescription>
 					</div>
-					<DrawerClose onClick={handleCloseDrawer} />
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent className="flex flex-col gap-4">
 					<div className="space-y-2">
@@ -335,7 +336,7 @@ export default function CurrenciesPage() {
 										<Checkbox
 											id={checkboxId}
 											checked={isChecked}
-											onChange={() => toggleCurrency(code)}
+											onCheckedChange={() => toggleCurrency(code)}
 										/>
 										<Label
 											htmlFor={checkboxId}

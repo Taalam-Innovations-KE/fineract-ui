@@ -28,9 +28,7 @@ export default async function RootLayout({
 
 	return (
 		<html lang="en" suppressHydrationWarning>
-			<body
-				className={`${inter.variable} antialiased font-sans`}
-			>
+			<body className={`${inter.variable} antialiased font-sans`}>
 				<AuthProvider session={session}>
 					<ThemeProvider>
 						<QueryProvider>{children}</QueryProvider>

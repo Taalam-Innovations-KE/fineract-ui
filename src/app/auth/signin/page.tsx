@@ -1,11 +1,11 @@
+import Image from "next/image";
+import Link from "next/link";
 import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import Link from "next/link";
-import Image from "next/image";
 
 export default async function SignInPage({
 	searchParams,

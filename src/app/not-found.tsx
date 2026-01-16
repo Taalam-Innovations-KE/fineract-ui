@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function NotFound() {
 	const router = useRouter();
@@ -86,10 +86,7 @@ export default function NotFound() {
 
 				{/* Search box */}
 				<div className="mb-8">
-					<form
-						onSubmit={handleSearch}
-						className="mx-auto flex max-w-md gap-2"
-					>
+					<form onSubmit={handleSearch} className="mx-auto flex max-w-md gap-2">
 						<div className="relative flex-1">
 							<Input
 								type="text"
@@ -168,10 +165,7 @@ export default function NotFound() {
 						Here are some helpful links instead:
 					</p>
 					<div className="flex flex-wrap justify-center gap-4 text-sm">
-						<Link
-							href="/config"
-							className="text-primary hover:underline"
-						>
+						<Link href="/config" className="text-primary hover:underline">
 							Dashboard
 						</Link>
 						<span className="text-muted-foreground">•</span>

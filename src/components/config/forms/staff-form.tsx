@@ -2,12 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import type {
 	OfficeData,
 	StaffRequest,
@@ -30,6 +36,7 @@ export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
 	const {
 		register,
 		handleSubmit,
+		control,
 		formState: { errors },
 	} = useForm<CreateStaffFormData>({
 		resolver: zodResolver(createStaffSchema),
@@ -89,17 +96,31 @@ export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
 				<Label htmlFor="officeId">
 					Office <span className="text-destructive">*</span>
 				</Label>
-				<Select
-					id="officeId"
-					{...register("officeId", { valueAsNumber: true })}
-				>
-					<option value="">Select office</option>
-					{offices.map((office) => (
-						<option key={office.id} value={office.id}>
-							{office.nameDecorated || office.name}
-						</option>
-					))}
-				</Select>
+				<Controller
+					control={control}
+					name="officeId"
+					render={({ field }) => (
+						<Select
+							value={
+								field.value !== undefined && field.value !== null
+									? String(field.value)
+									: undefined
+							}
+							onValueChange={(value) => field.onChange(Number(value))}
+						>
+							<SelectTrigger id="officeId">
+								<SelectValue placeholder="Select office" />
+							</SelectTrigger>
+							<SelectContent>
+								{offices.map((office) => (
+									<SelectItem key={office.id} value={String(office.id)}>
+										{office.nameDecorated || office.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+				/>
 				{errors.officeId && (
 					<p className="text-sm text-destructive">{errors.officeId.message}</p>
 				)}
@@ -136,14 +157,34 @@ export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
 
 			<div className="space-y-3">
 				<div className="flex items-center gap-2">
-					<Checkbox id="isLoanOfficer" {...register("isLoanOfficer")} />
+					<Controller
+						control={control}
+						name="isLoanOfficer"
+						render={({ field }) => (
+							<Checkbox
+								id="isLoanOfficer"
+								checked={field.value ?? false}
+								onCheckedChange={(value) => field.onChange(Boolean(value))}
+							/>
+						)}
+					/>
 					<Label htmlFor="isLoanOfficer" className="cursor-pointer">
 						Is Loan Officer
 					</Label>
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Checkbox id="isActive" {...register("isActive")} />
+					<Controller
+						control={control}
+						name="isActive"
+						render={({ field }) => (
+							<Checkbox
+								id="isActive"
+								checked={field.value ?? false}
+								onCheckedChange={(value) => field.onChange(Boolean(value))}
+							/>
+						)}
+					/>
 					<Label htmlFor="isActive" className="cursor-pointer">
 						Is Active
 					</Label>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,13 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsPageItemsResponse,
@@ -282,6 +290,7 @@ export default function ClientsPage() {
 	const {
 		register,
 		handleSubmit,
+		control,
 		reset,
 		setValue,
 		getValues,
@@ -481,11 +490,7 @@ export default function ClientsPage() {
 				</Card>
 			</PageShell>
 
-			<Drawer
-				open={isDrawerOpen}
-				onOpenChange={setIsDrawerOpen}
-				className="flex flex-col"
-			>
+			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<DrawerHeader>
 					<div>
 						<DrawerTitle>Client Onboarding</DrawerTitle>
@@ -503,7 +508,11 @@ export default function ClientsPage() {
 						>
 							Refresh Lookups
 						</Button>
-						<DrawerClose onClick={() => setIsDrawerOpen(false)} />
+						<DrawerClose asChild>
+							<Button variant="ghost" size="icon" aria-label="Close">
+								<X className="h-4 w-4" />
+							</Button>
+						</DrawerClose>
 					</div>
 				</DrawerHeader>
 				<DrawerContent className="flex flex-col gap-4">
@@ -524,22 +533,33 @@ export default function ClientsPage() {
 								<Label htmlFor="officeId">
 									Office <span className="text-destructive">*</span>
 								</Label>
-								<select
-									id="officeId"
-									className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
-									{...register("officeId", {
-										valueAsNumber: true,
-										required: "Office is required",
-									})}
-									disabled={hasMissingOffice}
-								>
-									<option value="">Select office</option>
-									{(officesQuery.data || []).map((office) => (
-										<option key={office.id} value={office.id}>
-											{office.nameDecorated || office.name}
-										</option>
-									))}
-								</select>
+								<Controller
+									control={control}
+									name="officeId"
+									rules={{ required: "Office is required" }}
+									render={({ field }) => (
+										<Select
+											value={
+												field.value !== undefined && field.value !== null
+													? String(field.value)
+													: undefined
+											}
+											onValueChange={(value) => field.onChange(Number(value))}
+											disabled={hasMissingOffice}
+										>
+											<SelectTrigger id="officeId">
+												<SelectValue placeholder="Select office" />
+											</SelectTrigger>
+											<SelectContent>
+												{(officesQuery.data || []).map((office) => (
+													<SelectItem key={office.id} value={String(office.id)}>
+														{office.nameDecorated || office.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									)}
+								/>
 								{errors.officeId && (
 									<p className="text-sm text-destructive">
 										{errors.officeId.message}
@@ -618,24 +638,38 @@ export default function ClientsPage() {
 									<Label htmlFor="genderId">
 										Gender <span className="text-destructive">*</span>
 									</Label>
-									<select
-										id="genderId"
-										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
-										{...register("genderId", {
-											valueAsNumber: true,
-											required: "Gender is required",
-										})}
-										disabled={hasMissingGender}
-									>
-										<option value="">Select gender</option>
-										{genderOptions
-											.filter((option) => option.id)
-											.map((option) => (
-												<option key={option.id} value={option.id}>
-													{option.name || "Unnamed"}
-												</option>
-											))}
-									</select>
+									<Controller
+										control={control}
+										name="genderId"
+										rules={{ required: "Gender is required" }}
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: undefined
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+												disabled={hasMissingGender}
+											>
+												<SelectTrigger id="genderId">
+													<SelectValue placeholder="Select gender" />
+												</SelectTrigger>
+												<SelectContent>
+													{genderOptions
+														.filter((option) => option.id)
+														.map((option) => (
+															<SelectItem
+																key={option.id}
+																value={String(option.id)}
+															>
+																{option.name || "Unnamed"}
+															</SelectItem>
+														))}
+												</SelectContent>
+											</Select>
+										)}
+									/>
 									{hasMissingGender && (
 										<Alert variant="warning">
 											<AlertTitle>No options configured</AlertTitle>
@@ -655,24 +689,38 @@ export default function ClientsPage() {
 									<Label htmlFor="clientTypeId">
 										Client type <span className="text-destructive">*</span>
 									</Label>
-									<select
-										id="clientTypeId"
-										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
-										{...register("clientTypeId", {
-											valueAsNumber: true,
-											required: "Client type is required",
-										})}
-										disabled={hasMissingClientType}
-									>
-										<option value="">Select client type</option>
-										{clientTypeOptions
-											.filter((option) => option.id)
-											.map((option) => (
-												<option key={option.id} value={option.id}>
-													{option.name || "Unnamed"}
-												</option>
-											))}
-									</select>
+									<Controller
+										control={control}
+										name="clientTypeId"
+										rules={{ required: "Client type is required" }}
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: undefined
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+												disabled={hasMissingClientType}
+											>
+												<SelectTrigger id="clientTypeId">
+													<SelectValue placeholder="Select client type" />
+												</SelectTrigger>
+												<SelectContent>
+													{clientTypeOptions
+														.filter((option) => option.id)
+														.map((option) => (
+															<SelectItem
+																key={option.id}
+																value={String(option.id)}
+															>
+																{option.name || "Unnamed"}
+															</SelectItem>
+														))}
+												</SelectContent>
+											</Select>
+										)}
+									/>
 									{hasMissingClientType && (
 										<Alert variant="warning">
 											<AlertTitle>No options configured</AlertTitle>
@@ -692,21 +740,37 @@ export default function ClientsPage() {
 							{Boolean(legalFormCodeId) && (
 								<div className="space-y-2">
 									<Label htmlFor="legalFormId">Legal form</Label>
-									<select
-										id="legalFormId"
-										className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm"
-										{...register("legalFormId", { valueAsNumber: true })}
-										disabled={!legalFormOptions.length}
-									>
-										<option value="">Select legal form</option>
-										{legalFormOptions
-											.filter((option) => option.id)
-											.map((option) => (
-												<option key={option.id} value={option.id}>
-													{option.name || "Unnamed"}
-												</option>
-											))}
-									</select>
+									<Controller
+										control={control}
+										name="legalFormId"
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: undefined
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+												disabled={!legalFormOptions.length}
+											>
+												<SelectTrigger id="legalFormId">
+													<SelectValue placeholder="Select legal form" />
+												</SelectTrigger>
+												<SelectContent>
+													{legalFormOptions
+														.filter((option) => option.id)
+														.map((option) => (
+															<SelectItem
+																key={option.id}
+																value={String(option.id)}
+															>
+																{option.name || "Unnamed"}
+															</SelectItem>
+														))}
+												</SelectContent>
+											</Select>
+										)}
+									/>
 									{!legalFormOptions.length && (
 										<Alert variant="warning">
 											<AlertTitle>No options configured</AlertTitle>

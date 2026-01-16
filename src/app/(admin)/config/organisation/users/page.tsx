@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Shield, UserCog } from "lucide-react";
+import { Building2, Plus, Shield, UserCog, X } from "lucide-react";
 import { useState } from "react";
 import { TeamMemberForm } from "@/components/config/forms/team-member-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -276,7 +276,11 @@ export default function UsersPage() {
 								Create staff first, then provision their system access
 							</DrawerDescription>
 						</div>
-						<DrawerClose onClick={() => setIsDrawerOpen(false)} />
+						<DrawerClose asChild>
+							<Button variant="ghost" size="icon" aria-label="Close">
+								<X className="h-4 w-4" />
+							</Button>
+						</DrawerClose>
 					</div>
 				</DrawerHeader>
 				<DrawerContent>

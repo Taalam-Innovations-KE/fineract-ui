@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { OfficeForm } from "@/components/config/forms/office-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -263,7 +263,11 @@ export default function OfficesPage() {
 							Add a new office to your organization hierarchy
 						</DrawerDescription>
 					</div>
-					<DrawerClose onClick={() => setIsCreateDialogOpen(false)} />
+					<DrawerClose asChild>
+						<Button variant="ghost" size="icon" aria-label="Close">
+							<X className="h-4 w-4" />
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<DrawerContent>
 					<OfficeForm

@@ -2,12 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import type {
 	GetRolesResponse,
 	OfficeData,
@@ -41,6 +47,7 @@ export function UserForm({
 	const {
 		register,
 		handleSubmit,
+		control,
 		formState: { errors },
 		setValue,
 		watch,
@@ -149,17 +156,31 @@ export function UserForm({
 					<Label htmlFor="officeId">
 						Office <span className="text-destructive">*</span>
 					</Label>
-					<Select
-						id="officeId"
-						{...register("officeId", { valueAsNumber: true })}
-					>
-						<option value="">Select office</option>
-						{offices.map((office) => (
-							<option key={office.id} value={office.id}>
-								{office.nameDecorated || office.name}
-							</option>
-						))}
-					</Select>
+					<Controller
+						control={control}
+						name="officeId"
+						render={({ field }) => (
+							<Select
+								value={
+									field.value !== undefined && field.value !== null
+										? String(field.value)
+										: undefined
+								}
+								onValueChange={(value) => field.onChange(Number(value))}
+							>
+								<SelectTrigger id="officeId">
+									<SelectValue placeholder="Select office" />
+								</SelectTrigger>
+								<SelectContent>
+									{offices.map((office) => (
+										<SelectItem key={office.id} value={String(office.id)}>
+											{office.nameDecorated || office.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					/>
 					{errors.officeId && (
 						<p className="text-sm text-destructive">
 							{errors.officeId.message}
@@ -169,18 +190,35 @@ export function UserForm({
 
 				<div className="space-y-2">
 					<Label htmlFor="staffId">Link to Staff (Optional)</Label>
-					<Select
-						id="staffId"
-						{...register("staffId", { valueAsNumber: true })}
-						disabled={!selectedOfficeId}
-					>
-						<option value="">None</option>
-						{filteredStaff.map((member) => (
-							<option key={member.id} value={member.id}>
-								{member.displayName}
-							</option>
-						))}
-					</Select>
+					<Controller
+						control={control}
+						name="staffId"
+						render={({ field }) => (
+							<Select
+								value={
+									field.value !== undefined && field.value !== null
+										? String(field.value)
+										: "none"
+								}
+								onValueChange={(value) =>
+									field.onChange(value === "none" ? undefined : Number(value))
+								}
+								disabled={!selectedOfficeId}
+							>
+								<SelectTrigger id="staffId">
+									<SelectValue placeholder="None" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="none">None</SelectItem>
+									{filteredStaff.map((member) => (
+										<SelectItem key={member.id} value={String(member.id)}>
+											{member.displayName}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					/>
 				</div>
 			</div>
 
@@ -194,7 +232,7 @@ export function UserForm({
 							<Checkbox
 								id={`role-${role.id}`}
 								checked={selectedRoles.has(role.id!)}
-								onChange={() => toggleRole(role.id!)}
+								onCheckedChange={() => toggleRole(role.id!)}
 							/>
 							<Label
 								htmlFor={`role-${role.id}`}
@@ -253,9 +291,16 @@ export function UserForm({
 
 			<div className="space-y-3">
 				<div className="flex items-center gap-2">
-					<Checkbox
-						id="sendPasswordToEmail"
-						{...register("sendPasswordToEmail")}
+					<Controller
+						control={control}
+						name="sendPasswordToEmail"
+						render={({ field }) => (
+							<Checkbox
+								id="sendPasswordToEmail"
+								checked={field.value ?? false}
+								onCheckedChange={(value) => field.onChange(Boolean(value))}
+							/>
+						)}
 					/>
 					<Label htmlFor="sendPasswordToEmail" className="cursor-pointer">
 						Send password to email
@@ -263,9 +308,16 @@ export function UserForm({
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Checkbox
-						id="passwordNeverExpires"
-						{...register("passwordNeverExpires")}
+					<Controller
+						control={control}
+						name="passwordNeverExpires"
+						render={({ field }) => (
+							<Checkbox
+								id="passwordNeverExpires"
+								checked={field.value ?? false}
+								onCheckedChange={(value) => field.onChange(Boolean(value))}
+							/>
+						)}
 					/>
 					<Label htmlFor="passwordNeverExpires" className="cursor-pointer">
 						Password never expires
@@ -273,7 +325,17 @@ export function UserForm({
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Checkbox id="isSelfServiceUser" {...register("isSelfServiceUser")} />
+					<Controller
+						control={control}
+						name="isSelfServiceUser"
+						render={({ field }) => (
+							<Checkbox
+								id="isSelfServiceUser"
+								checked={field.value ?? false}
+								onCheckedChange={(value) => field.onChange(Boolean(value))}
+							/>
+						)}
+					/>
 					<Label htmlFor="isSelfServiceUser" className="cursor-pointer">
 						Self-service user
 					</Label>

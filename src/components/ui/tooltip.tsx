@@ -1,43 +1,29 @@
+"use client";
+
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Tooltip = React.forwardRef<
-	HTMLSpanElement,
-	React.HTMLAttributes<HTMLSpanElement>
->(({ className, ...props }, ref) => (
-	<span
-		ref={ref}
-		className={cn("relative inline-flex items-center group", className)}
-		{...props}
-	/>
-));
-Tooltip.displayName = "Tooltip";
+const TooltipProvider = TooltipPrimitive.Provider;
 
-const TooltipTrigger = React.forwardRef<
-	HTMLSpanElement,
-	React.HTMLAttributes<HTMLSpanElement>
->(({ className, ...props }, ref) => (
-	<span
-		ref={ref}
-		className={cn("inline-flex items-center", className)}
-		{...props}
-	/>
-));
-TooltipTrigger.displayName = "TooltipTrigger";
+const Tooltip = TooltipPrimitive.Root;
+
+const TooltipTrigger = TooltipPrimitive.Trigger;
 
 const TooltipContent = React.forwardRef<
-	HTMLSpanElement,
-	React.HTMLAttributes<HTMLSpanElement>
->(({ className, ...props }, ref) => (
-	<span
+	React.ElementRef<typeof TooltipPrimitive.Content>,
+	React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+	<TooltipPrimitive.Content
 		ref={ref}
+		sideOffset={sideOffset}
 		className={cn(
-			"pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max -translate-x-1/2 rounded-sm border border-border/80 bg-card px-2.5 py-1.5 text-xs text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100",
+			"z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
 			className,
 		)}
 		{...props}
 	/>
 ));
-TooltipContent.displayName = "TooltipContent";
+TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-export { Tooltip, TooltipTrigger, TooltipContent };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

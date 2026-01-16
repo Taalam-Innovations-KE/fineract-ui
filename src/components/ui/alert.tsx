@@ -1,25 +1,27 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const alertVariants = cva("relative w-full rounded-sm border bg-card p-5", {
-	variants: {
-		variant: {
-			default: "border-border/60 bg-card text-foreground",
-			destructive:
-				"border-destructive/40 bg-destructive/5 text-destructive [&>svg]:text-destructive",
-			warning:
-				"border-warning/40 bg-warning/5 text-foreground [&>svg]:text-warning",
-			success:
-				"border-success/40 bg-success/5 text-success-foreground [&>svg]:text-success",
-			info: "border-info/40 bg-info/5 text-info-foreground [&>svg]:text-info",
+const alertVariants = cva(
+	"relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7",
+	{
+		variants: {
+			variant: {
+				default: "bg-background text-foreground",
+				destructive:
+					"border-destructive/50 text-destructive [&>svg]:text-destructive",
+				success:
+					"border-success/50 text-success-foreground [&>svg]:text-success",
+				warning:
+					"border-warning/50 text-warning-foreground [&>svg]:text-warning",
+				info: "border-info/50 text-info-foreground [&>svg]:text-info",
+			},
+		},
+		defaultVariants: {
+			variant: "default",
 		},
 	},
-	defaultVariants: {
-		variant: "default",
-	},
-});
+);
 
 const Alert = React.forwardRef<
 	HTMLDivElement,

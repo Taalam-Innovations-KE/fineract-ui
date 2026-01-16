@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Shield, UserCog, X } from "lucide-react";
+import { Building2, Plus, Shield, UserCog } from "lucide-react";
 import { useState } from "react";
 import { TeamMemberForm } from "@/components/config/forms/team-member-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
@@ -266,32 +265,25 @@ export default function UsersPage() {
 				</Card>
 			</div>
 
-			{/* Create Team Member Drawer */}
-			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<DrawerHeader>
-					<div className="flex items-center justify-between flex-1">
-						<div>
-							<DrawerTitle>Create Team Member</DrawerTitle>
-							<DrawerDescription className="mt-1">
-								Create staff first, then provision their system access
-							</DrawerDescription>
-						</div>
-						<DrawerClose asChild>
-							<Button variant="ghost" size="icon" aria-label="Close">
-								<X className="h-4 w-4" />
-							</Button>
-						</DrawerClose>
+			{/* Create Team Member Sheet */}
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Create Team Member</SheetTitle>
+						<SheetDescription>
+							Create staff first, then provision their system access
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<TeamMemberForm
+							offices={offices}
+							roles={roles}
+							onSubmit={(data) => createMutation.mutateAsync(data)}
+							onCancel={() => setIsDrawerOpen(false)}
+						/>
 					</div>
-				</DrawerHeader>
-				<DrawerContent>
-					<TeamMemberForm
-						offices={offices}
-						roles={roles}
-						onSubmit={(data) => createMutation.mutateAsync(data)}
-						onCancel={() => setIsDrawerOpen(false)}
-					/>
-				</DrawerContent>
-			</Drawer>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

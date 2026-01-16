@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,13 +16,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
@@ -255,121 +253,116 @@ export default function CurrenciesPage() {
 				</Card>
 			</PageShell>
 
-			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>Manage Active Currencies</DrawerTitle>
-						<DrawerDescription className="mt-1">
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg flex flex-col">
+					<SheetHeader>
+						<SheetTitle>Manage Active Currencies</SheetTitle>
+						<SheetDescription>
 							Search and toggle currencies to control availability in the
 							system.
-						</DrawerDescription>
-					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent className="flex flex-col gap-4">
-					<div className="space-y-2">
-						<Label htmlFor="currency-search">Search currencies</Label>
-						<Input
-							id="currency-search"
-							placeholder="Search by ISO code or name"
-							value={searchTerm}
-							onChange={(event) => setSearchTerm(event.target.value)}
-						/>
-					</div>
-
-					<div className="flex items-center justify-between text-sm text-muted-foreground">
-						<span>{selectedCodes.size} selected</span>
-						<span>{currencyOptions.length} available</span>
-					</div>
-
-					{isFetching && (
-						<div className="text-sm text-muted-foreground">
-							Refreshing currency list...
+						</SheetDescription>
+					</SheetHeader>
+					<div className="flex-1 overflow-y-auto mt-6 space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="currency-search">Search currencies</Label>
+							<Input
+								id="currency-search"
+								placeholder="Search by ISO code or name"
+								value={searchTerm}
+								onChange={(event) => setSearchTerm(event.target.value)}
+							/>
 						</div>
-					)}
 
-					{error && (
-						<Alert variant="destructive">
-							<AlertTitle>Unable to load currencies</AlertTitle>
-							<AlertDescription>
-								{(error as Error)?.message ||
-									"Failed to load currencies. Please try again."}
-							</AlertDescription>
-						</Alert>
-					)}
+						<div className="flex items-center justify-between text-sm text-muted-foreground">
+							<span>{selectedCodes.size} selected</span>
+							<span>{currencyOptions.length} available</span>
+						</div>
 
-					{updateMutation.isError && (
-						<Alert variant="destructive">
-							<AlertTitle>Update failed</AlertTitle>
-							<AlertDescription>
-								{(updateMutation.error as Error)?.message ||
-									"Failed to update currencies. Please try again."}
-							</AlertDescription>
-						</Alert>
-					)}
-
-					<div className="space-y-3">
-						{filteredOptions.length === 0 ? (
-							<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
-								No currencies match your search.
+						{isFetching && (
+							<div className="text-sm text-muted-foreground">
+								Refreshing currency list...
 							</div>
-						) : (
-							filteredOptions.map((currency, index) => {
-								const code = currency.code;
-								const label =
-									currency.name || currency.displayLabel || "Unknown currency";
-								const decimalPlaces = currency.decimalPlaces ?? "—";
-								const isChecked = code ? selectedCodes.has(code) : false;
-								const checkboxId = code
-									? `currency-${code}`
-									: `currency-option-${index}`;
-
-								return (
-									<div
-										key={code || `${label}-${index}`}
-										className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
-									>
-										<Checkbox
-											id={checkboxId}
-											checked={isChecked}
-											onCheckedChange={() => toggleCurrency(code)}
-										/>
-										<Label
-											htmlFor={checkboxId}
-											className="flex-1 cursor-pointer"
-										>
-											<div className="text-sm font-medium">
-												{code || "—"}
-												{code ? " · " : ""}
-												{label}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												Decimal places: {decimalPlaces}
-											</div>
-										</Label>
-									</div>
-								);
-							})
 						)}
+
+						{error && (
+							<Alert variant="destructive">
+								<AlertTitle>Unable to load currencies</AlertTitle>
+								<AlertDescription>
+									{(error as Error)?.message ||
+										"Failed to load currencies. Please try again."}
+								</AlertDescription>
+							</Alert>
+						)}
+
+						{updateMutation.isError && (
+							<Alert variant="destructive">
+								<AlertTitle>Update failed</AlertTitle>
+								<AlertDescription>
+									{(updateMutation.error as Error)?.message ||
+										"Failed to update currencies. Please try again."}
+								</AlertDescription>
+							</Alert>
+						)}
+
+						<div className="space-y-3">
+							{filteredOptions.length === 0 ? (
+								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+									No currencies match your search.
+								</div>
+							) : (
+								filteredOptions.map((currency, index) => {
+									const code = currency.code;
+									const label =
+										currency.name || currency.displayLabel || "Unknown currency";
+									const decimalPlaces = currency.decimalPlaces ?? "—";
+									const isChecked = code ? selectedCodes.has(code) : false;
+									const checkboxId = code
+										? `currency-${code}`
+										: `currency-option-${index}`;
+
+									return (
+										<div
+											key={code || `${label}-${index}`}
+											className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
+										>
+											<Checkbox
+												id={checkboxId}
+												checked={isChecked}
+												onCheckedChange={() => toggleCurrency(code)}
+											/>
+											<Label
+												htmlFor={checkboxId}
+												className="flex-1 cursor-pointer"
+											>
+												<div className="text-sm font-medium">
+													{code || "—"}
+													{code ? " · " : ""}
+													{label}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													Decimal places: {decimalPlaces}
+												</div>
+											</Label>
+										</div>
+									);
+								})
+							)}
+						</div>
 					</div>
-				</DrawerContent>
-				<div className="flex items-center justify-end gap-2 border-t border-border/80 px-7 py-4">
-					<Button type="button" variant="outline" onClick={handleCloseDrawer}>
-						Cancel
-					</Button>
-					<Button
-						type="button"
-						onClick={handleSaveChanges}
-						disabled={!isSelectionDirty || updateMutation.isPending}
-					>
-						{updateMutation.isPending ? "Saving..." : "Save Changes"}
-					</Button>
-				</div>
-			</Drawer>
+					<div className="flex items-center justify-end gap-2 border-t pt-4 mt-4">
+						<Button type="button" variant="outline" onClick={handleCloseDrawer}>
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							onClick={handleSaveChanges}
+							disabled={!isSelectionDirty || updateMutation.isPending}
+						>
+							{updateMutation.isPending ? "Saving..." : "Save Changes"}
+						</Button>
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			{toastMessage && (
 				<div className="fixed bottom-6 right-6 z-50 w-[280px]">

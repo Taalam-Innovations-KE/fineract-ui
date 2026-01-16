@@ -12,9 +12,9 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 
 interface RouteContext {
-	params: {
+	params: Promise<{
 		codeId: string;
-	};
+	}>;
 }
 
 /**
@@ -24,7 +24,7 @@ interface RouteContext {
 export async function GET(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { codeId } = context.params;
+		const { codeId } = await context.params;
 
 		const result = await fineractFetch<GetCodeValuesDataResponse[]>(
 			`${FINERACT_ENDPOINTS.codes}/${codeId}/codevalues`,
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function POST(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { codeId } = context.params;
+		const { codeId } = await context.params;
 		const body = (await request.json()) as PostCodeValuesDataRequest;
 
 		const result = await fineractFetch<PostCodeValueDataResponse>(

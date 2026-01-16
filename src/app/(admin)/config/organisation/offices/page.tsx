@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { OfficeForm } from "@/components/config/forms/office-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	OfficeData,
@@ -255,28 +254,23 @@ export default function OfficesPage() {
 				</Card>
 			</div>
 
-			<Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>Create New Office</DrawerTitle>
-						<DrawerDescription>
+			<Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Create New Office</SheetTitle>
+						<SheetDescription>
 							Add a new office to your organization hierarchy
-						</DrawerDescription>
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<OfficeForm
+							offices={offices}
+							onSubmit={(data) => createMutation.mutateAsync(data)}
+							onCancel={() => setIsCreateDialogOpen(false)}
+						/>
 					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent>
-					<OfficeForm
-						offices={offices}
-						onSubmit={(data) => createMutation.mutateAsync(data)}
-						onCancel={() => setIsCreateDialogOpen(false)}
-					/>
-				</DrawerContent>
-			</Drawer>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

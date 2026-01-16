@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, UserCheck, Users, X } from "lucide-react";
+import { Building2, Plus, UserCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { StaffForm } from "@/components/config/forms/staff-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -362,28 +361,23 @@ export default function StaffPage() {
 				</Card>
 			</div>
 
-			<Drawer open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>Add Staff Member</DrawerTitle>
-						<DrawerDescription>
+			<Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Add Staff Member</SheetTitle>
+						<SheetDescription>
 							Add a new staff member to your organization
-						</DrawerDescription>
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<StaffForm
+							offices={offices}
+							onSubmit={(data) => createMutation.mutateAsync(data)}
+							onCancel={() => setIsCreateDialogOpen(false)}
+						/>
 					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent>
-					<StaffForm
-						offices={offices}
-						onSubmit={(data) => createMutation.mutateAsync(data)}
-						onCancel={() => setIsCreateDialogOpen(false)}
-					/>
-				</DrawerContent>
-			</Drawer>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

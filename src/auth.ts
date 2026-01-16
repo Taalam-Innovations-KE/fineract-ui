@@ -19,7 +19,7 @@ type ExtendedUser = {
 };
 
 /**
- * Authenticate user against Fineract API using basic auth
+ * Authenticate user against Fineract API using POST /v1/authentication
  */
 async function authenticateWithFineract(
 	username: string,
@@ -35,16 +35,21 @@ async function authenticateWithFineract(
 			"base64",
 		);
 
-		// Try to authenticate by fetching user data
-		const response = await fetch(`${FINERACT_BASE_URL}/v1/self/user`, {
-			method: "GET",
-			headers: {
-				Authorization: `Basic ${authHeader}`,
-				"fineract-platform-tenantid": tenantId,
-				"Content-Type": "application/json",
+		// Use POST /v1/authentication endpoint
+		const response = await fetch(
+			`${FINERACT_BASE_URL}/v1/authentication?returnClientList=false`,
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Basic ${authHeader}`,
+					"fineract-platform-tenantid": tenantId,
+					"Content-Type": "application/json",
+					Accept: "application/json",
+				},
+				body: JSON.stringify({ username, password }),
+				cache: "no-store",
 			},
-			cache: "no-store",
-		});
+		);
 
 		if (!response.ok) {
 			return null;
@@ -52,13 +57,15 @@ async function authenticateWithFineract(
 
 		const userData = await response.json();
 
+		if (!userData.authenticated) {
+			return null;
+		}
+
 		return {
 			id: userData.userId?.toString() || username,
 			username: userData.username || username,
-			email: userData.email || `${username}@fineract.local`,
-			name:
-				`${userData.firstname || ""} ${userData.lastname || ""}`.trim() ||
-				username,
+			email: `${username}@fineract.local`,
+			name: userData.officeName || username,
 			roles: userData.roles || [],
 			tenantId,
 		};

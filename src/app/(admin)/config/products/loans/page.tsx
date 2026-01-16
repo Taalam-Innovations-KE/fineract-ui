@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Plus, TrendingUp, X } from "lucide-react";
+import { CreditCard, Plus, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
@@ -16,13 +16,12 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	CurrencyConfigurationData,
@@ -250,32 +249,25 @@ export default function LoanProductsPage() {
 				</Card>
 			</div>
 
-			{/* Create Loan Product Drawer */}
-			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<DrawerHeader>
-					<div className="flex items-center justify-between flex-1">
-						<div>
-							<DrawerTitle>Create Loan Product</DrawerTitle>
-							<DrawerDescription className="mt-1">
-								Configure a new loan product with a multi-step wizard
-							</DrawerDescription>
-						</div>
-						<DrawerClose asChild>
-							<Button variant="ghost" size="icon" aria-label="Close">
-								<X className="h-4 w-4" />
-							</Button>
-						</DrawerClose>
+			{/* Create Loan Product Sheet */}
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Create Loan Product</SheetTitle>
+						<SheetDescription>
+							Configure a new loan product with a multi-step wizard
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<LoanProductWizard
+							currencies={enabledCurrencies}
+							isOpen={isDrawerOpen}
+							onSubmit={(data) => createMutation.mutateAsync(data)}
+							onCancel={() => setIsDrawerOpen(false)}
+						/>
 					</div>
-				</DrawerHeader>
-				<DrawerContent>
-					<LoanProductWizard
-						currencies={enabledCurrencies}
-						isOpen={isDrawerOpen}
-						onSubmit={(data) => createMutation.mutateAsync(data)}
-						onCancel={() => setIsDrawerOpen(false)}
-					/>
-				</DrawerContent>
-			</Drawer>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

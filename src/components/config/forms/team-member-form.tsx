@@ -18,6 +18,7 @@ import {
 import type { FineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetRolesResponse,
+	GetUsersResponse,
 	OfficeData,
 } from "@/lib/fineract/generated/types.gen";
 import { FINERACT_PASSWORD_MESSAGE } from "@/lib/schemas/password";
@@ -31,6 +32,7 @@ import {
 interface TeamMemberFormProps {
 	offices: OfficeData[];
 	roles: GetRolesResponse[];
+	initialData?: GetUsersResponse;
 	onSubmit: (data: TeamMemberRequestPayload) => Promise<void>;
 	onCancel: () => void;
 }
@@ -50,11 +52,18 @@ const SERVER_FIELD_MAP: Record<string, keyof CreateTeamMemberFormData> = {
 export function TeamMemberForm({
 	offices,
 	roles,
+	initialData,
 	onSubmit,
 	onCancel,
 }: TeamMemberFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [selectedRoles, setSelectedRoles] = useState<Set<number>>(new Set());
+	const isEditing = Boolean(initialData);
+
+	const initialRoleIds = new Set(
+		initialData?.selectedRoles?.map((r) => r.id!).filter(Boolean) ?? [],
+	);
+	const [selectedRoles, setSelectedRoles] =
+		useState<Set<number>>(initialRoleIds);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 
 	const {
@@ -66,11 +75,24 @@ export function TeamMemberForm({
 		setError,
 	} = useForm<CreateTeamMemberFormData>({
 		resolver: zodResolver(createTeamMemberSchema),
-		defaultValues: {
-			roles: [],
-			isLoanOfficer: false,
-			isActive: true,
-		},
+		defaultValues: initialData
+			? {
+					firstname: initialData.firstname || "",
+					lastname: initialData.lastname || "",
+					email: initialData.email || "",
+					officeId: initialData.officeId,
+					roles: Array.from(initialRoleIds),
+					isLoanOfficer: false,
+					isActive: true,
+					// Password fields are empty in edit mode - user can optionally set new password
+					password: "",
+					repeatPassword: "",
+				}
+			: {
+					roles: [],
+					isLoanOfficer: false,
+					isActive: true,
+				},
 	});
 
 	const toggleRole = (roleId: number) => {
@@ -457,7 +479,13 @@ export function TeamMemberForm({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting ? "Creating..." : "Create Team Member"}
+					{isSubmitting
+						? isEditing
+							? "Updating..."
+							: "Creating..."
+						: isEditing
+							? "Update Team Member"
+							: "Create Team Member"}
 				</Button>
 			</div>
 		</form>

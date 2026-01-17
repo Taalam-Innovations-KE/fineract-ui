@@ -61,6 +61,28 @@ async function createOffice(tenantId: string, data: PostOfficesRequest) {
 	return response.json();
 }
 
+async function updateOffice(
+	tenantId: string,
+	officeId: number,
+	data: PostOfficesRequest,
+) {
+	const response = await fetch(`${BFF_ROUTES.offices}/${officeId}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.message || "Failed to update office");
+	}
+
+	return response.json();
+}
+
 type OfficeNode = OfficeData & { children: OfficeNode[] };
 
 function buildOfficeTree(offices: OfficeData[]): OfficeNode[] {
@@ -103,8 +125,11 @@ function flattenOfficeTree(
 
 export default function OfficesPage() {
 	const { tenantId } = useTenantStore();
-	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [isDialogOpen, setIsDialogOpen] = useState(false);
+	const [selectedOffice, setSelectedOffice] = useState<OfficeData | null>(null);
 	const queryClient = useQueryClient();
+
+	const isEditing = Boolean(selectedOffice);
 
 	const {
 		data: offices = [],
@@ -119,9 +144,36 @@ export default function OfficesPage() {
 		mutationFn: (data: PostOfficesRequest) => createOffice(tenantId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["offices", tenantId] });
-			setIsCreateDialogOpen(false);
+			setIsDialogOpen(false);
 		},
 	});
+
+	const updateMutation = useMutation({
+		mutationFn: (data: PostOfficesRequest) =>
+			updateOffice(tenantId, selectedOffice!.id!, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["offices", tenantId] });
+			setIsDialogOpen(false);
+			setSelectedOffice(null);
+		},
+	});
+
+	const handleRowClick = (row: { office: OfficeNode; level: number }) => {
+		setSelectedOffice(row.office);
+		setIsDialogOpen(true);
+	};
+
+	const handleCreateNew = () => {
+		setSelectedOffice(null);
+		setIsDialogOpen(true);
+	};
+
+	const handleDialogClose = (open: boolean) => {
+		setIsDialogOpen(open);
+		if (!open) {
+			setSelectedOffice(null);
+		}
+	};
 
 	const officeTree = buildOfficeTree(offices);
 	const flattenedOffices = flattenOfficeTree(officeTree);
@@ -180,13 +232,50 @@ export default function OfficesPage() {
 			title="Offices"
 			subtitle="Manage your organization's office hierarchy"
 			actions={
-				<Button onClick={() => setIsCreateDialogOpen(true)}>
+				<Button onClick={handleCreateNew}>
 					<Plus className="h-4 w-4 mr-2" />
 					Create Office
 				</Button>
 			}
 		>
-			<div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+			<div className="space-y-6">
+				<div className="grid gap-4 md:grid-cols-3">
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center justify-between">
+								<span className="text-sm text-muted-foreground">
+									Total Offices
+								</span>
+								<span className="text-2xl font-bold">{offices.length}</span>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center justify-between">
+								<span className="text-sm text-muted-foreground">
+									Head Offices
+								</span>
+								<span className="text-2xl font-bold">
+									{offices.filter((o) => !o.parentId).length}
+								</span>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center justify-between">
+								<span className="text-sm text-muted-foreground">
+									Branch Offices
+								</span>
+								<span className="text-2xl font-bold">
+									{offices.filter((o) => o.parentId).length}
+								</span>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+
 				<Card>
 					<CardHeader>
 						<CardTitle>Offices</CardTitle>
@@ -217,56 +306,36 @@ export default function OfficesPage() {
 								getRowId={(row) =>
 									row.office.id ?? row.office.name ?? "office-row"
 								}
+								onRowClick={handleRowClick}
 							/>
 						)}
 					</CardContent>
 				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle>Summary</CardTitle>
-						<CardDescription>Office statistics</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center justify-between">
-							<span className="text-sm text-muted-foreground">
-								Total Offices
-							</span>
-							<span className="text-2xl font-bold">{offices.length}</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-sm text-muted-foreground">
-								Head Offices
-							</span>
-							<span className="text-2xl font-bold">
-								{offices.filter((o) => !o.parentId).length}
-							</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-sm text-muted-foreground">
-								Branch Offices
-							</span>
-							<span className="text-2xl font-bold">
-								{offices.filter((o) => o.parentId).length}
-							</span>
-						</div>
-					</CardContent>
-				</Card>
 			</div>
 
-			<Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
 				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
 					<SheetHeader>
-						<SheetTitle>Create New Office</SheetTitle>
+						<SheetTitle>
+							{isEditing ? "Edit Office" : "Create New Office"}
+						</SheetTitle>
 						<SheetDescription>
-							Add a new office to your organization hierarchy
+							{isEditing
+								? "Update office details"
+								: "Add a new office to your organization hierarchy"}
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
 						<OfficeForm
-							offices={offices}
-							onSubmit={(data) => createMutation.mutateAsync(data)}
-							onCancel={() => setIsCreateDialogOpen(false)}
+							key={selectedOffice?.id ?? "new"}
+							offices={offices.filter((o) => o.id !== selectedOffice?.id)}
+							initialData={selectedOffice ?? undefined}
+							onSubmit={(data) =>
+								isEditing
+									? updateMutation.mutateAsync(data)
+									: createMutation.mutateAsync(data)
+							}
+							onCancel={() => handleDialogClose(false)}
 						/>
 					</div>
 				</SheetContent>

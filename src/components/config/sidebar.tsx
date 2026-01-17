@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	Banknote,
 	Building2,
 	ChevronDown,
 	Clock,
@@ -93,6 +94,7 @@ const navItems: NavItem[] = [
 				icon: Clock,
 			},
 			{ title: "Clients", href: "/config/operations/clients", icon: Users },
+			{ title: "Loans", href: "/config/operations/loans", icon: Banknote },
 		],
 	},
 ];

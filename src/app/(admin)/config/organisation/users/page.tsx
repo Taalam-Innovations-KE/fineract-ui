@@ -95,10 +95,38 @@ async function createTeamMember(
 	return payload;
 }
 
+async function updateUser(
+	tenantId: string,
+	userId: number,
+	data: TeamMemberRequestPayload,
+) {
+	const response = await fetch(`${BFF_ROUTES.users}/${userId}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(data),
+	});
+
+	const payload = await response.json();
+
+	if (!response.ok) {
+		throw payload;
+	}
+
+	return payload;
+}
+
 export default function UsersPage() {
 	const { tenantId } = useTenantStore();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const [selectedUser, setSelectedUser] = useState<GetUsersResponse | null>(
+		null,
+	);
 	const queryClient = useQueryClient();
+
+	const isEditing = Boolean(selectedUser);
 
 	const {
 		data: users = [],
@@ -128,6 +156,34 @@ export default function UsersPage() {
 			setIsDrawerOpen(false);
 		},
 	});
+
+	const updateMutation = useMutation({
+		mutationFn: (data: TeamMemberRequestPayload) =>
+			updateUser(tenantId, selectedUser!.id!, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["users", tenantId] });
+			queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
+			setIsDrawerOpen(false);
+			setSelectedUser(null);
+		},
+	});
+
+	const handleRowClick = (user: GetUsersResponse) => {
+		setSelectedUser(user);
+		setIsDrawerOpen(true);
+	};
+
+	const handleCreateNew = () => {
+		setSelectedUser(null);
+		setIsDrawerOpen(true);
+	};
+
+	const handleDrawerClose = (open: boolean) => {
+		setIsDrawerOpen(open);
+		if (!open) {
+			setSelectedUser(null);
+		}
+	};
 
 	const userColumns = [
 		{
@@ -185,13 +241,58 @@ export default function UsersPage() {
 			title="Users"
 			subtitle="Manage system users and their access permissions"
 			actions={
-				<Button onClick={() => setIsDrawerOpen(true)}>
+				<Button onClick={handleCreateNew}>
 					<Plus className="h-4 w-4 mr-2" />
 					Create Team Member
 				</Button>
 			}
 		>
-			<div className="grid gap-6 md:grid-cols-[1fr_300px]">
+			<div className="space-y-6">
+				{/* Summary Cards */}
+				<div className="grid gap-4 md:grid-cols-3">
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<UserCog className="h-5 w-5 text-primary" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{users.length}</div>
+									<div className="text-sm text-muted-foreground">Total Users</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
+									<Shield className="h-5 w-5 text-info" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{roles.length}</div>
+									<div className="text-sm text-muted-foreground">
+										Available Roles
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+									<Building2 className="h-5 w-5 text-success" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{offices.length}</div>
+									<div className="text-sm text-muted-foreground">Offices</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+
 				<Card>
 					<CardHeader>
 						<CardTitle>System Users</CardTitle>
@@ -220,66 +321,38 @@ export default function UsersPage() {
 								data={users}
 								columns={userColumns}
 								getRowId={(user) => user.id ?? user.username ?? "user-row"}
+								onRowClick={handleRowClick}
 							/>
 						)}
 					</CardContent>
 				</Card>
-
-				{/* Summary */}
-				<Card className="h-fit">
-					<CardHeader>
-						<CardTitle>Summary</CardTitle>
-						<CardDescription>User statistics</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-								<UserCog className="h-5 w-5 text-primary" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">{users.length}</div>
-								<div className="text-sm text-muted-foreground">Total Users</div>
-							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
-								<Shield className="h-5 w-5 text-info" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">{roles.length}</div>
-								<div className="text-sm text-muted-foreground">
-									Available Roles
-								</div>
-							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
-								<Building2 className="h-5 w-5 text-success" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">{offices.length}</div>
-								<div className="text-sm text-muted-foreground">Offices</div>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
 			</div>
 
-			{/* Create Team Member Sheet */}
-			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+			{/* Create/Edit Team Member Sheet */}
+			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerClose}>
 				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
 					<SheetHeader>
-						<SheetTitle>Create Team Member</SheetTitle>
+						<SheetTitle>
+							{isEditing ? "Edit Team Member" : "Create Team Member"}
+						</SheetTitle>
 						<SheetDescription>
-							Create staff first, then provision their system access
+							{isEditing
+								? "Update team member details"
+								: "Create staff first, then provision their system access"}
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
 						<TeamMemberForm
+							key={selectedUser?.id ?? "new"}
 							offices={offices}
 							roles={roles}
-							onSubmit={(data) => createMutation.mutateAsync(data)}
-							onCancel={() => setIsDrawerOpen(false)}
+							initialData={selectedUser ?? undefined}
+							onSubmit={(data) =>
+								isEditing
+									? updateMutation.mutateAsync(data)
+									: createMutation.mutateAsync(data)
+							}
+							onCancel={() => handleDrawerClose(false)}
 						/>
 					</div>
 				</SheetContent>

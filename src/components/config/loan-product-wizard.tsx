@@ -9,7 +9,6 @@ import {
 	Copy,
 	Info,
 	Plus,
-	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type FieldPath, useForm } from "react-hook-form";
@@ -25,13 +24,12 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -2390,23 +2388,15 @@ export function LoanProductWizard({
 					</form>
 				)}
 
-				<Drawer open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
-					<DrawerHeader>
-						<div className="flex items-center justify-between flex-1">
-							<div>
-								<DrawerTitle>Add Fee</DrawerTitle>
-								<DrawerDescription className="mt-1">
-									Create a new fee charge.
-								</DrawerDescription>
-							</div>
-							<DrawerClose asChild>
-								<Button variant="ghost" size="icon" aria-label="Close">
-									<X className="h-4 w-4" />
-								</Button>
-							</DrawerClose>
-						</div>
-					</DrawerHeader>
-					<DrawerContent>
+				<Sheet open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
+					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+						<SheetHeader>
+							<SheetTitle>Add Fee</SheetTitle>
+							<SheetDescription>
+								Create a new fee charge.
+							</SheetDescription>
+						</SheetHeader>
+						<div className="mt-4">
 						<form onSubmit={handleCreateFee} className="space-y-4">
 							{feeSubmitError && (
 								<Alert variant="destructive">
@@ -2548,26 +2538,19 @@ export function LoanProductWizard({
 								</Button>
 							</div>
 						</form>
-					</DrawerContent>
-				</Drawer>
-
-				<Drawer open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
-					<DrawerHeader>
-						<div className="flex items-center justify-between flex-1">
-							<div>
-								<DrawerTitle>Select Existing Fees</DrawerTitle>
-								<DrawerDescription className="mt-1">
-									Choose from configured fee charges.
-								</DrawerDescription>
-							</div>
-							<DrawerClose asChild>
-								<Button variant="ghost" size="icon" aria-label="Close">
-									<X className="h-4 w-4" />
-								</Button>
-							</DrawerClose>
 						</div>
-					</DrawerHeader>
-					<DrawerContent className="space-y-3">
+					</SheetContent>
+				</Sheet>
+
+				<Sheet open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
+					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+						<SheetHeader>
+							<SheetTitle>Select Existing Fees</SheetTitle>
+							<SheetDescription>
+								Choose from configured fee charges.
+							</SheetDescription>
+						</SheetHeader>
+						<div className="space-y-3 mt-4">
 						{feeOptions.length === 0 && (
 							<p className="text-sm text-muted-foreground">
 								No fee charges available.
@@ -2594,29 +2577,22 @@ export function LoanProductWizard({
 								</Button>
 							</div>
 						))}
-					</DrawerContent>
-				</Drawer>
+						</div>
+					</SheetContent>
+				</Sheet>
 
-				<Drawer
+				<Sheet
 					open={isPenaltyDrawerOpen}
 					onOpenChange={setIsPenaltyDrawerOpen}
 				>
-					<DrawerHeader>
-						<div className="flex items-center justify-between flex-1">
-							<div>
-								<DrawerTitle>Add Penalty</DrawerTitle>
-								<DrawerDescription className="mt-1">
-									Create a new penalty charge.
-								</DrawerDescription>
-							</div>
-							<DrawerClose asChild>
-								<Button variant="ghost" size="icon" aria-label="Close">
-									<X className="h-4 w-4" />
-								</Button>
-							</DrawerClose>
-						</div>
-					</DrawerHeader>
-					<DrawerContent>
+					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+						<SheetHeader>
+							<SheetTitle>Add Penalty</SheetTitle>
+							<SheetDescription>
+								Create a new penalty charge.
+							</SheetDescription>
+						</SheetHeader>
+						<div className="mt-4">
 						<form onSubmit={handleCreatePenalty} className="space-y-4">
 							{penaltySubmitError && (
 								<Alert variant="destructive">
@@ -2754,29 +2730,22 @@ export function LoanProductWizard({
 								</Button>
 							</div>
 						</form>
-					</DrawerContent>
-				</Drawer>
+						</div>
+					</SheetContent>
+				</Sheet>
 
-				<Drawer
+				<Sheet
 					open={isPenaltySelectOpen}
 					onOpenChange={setIsPenaltySelectOpen}
 				>
-					<DrawerHeader>
-						<div className="flex items-center justify-between flex-1">
-							<div>
-								<DrawerTitle>Select Existing Penalties</DrawerTitle>
-								<DrawerDescription className="mt-1">
-									Choose from configured penalty charges.
-								</DrawerDescription>
-							</div>
-							<DrawerClose asChild>
-								<Button variant="ghost" size="icon" aria-label="Close">
-									<X className="h-4 w-4" />
-								</Button>
-							</DrawerClose>
-						</div>
-					</DrawerHeader>
-					<DrawerContent className="space-y-3">
+					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+						<SheetHeader>
+							<SheetTitle>Select Existing Penalties</SheetTitle>
+							<SheetDescription>
+								Choose from configured penalty charges.
+							</SheetDescription>
+						</SheetHeader>
+						<div className="space-y-3 mt-4">
 						{penaltyOptions.length === 0 && (
 							<p className="text-sm text-muted-foreground">
 								No penalty charges available.
@@ -2803,8 +2772,9 @@ export function LoanProductWizard({
 								</Button>
 							</div>
 						))}
-					</DrawerContent>
-				</Drawer>
+						</div>
+					</SheetContent>
+				</Sheet>
 			</div>
 		</TooltipProvider>
 	);

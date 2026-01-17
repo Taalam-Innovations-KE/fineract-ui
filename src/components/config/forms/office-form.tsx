@@ -25,12 +25,20 @@ import {
 
 interface OfficeFormProps {
 	offices: OfficeData[];
+	initialData?: OfficeData;
 	onSubmit: (data: PostOfficesRequest) => Promise<void>;
 	onCancel: () => void;
 }
 
-export function OfficeForm({ offices, onSubmit, onCancel }: OfficeFormProps) {
+export function OfficeForm({
+	offices,
+	initialData,
+	onSubmit,
+	onCancel,
+}: OfficeFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const isEditing = Boolean(initialData);
+
 	const {
 		register,
 		handleSubmit,
@@ -38,9 +46,18 @@ export function OfficeForm({ offices, onSubmit, onCancel }: OfficeFormProps) {
 		formState: { errors },
 	} = useForm<CreateOfficeFormData>({
 		resolver: zodResolver(createOfficeSchema),
-		defaultValues: {
-			openingDate: new Date(),
-		},
+		defaultValues: initialData
+			? {
+					name: initialData.name || "",
+					parentId: initialData.parentId,
+					externalId: initialData.externalId || "",
+					openingDate: initialData.openingDate
+						? new Date(initialData.openingDate)
+						: new Date(),
+				}
+			: {
+					openingDate: new Date(),
+				},
 	});
 
 	const onFormSubmit = async (data: CreateOfficeFormData) => {
@@ -143,7 +160,13 @@ export function OfficeForm({ offices, onSubmit, onCancel }: OfficeFormProps) {
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting ? "Creating..." : "Create Office"}
+					{isSubmitting
+						? isEditing
+							? "Updating..."
+							: "Creating..."
+						: isEditing
+							? "Update Office"
+							: "Create Office"}
 				</Button>
 			</div>
 		</form>

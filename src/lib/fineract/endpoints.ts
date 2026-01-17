@@ -22,6 +22,10 @@ export const FINERACT_ENDPOINTS = {
 	loanProductTemplate: "/v1/loanproducts/template",
 	charges: "/v1/charges",
 
+	// Loans
+	loans: "/v1/loans",
+	loansTemplate: "/v1/loans/template",
+
 	// Operations - COB
 	loansCatchUp: "/v1/loans/catch-up",
 	loansCatchUpRunning: "/v1/loans/is-catch-up-running",
@@ -50,6 +54,10 @@ export const BFF_ROUTES = {
 	loanProducts: "/api/fineract/loanproducts",
 	loanProductTemplate: "/api/fineract/loanproducts/template",
 	charges: "/api/fineract/charges",
+
+	// Loans
+	loans: "/api/fineract/loans",
+	loansTemplate: "/api/fineract/loans/template",
 
 	// Operations - COB
 	loansCatchUp: "/api/fineract/loans/catch-up",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -17,13 +16,12 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -490,15 +488,15 @@ export default function ClientsPage() {
 				</Card>
 			</PageShell>
 
-			<Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>Client Onboarding</DrawerTitle>
-						<DrawerDescription className="mt-1">
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Client Onboarding</SheetTitle>
+						<SheetDescription>
 							Load system lookups before capturing new client details.
-						</DrawerDescription>
-					</div>
-					<div className="flex items-center gap-2">
+						</SheetDescription>
+					</SheetHeader>
+					<div className="flex justify-end mt-2 mb-4">
 						<Button
 							type="button"
 							variant="outline"
@@ -508,14 +506,8 @@ export default function ClientsPage() {
 						>
 							Refresh Lookups
 						</Button>
-						<DrawerClose asChild>
-							<Button variant="ghost" size="icon" aria-label="Close">
-								<X className="h-4 w-4" />
-							</Button>
-						</DrawerClose>
 					</div>
-				</DrawerHeader>
-				<DrawerContent className="flex flex-col gap-4">
+					<div className="flex flex-col gap-4">
 					{isLookupsLoading && <LookupSkeleton />}
 
 					{!isLookupsLoading && lookupErrors.length > 0 && (
@@ -816,8 +808,9 @@ export default function ClientsPage() {
 							</div>
 						</form>
 					)}
-				</DrawerContent>
-			</Drawer>
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			{toastMessage && (
 				<div className="fixed bottom-6 right-6 z-50 w-[280px]">

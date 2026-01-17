@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import type {
 	OfficeData,
+	Staff,
 	StaffRequest,
 } from "@/lib/fineract/generated/types.gen";
 import {
@@ -27,12 +28,20 @@ import {
 
 interface StaffFormProps {
 	offices: OfficeData[];
+	initialData?: Staff;
 	onSubmit: (data: StaffRequestPayload) => Promise<void>;
 	onCancel: () => void;
 }
 
-export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
+export function StaffForm({
+	offices,
+	initialData,
+	onSubmit,
+	onCancel,
+}: StaffFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const isEditing = Boolean(initialData);
+
 	const {
 		register,
 		handleSubmit,
@@ -40,10 +49,23 @@ export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
 		formState: { errors },
 	} = useForm<CreateStaffFormData>({
 		resolver: zodResolver(createStaffSchema),
-		defaultValues: {
-			isLoanOfficer: false,
-			isActive: true,
-		},
+		defaultValues: initialData
+			? {
+					firstname: initialData.firstname || "",
+					lastname: initialData.lastname || "",
+					officeId: initialData.officeId,
+					mobileNo: initialData.mobileNo || "",
+					externalId: initialData.externalId || "",
+					isLoanOfficer: initialData.loanOfficer ?? false,
+					isActive: initialData.active ?? true,
+					joiningDate: initialData.joiningDate
+						? new Date(initialData.joiningDate)
+						: undefined,
+				}
+			: {
+					isLoanOfficer: false,
+					isActive: true,
+				},
 	});
 
 	const onFormSubmit = async (data: CreateStaffFormData) => {
@@ -201,7 +223,13 @@ export function StaffForm({ offices, onSubmit, onCancel }: StaffFormProps) {
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting ? "Creating..." : "Create Staff"}
+					{isSubmitting
+						? isEditing
+							? "Updating..."
+							: "Creating..."
+						: isEditing
+							? "Update Staff"
+							: "Create Staff"}
 				</Button>
 			</div>
 		</form>

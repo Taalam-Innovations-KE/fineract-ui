@@ -7,7 +7,6 @@ import {
 	CheckCircle,
 	Clock,
 	Play,
-	X,
 } from "lucide-react";
 import { useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
@@ -22,13 +21,12 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
@@ -313,60 +311,55 @@ export default function COBPage() {
 				</Card>
 			</div>
 
-			{/* Confirmation Drawer */}
-			<Drawer open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>Confirm COB Catch-up</DrawerTitle>
-						<DrawerDescription>
+			{/* Confirmation Sheet */}
+			<Sheet open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>Confirm COB Catch-up</SheetTitle>
+						<SheetDescription>
 							This operation will process all outstanding COB closures. Please
 							confirm you want to proceed.
-						</DrawerDescription>
+						</SheetDescription>
+					</SheetHeader>
+					<div className="space-y-4 mt-4">
+						<Alert variant="warning">
+							<AlertTriangle className="h-4 w-4" />
+							<AlertDescription>
+								This is a critical operation that affects loan account processing.
+								Ensure you have proper authorization and have notified relevant
+								teams.
+							</AlertDescription>
+						</Alert>
+						<div className="space-y-2">
+							<Label htmlFor="reason">Reason / Ticket Number (Optional)</Label>
+							<Input
+								id="reason"
+								value={reason}
+								onChange={(e) => setReason(e.target.value)}
+								placeholder="Enter reason or ticket number"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Document why this catch-up is being performed
+							</p>
+						</div>
+						<div className="flex items-center justify-end gap-2 pt-4">
+							<Button
+								variant="outline"
+								onClick={() => setIsConfirmDialogOpen(false)}
+								disabled={catchUpMutation.isPending}
+							>
+								Cancel
+							</Button>
+							<Button
+								onClick={handleConfirmCatchUp}
+								disabled={catchUpMutation.isPending}
+							>
+								{catchUpMutation.isPending ? "Starting..." : "Confirm & Start"}
+							</Button>
+						</div>
 					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent className="space-y-4">
-					<Alert variant="warning">
-						<AlertTriangle className="h-4 w-4" />
-						<AlertDescription>
-							This is a critical operation that affects loan account processing.
-							Ensure you have proper authorization and have notified relevant
-							teams.
-						</AlertDescription>
-					</Alert>
-					<div className="space-y-2">
-						<Label htmlFor="reason">Reason / Ticket Number (Optional)</Label>
-						<Input
-							id="reason"
-							value={reason}
-							onChange={(e) => setReason(e.target.value)}
-							placeholder="Enter reason or ticket number"
-						/>
-						<p className="text-xs text-muted-foreground">
-							Document why this catch-up is being performed
-						</p>
-					</div>
-					<div className="flex items-center justify-end gap-2 pt-4">
-						<Button
-							variant="outline"
-							onClick={() => setIsConfirmDialogOpen(false)}
-							disabled={catchUpMutation.isPending}
-						>
-							Cancel
-						</Button>
-						<Button
-							onClick={handleConfirmCatchUp}
-							disabled={catchUpMutation.isPending}
-						>
-							{catchUpMutation.isPending ? "Starting..." : "Confirm & Start"}
-						</Button>
-					</div>
-				</DrawerContent>
-			</Drawer>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

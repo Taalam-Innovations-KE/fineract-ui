@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -17,13 +16,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -857,7 +855,7 @@ export default function CodesPage() {
 				</CardContent>
 			</Card>
 
-			<Drawer
+			<Sheet
 				open={Boolean(selectedCode)}
 				onOpenChange={(open) => {
 					if (!open) {
@@ -866,20 +864,14 @@ export default function CodesPage() {
 					}
 				}}
 			>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>{selectedCode?.name || "Code Values"}</DrawerTitle>
-						<DrawerDescription className="mt-1">
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>{selectedCode?.name || "Code Values"}</SheetTitle>
+						<SheetDescription>
 							Add, edit, or deactivate code values for this category.
-						</DrawerDescription>
-					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent className="flex flex-col gap-4">
+						</SheetDescription>
+					</SheetHeader>
+					<div className="flex flex-col gap-4 mt-4">
 					<div className="rounded-sm border border-border/60 p-4 space-y-3">
 						<div className="text-sm font-semibold text-muted-foreground">
 							Add Value
@@ -1097,31 +1089,26 @@ export default function CodesPage() {
 							)}
 						</div>
 					)}
-				</DrawerContent>
-			</Drawer>
+					</div>
+				</SheetContent>
+			</Sheet>
 
-			<Drawer
+			<Sheet
 				open={Boolean(selectedCodeValue)}
 				onOpenChange={(open) => {
 					if (!open) setSelectedCodeValue(null);
 				}}
 			>
-				<DrawerHeader>
-					<div>
-						<DrawerTitle>
+				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetHeader>
+						<SheetTitle>
 							Metadata for {selectedCodeValue?.name || "Value"}
-						</DrawerTitle>
-						<DrawerDescription className="mt-1">
+						</SheetTitle>
+						<SheetDescription>
 							Attach custom metadata fields to this code value.
-						</DrawerDescription>
-					</div>
-					<DrawerClose asChild>
-						<Button variant="ghost" size="icon" aria-label="Close">
-							<X className="h-4 w-4" />
-						</Button>
-					</DrawerClose>
-				</DrawerHeader>
-				<DrawerContent className="flex flex-col gap-4">
+						</SheetDescription>
+					</SheetHeader>
+					<div className="flex flex-col gap-4 mt-4">
 					{datatablesQuery.isLoading && (
 						<div className="text-sm text-muted-foreground">
 							Loading datatables...
@@ -1336,8 +1323,9 @@ export default function CodesPage() {
 							</div>
 						</div>
 					)}
-				</DrawerContent>
-			</Drawer>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

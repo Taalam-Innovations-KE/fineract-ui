@@ -103,15 +103,36 @@ async function createStaff(tenantId: string, data: StaffRequest) {
 	return response.json();
 }
 
+async function updateStaff(tenantId: string, staffId: number, data: StaffRequest) {
+	const response = await fetch(`${BFF_ROUTES.staff}/${staffId}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.message || "Failed to update staff");
+	}
+
+	return response.json();
+}
+
 export default function StaffPage() {
 	const { tenantId } = useTenantStore();
-	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+	const [isDialogOpen, setIsDialogOpen] = useState(false);
+	const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 	const [filters, setFilters] = useState({
 		officeId: "",
 		loanOfficersOnly: false,
 		status: "active",
 	});
 	const queryClient = useQueryClient();
+
+	const isEditing = Boolean(selectedStaff);
 
 	const { data: offices = [] } = useQuery({
 		queryKey: ["offices", tenantId],
@@ -131,9 +152,36 @@ export default function StaffPage() {
 		mutationFn: (data: StaffRequest) => createStaff(tenantId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
-			setIsCreateDialogOpen(false);
+			setIsDialogOpen(false);
 		},
 	});
+
+	const updateMutation = useMutation({
+		mutationFn: (data: StaffRequest) =>
+			updateStaff(tenantId, selectedStaff!.id!, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
+			setIsDialogOpen(false);
+			setSelectedStaff(null);
+		},
+	});
+
+	const handleRowClick = (member: Staff) => {
+		setSelectedStaff(member);
+		setIsDialogOpen(true);
+	};
+
+	const handleCreateNew = () => {
+		setSelectedStaff(null);
+		setIsDialogOpen(true);
+	};
+
+	const handleDialogClose = (open: boolean) => {
+		setIsDialogOpen(open);
+		if (!open) {
+			setSelectedStaff(null);
+		}
+	};
 
 	const handleFilterChange = (
 		key: keyof StaffFilters,
@@ -198,182 +246,197 @@ export default function StaffPage() {
 			title="Staff"
 			subtitle="Manage your organization's staff members"
 			actions={
-				<Button onClick={() => setIsCreateDialogOpen(true)}>
+				<Button onClick={handleCreateNew}>
 					<Plus className="h-4 w-4 mr-2" />
 					Add Staff
 				</Button>
 			}
 		>
-			<div className="grid gap-6 md:grid-cols-[1fr_300px]">
-				<div className="space-y-6">
-					{/* Filters */}
+			<div className="space-y-6">
+				{/* Summary Cards */}
+				<div className="grid gap-4 md:grid-cols-3">
 					<Card>
-						<CardHeader>
-							<CardTitle className="text-lg">Filters</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="grid grid-cols-3 gap-4">
-								<div className="space-y-2">
-									<Label htmlFor="officeFilter">Office</Label>
-									<Select
-										value={filters.officeId || "all"}
-										onValueChange={(value) =>
-											handleFilterChange(
-												"officeId",
-												value === "all" ? "" : value,
-											)
-										}
-									>
-										<SelectTrigger id="officeFilter">
-											<SelectValue placeholder="All Offices" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All Offices</SelectItem>
-											{offices.map((office) => (
-												<SelectItem key={office.id} value={String(office.id)}>
-													{office.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<Users className="h-5 w-5 text-primary" />
 								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="statusFilter">Status</Label>
-									<Select
-										value={filters.status || "all"}
-										onValueChange={(value) =>
-											handleFilterChange("status", value)
-										}
-									>
-										<SelectTrigger id="statusFilter">
-											<SelectValue placeholder="All" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											<SelectItem value="active">Active</SelectItem>
-											<SelectItem value="inactive">Inactive</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="roleFilter">Role</Label>
-									<Select
-										value={filters.loanOfficersOnly ? "loanOfficer" : "all"}
-										onValueChange={(value) =>
-											handleFilterChange(
-												"loanOfficersOnly",
-												value === "loanOfficer",
-											)
-										}
-									>
-										<SelectTrigger id="roleFilter">
-											<SelectValue placeholder="All Staff" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All Staff</SelectItem>
-											<SelectItem value="loanOfficer">
-												Loan Officers Only
-											</SelectItem>
-										</SelectContent>
-									</Select>
+								<div>
+									<div className="text-2xl font-bold">{staff.length}</div>
+									<div className="text-sm text-muted-foreground">Total Staff</div>
 								</div>
 							</div>
 						</CardContent>
 					</Card>
-
-					{/* Staff List */}
 					<Card>
-						<CardHeader>
-							<CardTitle>Staff Members</CardTitle>
-							<CardDescription>
-								{staff.length} staff member{staff.length !== 1 ? "s" : ""} found
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{isLoading && (
-								<div className="text-center py-8 text-muted-foreground">
-									Loading staff...
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+									<UserCheck className="h-5 w-5 text-success" />
 								</div>
-							)}
-							{error && (
-								<div className="text-center py-8 text-destructive">
-									Failed to load staff. Please try again.
+								<div>
+									<div className="text-2xl font-bold">{activeStaff.length}</div>
+									<div className="text-sm text-muted-foreground">Active</div>
 								</div>
-							)}
-							{!isLoading && !error && staff.length === 0 && (
-								<div className="text-center py-8 text-muted-foreground">
-									No staff members found. Add your first staff member to get
-									started.
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
+									<Building2 className="h-5 w-5 text-info" />
 								</div>
-							)}
-							{!isLoading && !error && staff.length > 0 && (
-								<DataTable
-									data={staff}
-									columns={staffColumns}
-									getRowId={(member) =>
-										member.id ?? member.displayName ?? "staff-row"
-									}
-								/>
-							)}
+								<div>
+									<div className="text-2xl font-bold">{loanOfficers.length}</div>
+									<div className="text-sm text-muted-foreground">
+										Loan Officers
+									</div>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
 
-				{/* Summary */}
-				<Card className="h-fit">
+				{/* Filters */}
+				<Card>
 					<CardHeader>
-						<CardTitle>Summary</CardTitle>
-						<CardDescription>Staff statistics</CardDescription>
+						<CardTitle className="text-lg">Filters</CardTitle>
 					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-								<Users className="h-5 w-5 text-primary" />
+					<CardContent>
+						<div className="grid grid-cols-3 gap-4">
+							<div className="space-y-2">
+								<Label htmlFor="officeFilter">Office</Label>
+								<Select
+									value={filters.officeId || "all"}
+									onValueChange={(value) =>
+										handleFilterChange(
+											"officeId",
+											value === "all" ? "" : value,
+										)
+									}
+								>
+									<SelectTrigger id="officeFilter">
+										<SelectValue placeholder="All Offices" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All Offices</SelectItem>
+										{offices.map((office) => (
+											<SelectItem key={office.id} value={String(office.id)}>
+												{office.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
-							<div>
-								<div className="text-2xl font-bold">{staff.length}</div>
-								<div className="text-sm text-muted-foreground">Total Staff</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="statusFilter">Status</Label>
+								<Select
+									value={filters.status || "all"}
+									onValueChange={(value) =>
+										handleFilterChange("status", value)
+									}
+								>
+									<SelectTrigger id="statusFilter">
+										<SelectValue placeholder="All" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All</SelectItem>
+										<SelectItem value="active">Active</SelectItem>
+										<SelectItem value="inactive">Inactive</SelectItem>
+									</SelectContent>
+								</Select>
 							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
-								<UserCheck className="h-5 w-5 text-success" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">{activeStaff.length}</div>
-								<div className="text-sm text-muted-foreground">Active</div>
-							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
-								<Building2 className="h-5 w-5 text-info" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">{loanOfficers.length}</div>
-								<div className="text-sm text-muted-foreground">
-									Loan Officers
-								</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="roleFilter">Role</Label>
+								<Select
+									value={filters.loanOfficersOnly ? "loanOfficer" : "all"}
+									onValueChange={(value) =>
+										handleFilterChange(
+											"loanOfficersOnly",
+											value === "loanOfficer",
+										)
+									}
+								>
+									<SelectTrigger id="roleFilter">
+										<SelectValue placeholder="All Staff" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All Staff</SelectItem>
+										<SelectItem value="loanOfficer">
+											Loan Officers Only
+										</SelectItem>
+									</SelectContent>
+								</Select>
 							</div>
 						</div>
 					</CardContent>
 				</Card>
+
+				{/* Staff List */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Staff Members</CardTitle>
+						<CardDescription>
+							{staff.length} staff member{staff.length !== 1 ? "s" : ""} found
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{isLoading && (
+							<div className="text-center py-8 text-muted-foreground">
+								Loading staff...
+							</div>
+						)}
+						{error && (
+							<div className="text-center py-8 text-destructive">
+								Failed to load staff. Please try again.
+							</div>
+						)}
+						{!isLoading && !error && staff.length === 0 && (
+							<div className="text-center py-8 text-muted-foreground">
+								No staff members found. Add your first staff member to get
+								started.
+							</div>
+						)}
+						{!isLoading && !error && staff.length > 0 && (
+							<DataTable
+								data={staff}
+								columns={staffColumns}
+								getRowId={(member) =>
+									member.id ?? member.displayName ?? "staff-row"
+								}
+								onRowClick={handleRowClick}
+							/>
+						)}
+					</CardContent>
+				</Card>
 			</div>
 
-			<Sheet open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
 				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
 					<SheetHeader>
-						<SheetTitle>Add Staff Member</SheetTitle>
+						<SheetTitle>
+							{isEditing ? "Edit Staff Member" : "Add Staff Member"}
+						</SheetTitle>
 						<SheetDescription>
-							Add a new staff member to your organization
+							{isEditing
+								? "Update staff member details"
+								: "Add a new staff member to your organization"}
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
 						<StaffForm
+							key={selectedStaff?.id ?? "new"}
 							offices={offices}
-							onSubmit={(data) => createMutation.mutateAsync(data)}
-							onCancel={() => setIsCreateDialogOpen(false)}
+							initialData={selectedStaff ?? undefined}
+							onSubmit={(data) =>
+								isEditing
+									? updateMutation.mutateAsync(data)
+									: createMutation.mutateAsync(data)
+							}
+							onCancel={() => handleDialogClose(false)}
 						/>
 					</div>
 				</SheetContent>

@@ -18,6 +18,7 @@ interface DataTableProps<T> {
 	pageSize?: number;
 	emptyMessage?: string;
 	className?: string;
+	onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
@@ -27,6 +28,7 @@ export function DataTable<T>({
 	pageSize = 8,
 	emptyMessage = "No records found.",
 	className,
+	onRowClick,
 }: DataTableProps<T>) {
 	const [pageIndex, setPageIndex] = React.useState(0);
 	const pageCount = Math.max(1, Math.ceil(data.length / pageSize));
@@ -74,7 +76,14 @@ export function DataTable<T>({
 							</tr>
 						) : (
 							pageRows.map((row) => (
-								<tr key={getRowId(row)} className="hover:bg-accent/40">
+								<tr
+									key={getRowId(row)}
+									className={cn(
+										"hover:bg-accent/40",
+										onRowClick && "cursor-pointer",
+									)}
+									onClick={() => onRowClick?.(row)}
+								>
 									{columns.map((column) => (
 										<td
 											key={column.header}

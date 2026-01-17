@@ -82,78 +82,82 @@ export default function RolesPage() {
 			title="Roles & Permissions"
 			subtitle="View and manage system roles and their permissions"
 		>
-			<div className="grid gap-6 md:grid-cols-[1fr_300px]">
-				<div>
+			<div className="space-y-6">
+				{/* Summary Cards */}
+				<div className="grid gap-4 md:grid-cols-3">
 					<Card>
-						<CardHeader>
-							<CardTitle>Roles</CardTitle>
-							<CardDescription>
-								{roles.length} role{roles.length !== 1 ? "s" : ""} in the system
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{isLoading && (
-								<div className="text-center py-8 text-muted-foreground">
-									Loading roles...
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<Shield className="h-5 w-5 text-primary" />
 								</div>
-							)}
-							{error && (
-								<div className="text-center py-8 text-destructive">
-									Failed to load roles. Please try again.
+								<div>
+									<div className="text-2xl font-bold">{roles.length}</div>
+									<div className="text-sm text-muted-foreground">Total Roles</div>
 								</div>
-							)}
-							{!isLoading && !error && roles.length === 0 && (
-								<div className="text-center py-8 text-muted-foreground">
-									No roles found in the system.
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-destructive/10">
+									<Shield className="h-5 w-5 text-destructive" />
 								</div>
-							)}
-							{!isLoading && !error && roles.length > 0 && (
-								<DataTable
-									data={roles}
-									columns={roleColumns}
-									getRowId={(role) => role.id ?? role.name ?? "role-row"}
-								/>
-							)}
+								<div>
+									<div className="text-2xl font-bold">{adminRoles.length}</div>
+									<div className="text-sm text-muted-foreground">Admin Roles</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
+									<Users className="h-5 w-5 text-info" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">
+										{operationalRoles.length}
+									</div>
+									<div className="text-sm text-muted-foreground">Operational</div>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
 
-				{/* Summary */}
-				<Card className="h-fit">
+				<Card>
 					<CardHeader>
-						<CardTitle>Summary</CardTitle>
-						<CardDescription>Role statistics</CardDescription>
+						<CardTitle>Roles</CardTitle>
+						<CardDescription>
+							{roles.length} role{roles.length !== 1 ? "s" : ""} in the system
+						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-								<Shield className="h-5 w-5 text-primary" />
+					<CardContent>
+						{isLoading && (
+							<div className="text-center py-8 text-muted-foreground">
+								Loading roles...
 							</div>
-							<div>
-								<div className="text-2xl font-bold">{roles.length}</div>
-								<div className="text-sm text-muted-foreground">Total Roles</div>
+						)}
+						{error && (
+							<div className="text-center py-8 text-destructive">
+								Failed to load roles. Please try again.
 							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-destructive/10">
-								<Shield className="h-5 w-5 text-destructive" />
+						)}
+						{!isLoading && !error && roles.length === 0 && (
+							<div className="text-center py-8 text-muted-foreground">
+								No roles found in the system.
 							</div>
-							<div>
-								<div className="text-2xl font-bold">{adminRoles.length}</div>
-								<div className="text-sm text-muted-foreground">Admin Roles</div>
-							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
-								<Users className="h-5 w-5 text-info" />
-							</div>
-							<div>
-								<div className="text-2xl font-bold">
-									{operationalRoles.length}
-								</div>
-								<div className="text-sm text-muted-foreground">Operational</div>
-							</div>
-						</div>
+						)}
+						{!isLoading && !error && roles.length > 0 && (
+							<DataTable
+								data={roles}
+								columns={roleColumns}
+								getRowId={(role) => role.id ?? role.name ?? "role-row"}
+							/>
+						)}
 					</CardContent>
 				</Card>
 			</div>

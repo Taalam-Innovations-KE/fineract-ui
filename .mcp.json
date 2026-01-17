@@ -13,7 +13,8 @@
         "-y",
         "@playwright/mcp@latest",
         "--browser",
-        "firefox"
+        "chromium",
+        "--no-sandbox"
       ]
     }
   }

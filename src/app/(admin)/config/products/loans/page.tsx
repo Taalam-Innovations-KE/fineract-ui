@@ -159,92 +159,91 @@ export default function LoanProductsPage() {
 				</Button>
 			}
 		>
-			<div className="grid gap-6 md:grid-cols-[1fr_300px]">
-				<div>
-					{enabledCurrencies.length === 0 && (
-						<Card className="mb-6">
-							<CardContent className="pt-6">
-								<div className="text-center text-sm text-muted-foreground">
-									Please enable at least one currency in the{" "}
-									<a
-										href="/config/financial/currencies"
-										className="text-primary hover:underline"
-									>
-										Currencies
-									</a>{" "}
-									module before creating loan products.
-								</div>
-							</CardContent>
-						</Card>
-					)}
-
+			<div className="space-y-6">
+				<div className="grid gap-4 md:grid-cols-2">
 					<Card>
-						<CardHeader>
-							<CardTitle>Loan Products</CardTitle>
-							<CardDescription>
-								{products.length} product{products.length !== 1 ? "s" : ""}{" "}
-								configured
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{isLoading && (
-								<div className="text-center py-8 text-muted-foreground">
-									Loading loan products...
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<CreditCard className="h-5 w-5 text-primary" />
 								</div>
-							)}
-							{error && (
-								<div className="text-center py-8 text-destructive">
-									Failed to load loan products. Please try again.
+								<div>
+									<div className="text-2xl font-bold">{products.length}</div>
+									<div className="text-sm text-muted-foreground">
+										Total Products
+									</div>
 								</div>
-							)}
-							{!isLoading && !error && products.length === 0 && (
-								<div className="text-center py-8 text-muted-foreground">
-									No loan products found. Create your first loan product to get
-									started.
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+									<TrendingUp className="h-5 w-5 text-success" />
 								</div>
-							)}
-							{!isLoading && !error && products.length > 0 && (
-								<DataTable
-									data={products}
-									columns={productColumns}
-									getRowId={(product: LoanProductDisplay) =>
-										String(product.id ?? product.name ?? "product-row")
-									}
-								/>
-							)}
+								<div>
+									<div className="text-2xl font-bold">
+										{enabledCurrencies.length}
+									</div>
+									<div className="text-sm text-muted-foreground">Currencies</div>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
 
-				{/* Summary */}
-				<Card className="h-fit">
+				{enabledCurrencies.length === 0 && (
+					<Card>
+						<CardContent className="pt-6">
+							<div className="text-center text-sm text-muted-foreground">
+								Please enable at least one currency in the{" "}
+								<a
+									href="/config/financial/currencies"
+									className="text-primary hover:underline"
+								>
+									Currencies
+								</a>{" "}
+								module before creating loan products.
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
+				<Card>
 					<CardHeader>
-						<CardTitle>Summary</CardTitle>
-						<CardDescription>Product statistics</CardDescription>
+						<CardTitle>Loan Products</CardTitle>
+						<CardDescription>
+							{products.length} product{products.length !== 1 ? "s" : ""}{" "}
+							configured
+						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-								<CreditCard className="h-5 w-5 text-primary" />
+					<CardContent>
+						{isLoading && (
+							<div className="text-center py-8 text-muted-foreground">
+								Loading loan products...
 							</div>
-							<div>
-								<div className="text-2xl font-bold">{products.length}</div>
-								<div className="text-sm text-muted-foreground">
-									Total Products
-								</div>
+						)}
+						{error && (
+							<div className="text-center py-8 text-destructive">
+								Failed to load loan products. Please try again.
 							</div>
-						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
-								<TrendingUp className="h-5 w-5 text-success" />
+						)}
+						{!isLoading && !error && products.length === 0 && (
+							<div className="text-center py-8 text-muted-foreground">
+								No loan products found. Create your first loan product to get
+								started.
 							</div>
-							<div>
-								<div className="text-2xl font-bold">
-									{enabledCurrencies.length}
-								</div>
-								<div className="text-sm text-muted-foreground">Currencies</div>
-							</div>
-						</div>
+						)}
+						{!isLoading && !error && products.length > 0 && (
+							<DataTable
+								data={products}
+								columns={productColumns}
+								getRowId={(product: LoanProductDisplay) =>
+									String(product.id ?? product.name ?? "product-row")
+								}
+							/>
+						)}
 					</CardContent>
 				</Card>
 			</div>

@@ -186,7 +186,9 @@ export default function LoanProductsPage() {
 									<div className="text-2xl font-bold">
 										{enabledCurrencies.length}
 									</div>
-									<div className="text-sm text-muted-foreground">Currencies</div>
+									<div className="text-sm text-muted-foreground">
+										Currencies
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -250,7 +252,10 @@ export default function LoanProductsPage() {
 
 			{/* Create Loan Product Sheet */}
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-2xl overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>Create Loan Product</SheetTitle>
 						<SheetDescription>

@@ -258,7 +258,9 @@ export default function UsersPage() {
 								</div>
 								<div>
 									<div className="text-2xl font-bold">{users.length}</div>
-									<div className="text-sm text-muted-foreground">Total Users</div>
+									<div className="text-sm text-muted-foreground">
+										Total Users
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -330,7 +332,10 @@ export default function UsersPage() {
 
 			{/* Create/Edit Team Member Sheet */}
 			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerClose}>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							{isEditing ? "Edit Team Member" : "Create Team Member"}

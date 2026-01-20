@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
@@ -22,8 +24,6 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	CurrencyConfigurationData,
@@ -313,7 +313,9 @@ export default function CurrenciesPage() {
 								filteredOptions.map((currency, index) => {
 									const code = currency.code;
 									const label =
-										currency.name || currency.displayLabel || "Unknown currency";
+										currency.name ||
+										currency.displayLabel ||
+										"Unknown currency";
 									const decimalPlaces = currency.decimalPlaces ?? "—";
 									const isChecked = code ? selectedCodes.has(code) : false;
 									const checkboxId = code

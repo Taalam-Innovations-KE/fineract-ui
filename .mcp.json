@@ -1,21 +1,18 @@
 {
-  "mcpServers": {
-    "shadcn": {
-      "command": "npx",
-      "args": [
-        "shadcn@latest",
-        "mcp"
-      ]
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--browser",
-        "chromium",
-        "--no-sandbox"
-      ]
-    }
-  }
+	"mcpServers": {
+		"shadcn": {
+			"command": "npx",
+			"args": ["shadcn@latest", "mcp"]
+		},
+		"playwright": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@playwright/mcp@latest",
+				"--browser",
+				"chromium",
+				"--no-sandbox"
+			]
+		}
+	}
 }

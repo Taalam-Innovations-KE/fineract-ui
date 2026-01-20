@@ -15,13 +15,6 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,6 +24,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 
 import {
 	formatDateForFineract,
@@ -864,7 +864,10 @@ export default function CodesPage() {
 					}
 				}}
 			>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>{selectedCode?.name || "Code Values"}</SheetTitle>
 						<SheetDescription>
@@ -872,223 +875,223 @@ export default function CodesPage() {
 						</SheetDescription>
 					</SheetHeader>
 					<div className="flex flex-col gap-4 mt-4">
-					<div className="rounded-sm border border-border/60 p-4 space-y-3">
-						<div className="text-sm font-semibold text-muted-foreground">
-							Add Value
-						</div>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-							<div className="space-y-2">
-								<Label htmlFor="new-value-name">Value name</Label>
-								<Input
-									id="new-value-name"
-									placeholder="Enter value name"
-									value={newValueName}
-									onChange={(event) => setNewValueName(event.target.value)}
-								/>
+						<div className="rounded-sm border border-border/60 p-4 space-y-3">
+							<div className="text-sm font-semibold text-muted-foreground">
+								Add Value
 							</div>
-							<div className="space-y-2">
-								<Label htmlFor="new-value-description">Description</Label>
-								<Input
-									id="new-value-description"
-									placeholder="Optional description"
-									value={newValueDescription}
-									onChange={(event) =>
-										setNewValueDescription(event.target.value)
-									}
-								/>
-							</div>
-						</div>
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<Checkbox
-									id="new-value-active"
-									checked={newValueActive}
-									onCheckedChange={() => setNewValueActive((prev) => !prev)}
-								/>
-								<Label htmlFor="new-value-active" className="cursor-pointer">
-									Active
-								</Label>
-							</div>
-							<Button
-								type="button"
-								onClick={handleAddValue}
-								disabled={!newValueName.trim() || addValueMutation.isPending}
-							>
-								{addValueMutation.isPending ? "Adding..." : "Add Value"}
-							</Button>
-						</div>
-						{valueError && (
-							<div className="text-sm text-destructive">{valueError}</div>
-						)}
-					</div>
-
-					<div className="space-y-2">
-						<Label htmlFor="value-search">Search values</Label>
-						<Input
-							id="value-search"
-							placeholder="Search by value name"
-							value={valueSearchTerm}
-							onChange={(event) => setValueSearchTerm(event.target.value)}
-						/>
-					</div>
-
-					{isValuesLoading && (
-						<div className="text-center text-muted-foreground">
-							Loading values...
-						</div>
-					)}
-					{codeValuesError && (
-						<div className="text-center text-destructive">
-							Failed to load code values.
-						</div>
-					)}
-
-					{!isValuesLoading && !codeValuesError && (
-						<div className="space-y-3">
-							{filteredValues.map((value) => {
-								const isSystemDefined = Boolean(
-									(value as CodeValueRow).systemDefined,
-								);
-								const isEditing = editingValueId === value.id;
-								const isInactive = value.active === false;
-
-								return (
-									<div
-										key={value.id || value.name}
-										className="rounded-sm border border-border/60 p-3 space-y-2 cursor-pointer"
-										onClick={() => setSelectedCodeValue(value)}
-									>
-										<div className="flex items-start justify-between gap-3">
-											<div>
-												<div className="flex items-center gap-2">
-													<span className="font-medium">
-														{value.name || "Unnamed value"}
-													</span>
-													{isInactive && (
-														<Badge variant="outline">Inactive</Badge>
-													)}
-													{isSystemDefined && (
-														<Badge variant="secondary">System</Badge>
-													)}
-												</div>
-												{value.description && (
-													<p className="text-xs text-muted-foreground">
-														{value.description}
-													</p>
-												)}
-											</div>
-											<div className="flex items-center gap-2">
-												<Button
-													type="button"
-													variant="outline"
-													size="sm"
-													onClick={(event) => {
-														event.stopPropagation();
-														handleEditValue(value);
-													}}
-												>
-													Edit
-												</Button>
-												<Button
-													type="button"
-													variant="destructive"
-													size="sm"
-													disabled={
-														isSystemDefined || deleteValueMutation.isPending
-													}
-													onClick={(event) => {
-														event.stopPropagation();
-														handleDeleteValue(value);
-													}}
-												>
-													Deactivate
-												</Button>
-											</div>
-										</div>
-
-										{isEditing && (
-											<div
-												className="space-y-3"
-												onClick={(event) => event.stopPropagation()}
-											>
-												<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-													<div className="space-y-2">
-														<Label htmlFor="edit-value-name">Name</Label>
-														<Input
-															id="edit-value-name"
-															value={editValueName}
-															onChange={(event) =>
-																setEditValueName(event.target.value)
-															}
-														/>
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="edit-value-description">
-															Description
-														</Label>
-														<Input
-															id="edit-value-description"
-															value={editValueDescription}
-															onChange={(event) =>
-																setEditValueDescription(event.target.value)
-															}
-														/>
-													</div>
-												</div>
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-2">
-														<Checkbox
-															id="edit-value-active"
-															checked={editValueActive}
-															onCheckedChange={() =>
-																setEditValueActive((prev) => !prev)
-															}
-														/>
-														<Label
-															htmlFor="edit-value-active"
-															className="cursor-pointer"
-														>
-															Active
-														</Label>
-													</div>
-													<div className="flex items-center gap-2">
-														<Button
-															type="button"
-															variant="outline"
-															size="sm"
-															onClick={(event) => {
-																event.stopPropagation();
-																setEditingValueId(null);
-															}}
-														>
-															Cancel
-														</Button>
-														<Button
-															type="button"
-															size="sm"
-															onClick={(event) => {
-																event.stopPropagation();
-																handleSaveEdit();
-															}}
-															disabled={updateValueMutation.isPending}
-														>
-															Save
-														</Button>
-													</div>
-												</div>
-											</div>
-										)}
-									</div>
-								);
-							})}
-
-							{filteredValues.length === 0 && (
-								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
-									No code values available.
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<div className="space-y-2">
+									<Label htmlFor="new-value-name">Value name</Label>
+									<Input
+										id="new-value-name"
+										placeholder="Enter value name"
+										value={newValueName}
+										onChange={(event) => setNewValueName(event.target.value)}
+									/>
 								</div>
+								<div className="space-y-2">
+									<Label htmlFor="new-value-description">Description</Label>
+									<Input
+										id="new-value-description"
+										placeholder="Optional description"
+										value={newValueDescription}
+										onChange={(event) =>
+											setNewValueDescription(event.target.value)
+										}
+									/>
+								</div>
+							</div>
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<Checkbox
+										id="new-value-active"
+										checked={newValueActive}
+										onCheckedChange={() => setNewValueActive((prev) => !prev)}
+									/>
+									<Label htmlFor="new-value-active" className="cursor-pointer">
+										Active
+									</Label>
+								</div>
+								<Button
+									type="button"
+									onClick={handleAddValue}
+									disabled={!newValueName.trim() || addValueMutation.isPending}
+								>
+									{addValueMutation.isPending ? "Adding..." : "Add Value"}
+								</Button>
+							</div>
+							{valueError && (
+								<div className="text-sm text-destructive">{valueError}</div>
 							)}
 						</div>
-					)}
+
+						<div className="space-y-2">
+							<Label htmlFor="value-search">Search values</Label>
+							<Input
+								id="value-search"
+								placeholder="Search by value name"
+								value={valueSearchTerm}
+								onChange={(event) => setValueSearchTerm(event.target.value)}
+							/>
+						</div>
+
+						{isValuesLoading && (
+							<div className="text-center text-muted-foreground">
+								Loading values...
+							</div>
+						)}
+						{codeValuesError && (
+							<div className="text-center text-destructive">
+								Failed to load code values.
+							</div>
+						)}
+
+						{!isValuesLoading && !codeValuesError && (
+							<div className="space-y-3">
+								{filteredValues.map((value) => {
+									const isSystemDefined = Boolean(
+										(value as CodeValueRow).systemDefined,
+									);
+									const isEditing = editingValueId === value.id;
+									const isInactive = value.active === false;
+
+									return (
+										<div
+											key={value.id || value.name}
+											className="rounded-sm border border-border/60 p-3 space-y-2 cursor-pointer"
+											onClick={() => setSelectedCodeValue(value)}
+										>
+											<div className="flex items-start justify-between gap-3">
+												<div>
+													<div className="flex items-center gap-2">
+														<span className="font-medium">
+															{value.name || "Unnamed value"}
+														</span>
+														{isInactive && (
+															<Badge variant="outline">Inactive</Badge>
+														)}
+														{isSystemDefined && (
+															<Badge variant="secondary">System</Badge>
+														)}
+													</div>
+													{value.description && (
+														<p className="text-xs text-muted-foreground">
+															{value.description}
+														</p>
+													)}
+												</div>
+												<div className="flex items-center gap-2">
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={(event) => {
+															event.stopPropagation();
+															handleEditValue(value);
+														}}
+													>
+														Edit
+													</Button>
+													<Button
+														type="button"
+														variant="destructive"
+														size="sm"
+														disabled={
+															isSystemDefined || deleteValueMutation.isPending
+														}
+														onClick={(event) => {
+															event.stopPropagation();
+															handleDeleteValue(value);
+														}}
+													>
+														Deactivate
+													</Button>
+												</div>
+											</div>
+
+											{isEditing && (
+												<div
+													className="space-y-3"
+													onClick={(event) => event.stopPropagation()}
+												>
+													<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+														<div className="space-y-2">
+															<Label htmlFor="edit-value-name">Name</Label>
+															<Input
+																id="edit-value-name"
+																value={editValueName}
+																onChange={(event) =>
+																	setEditValueName(event.target.value)
+																}
+															/>
+														</div>
+														<div className="space-y-2">
+															<Label htmlFor="edit-value-description">
+																Description
+															</Label>
+															<Input
+																id="edit-value-description"
+																value={editValueDescription}
+																onChange={(event) =>
+																	setEditValueDescription(event.target.value)
+																}
+															/>
+														</div>
+													</div>
+													<div className="flex items-center justify-between">
+														<div className="flex items-center gap-2">
+															<Checkbox
+																id="edit-value-active"
+																checked={editValueActive}
+																onCheckedChange={() =>
+																	setEditValueActive((prev) => !prev)
+																}
+															/>
+															<Label
+																htmlFor="edit-value-active"
+																className="cursor-pointer"
+															>
+																Active
+															</Label>
+														</div>
+														<div className="flex items-center gap-2">
+															<Button
+																type="button"
+																variant="outline"
+																size="sm"
+																onClick={(event) => {
+																	event.stopPropagation();
+																	setEditingValueId(null);
+																}}
+															>
+																Cancel
+															</Button>
+															<Button
+																type="button"
+																size="sm"
+																onClick={(event) => {
+																	event.stopPropagation();
+																	handleSaveEdit();
+																}}
+																disabled={updateValueMutation.isPending}
+															>
+																Save
+															</Button>
+														</div>
+													</div>
+												</div>
+											)}
+										</div>
+									);
+								})}
+
+								{filteredValues.length === 0 && (
+									<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+										No code values available.
+									</div>
+								)}
+							</div>
+						)}
 					</div>
 				</SheetContent>
 			</Sheet>
@@ -1099,7 +1102,10 @@ export default function CodesPage() {
 					if (!open) setSelectedCodeValue(null);
 				}}
 			>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							Metadata for {selectedCodeValue?.name || "Value"}
@@ -1109,220 +1115,229 @@ export default function CodesPage() {
 						</SheetDescription>
 					</SheetHeader>
 					<div className="flex flex-col gap-4 mt-4">
-					{datatablesQuery.isLoading && (
-						<div className="text-sm text-muted-foreground">
-							Loading datatables...
-						</div>
-					)}
+						{datatablesQuery.isLoading && (
+							<div className="text-sm text-muted-foreground">
+								Loading datatables...
+							</div>
+						)}
 
-					{datatableError && (
-						<Alert variant="destructive">
-							<AlertTitle>Metadata error</AlertTitle>
-							<AlertDescription>{datatableError}</AlertDescription>
-						</Alert>
-					)}
-
-					{!datatableExists && (
-						<div className="space-y-3">
-							<Alert variant="info">
-								<AlertTitle>No datatable found</AlertTitle>
-								<AlertDescription>
-									Create a datatable linked to code values so you can capture
-									extended metadata.
-								</AlertDescription>
+						{datatableError && (
+							<Alert variant="destructive">
+								<AlertTitle>Metadata error</AlertTitle>
+								<AlertDescription>{datatableError}</AlertDescription>
 							</Alert>
-							<div className="space-y-2">
-								<Label htmlFor="datatable-name">Datatable name</Label>
-								<Input
-									id="datatable-name"
-									value={datatableName}
-									onChange={(event) => setDatatableName(event.target.value)}
-								/>
-							</div>
-							<div className="rounded-sm border border-border/60 p-3 text-xs text-muted-foreground">
-								Default columns: Kenya_Local_Name (String), Risk_Weighting
-								(Decimal)
-							</div>
-							<Button
-								type="button"
-								onClick={() =>
-									createDatatableMutation.mutate({
-										apptableName: CODE_VALUE_APPTABLE,
-										datatableName,
-										columns: DEFAULT_DATATABLE_COLUMNS,
-										multiRow: false,
-									})
-								}
-								disabled={
-									createDatatableMutation.isPending || !datatableName.trim()
-								}
-							>
-								{createDatatableMutation.isPending
-									? "Creating..."
-									: "Create Datatable"}
-							</Button>
-						</div>
-					)}
+						)}
 
-					{datatableExists && (
-						<div className="space-y-4">
-							<div className="space-y-2">
-								<Label htmlFor="datatable-select">Datatable</Label>
-								<Select value={datatableName} onValueChange={setDatatableName}>
-									<SelectTrigger id="datatable-select">
-										<SelectValue placeholder="Select datatable" />
-									</SelectTrigger>
-									<SelectContent>
-										{datatableOptions.map((option) => (
-											<SelectItem key={option} value={option}>
-												{option}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-
-							{datatableDefinitionQuery.isLoading && (
-								<div className="text-sm text-muted-foreground">
-									Loading metadata fields...
+						{!datatableExists && (
+							<div className="space-y-3">
+								<Alert variant="info">
+									<AlertTitle>No datatable found</AlertTitle>
+									<AlertDescription>
+										Create a datatable linked to code values so you can capture
+										extended metadata.
+									</AlertDescription>
+								</Alert>
+								<div className="space-y-2">
+									<Label htmlFor="datatable-name">Datatable name</Label>
+									<Input
+										id="datatable-name"
+										value={datatableName}
+										onChange={(event) => setDatatableName(event.target.value)}
+									/>
 								</div>
-							)}
-
-							{datatableEntryQuery.isLoading && (
-								<div className="text-sm text-muted-foreground">
-									Loading existing metadata...
+								<div className="rounded-sm border border-border/60 p-3 text-xs text-muted-foreground">
+									Default columns: Kenya_Local_Name (String), Risk_Weighting
+									(Decimal)
 								</div>
-							)}
-
-							{columnHeaders.length > 0 ? (
-								<div className="space-y-3">
-									{columnHeaders
-										.filter(
-											(column) =>
-												!column.isColumnPrimaryKey &&
-												column.columnName &&
-												column.columnName.toLowerCase() !== "id",
-										)
-										.map((column, index) => {
-											const columnName = column.columnName || `column-${index}`;
-											const displayType = column.columnDisplayType || "STRING";
-											const inputId = `metadata-${columnName}`;
-											const value = metadataValues[columnName] ?? "";
-
-											if (displayType === "BOOLEAN") {
-												return (
-													<div
-														key={columnName}
-														className="flex items-center gap-2"
-													>
-														<Checkbox
-															id={inputId}
-															checked={Boolean(value)}
-															onCheckedChange={() => {
-																setMetadataValues((prev) => ({
-																	...prev,
-																	[columnName]: !Boolean(value),
-																}));
-																setMetadataTouched(true);
-															}}
-														/>
-														<Label htmlFor={inputId} className="cursor-pointer">
-															{columnName}
-														</Label>
-													</div>
-												);
-											}
-
-											if (displayType === "DATE") {
-												return (
-													<div key={columnName} className="space-y-2">
-														<Label htmlFor={inputId}>{columnName}</Label>
-														<Input
-															id={inputId}
-															type="date"
-															value={String(value)}
-															onChange={(event) => {
-																setMetadataValues((prev) => ({
-																	...prev,
-																	[columnName]: event.target.value,
-																}));
-																setMetadataTouched(true);
-															}}
-														/>
-													</div>
-												);
-											}
-
-											if (
-												displayType === "INTEGER" ||
-												displayType === "FLOAT" ||
-												displayType === "DECIMAL"
-											) {
-												return (
-													<div key={columnName} className="space-y-2">
-														<Label htmlFor={inputId}>{columnName}</Label>
-														<Input
-															id={inputId}
-															type="number"
-															value={String(value)}
-															onChange={(event) => {
-																setMetadataValues((prev) => ({
-																	...prev,
-																	[columnName]: event.target.value,
-																}));
-																setMetadataTouched(true);
-															}}
-														/>
-													</div>
-												);
-											}
-
-											return (
-												<div key={columnName} className="space-y-2">
-													<Label htmlFor={inputId}>{columnName}</Label>
-													<Input
-														id={inputId}
-														value={String(value)}
-														onChange={(event) => {
-															setMetadataValues((prev) => ({
-																...prev,
-																[columnName]: event.target.value,
-															}));
-															setMetadataTouched(true);
-														}}
-													/>
-												</div>
-											);
-										})}
-								</div>
-							) : (
-								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
-									No editable metadata fields found.
-								</div>
-							)}
-
-							<div className="flex items-center justify-end gap-2">
 								<Button
 									type="button"
-									variant="outline"
-									onClick={() => setSelectedCodeValue(null)}
-								>
-									Close
-								</Button>
-								<Button
-									type="button"
-									onClick={handleMetadataSave}
+									onClick={() =>
+										createDatatableMutation.mutate({
+											apptableName: CODE_VALUE_APPTABLE,
+											datatableName,
+											columns: DEFAULT_DATATABLE_COLUMNS,
+											multiRow: false,
+										})
+									}
 									disabled={
-										saveMetadataMutation.isPending || columnHeaders.length === 0
+										createDatatableMutation.isPending || !datatableName.trim()
 									}
 								>
-									{saveMetadataMutation.isPending
-										? "Saving..."
-										: "Save Metadata"}
+									{createDatatableMutation.isPending
+										? "Creating..."
+										: "Create Datatable"}
 								</Button>
 							</div>
-						</div>
-					)}
+						)}
+
+						{datatableExists && (
+							<div className="space-y-4">
+								<div className="space-y-2">
+									<Label htmlFor="datatable-select">Datatable</Label>
+									<Select
+										value={datatableName}
+										onValueChange={setDatatableName}
+									>
+										<SelectTrigger id="datatable-select">
+											<SelectValue placeholder="Select datatable" />
+										</SelectTrigger>
+										<SelectContent>
+											{datatableOptions.map((option) => (
+												<SelectItem key={option} value={option}>
+													{option}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+
+								{datatableDefinitionQuery.isLoading && (
+									<div className="text-sm text-muted-foreground">
+										Loading metadata fields...
+									</div>
+								)}
+
+								{datatableEntryQuery.isLoading && (
+									<div className="text-sm text-muted-foreground">
+										Loading existing metadata...
+									</div>
+								)}
+
+								{columnHeaders.length > 0 ? (
+									<div className="space-y-3">
+										{columnHeaders
+											.filter(
+												(column) =>
+													!column.isColumnPrimaryKey &&
+													column.columnName &&
+													column.columnName.toLowerCase() !== "id",
+											)
+											.map((column, index) => {
+												const columnName =
+													column.columnName || `column-${index}`;
+												const displayType =
+													column.columnDisplayType || "STRING";
+												const inputId = `metadata-${columnName}`;
+												const value = metadataValues[columnName] ?? "";
+
+												if (displayType === "BOOLEAN") {
+													return (
+														<div
+															key={columnName}
+															className="flex items-center gap-2"
+														>
+															<Checkbox
+																id={inputId}
+																checked={Boolean(value)}
+																onCheckedChange={() => {
+																	setMetadataValues((prev) => ({
+																		...prev,
+																		[columnName]: !Boolean(value),
+																	}));
+																	setMetadataTouched(true);
+																}}
+															/>
+															<Label
+																htmlFor={inputId}
+																className="cursor-pointer"
+															>
+																{columnName}
+															</Label>
+														</div>
+													);
+												}
+
+												if (displayType === "DATE") {
+													return (
+														<div key={columnName} className="space-y-2">
+															<Label htmlFor={inputId}>{columnName}</Label>
+															<Input
+																id={inputId}
+																type="date"
+																value={String(value)}
+																onChange={(event) => {
+																	setMetadataValues((prev) => ({
+																		...prev,
+																		[columnName]: event.target.value,
+																	}));
+																	setMetadataTouched(true);
+																}}
+															/>
+														</div>
+													);
+												}
+
+												if (
+													displayType === "INTEGER" ||
+													displayType === "FLOAT" ||
+													displayType === "DECIMAL"
+												) {
+													return (
+														<div key={columnName} className="space-y-2">
+															<Label htmlFor={inputId}>{columnName}</Label>
+															<Input
+																id={inputId}
+																type="number"
+																value={String(value)}
+																onChange={(event) => {
+																	setMetadataValues((prev) => ({
+																		...prev,
+																		[columnName]: event.target.value,
+																	}));
+																	setMetadataTouched(true);
+																}}
+															/>
+														</div>
+													);
+												}
+
+												return (
+													<div key={columnName} className="space-y-2">
+														<Label htmlFor={inputId}>{columnName}</Label>
+														<Input
+															id={inputId}
+															value={String(value)}
+															onChange={(event) => {
+																setMetadataValues((prev) => ({
+																	...prev,
+																	[columnName]: event.target.value,
+																}));
+																setMetadataTouched(true);
+															}}
+														/>
+													</div>
+												);
+											})}
+									</div>
+								) : (
+									<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
+										No editable metadata fields found.
+									</div>
+								)}
+
+								<div className="flex items-center justify-end gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setSelectedCodeValue(null)}
+									>
+										Close
+									</Button>
+									<Button
+										type="button"
+										onClick={handleMetadataSave}
+										disabled={
+											saveMetadataMutation.isPending ||
+											columnHeaders.length === 0
+										}
+									>
+										{saveMetadataMutation.isPending
+											? "Saving..."
+											: "Save Metadata"}
+									</Button>
+								</div>
+							</div>
+						)}
 					</div>
 				</SheetContent>
 			</Sheet>

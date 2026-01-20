@@ -20,6 +20,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
@@ -27,8 +29,6 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	IsCatchUpRunningDto,
@@ -313,7 +313,10 @@ export default function COBPage() {
 
 			{/* Confirmation Sheet */}
 			<Sheet open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>Confirm COB Catch-up</SheetTitle>
 						<SheetDescription>
@@ -325,9 +328,9 @@ export default function COBPage() {
 						<Alert variant="warning">
 							<AlertTriangle className="h-4 w-4" />
 							<AlertDescription>
-								This is a critical operation that affects loan account processing.
-								Ensure you have proper authorization and have notified relevant
-								teams.
+								This is a critical operation that affects loan account
+								processing. Ensure you have proper authorization and have
+								notified relevant teams.
 							</AlertDescription>
 						</Alert>
 						<div className="space-y-2">

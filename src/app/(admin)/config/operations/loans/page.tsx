@@ -1,13 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	Banknote,
-	Calendar,
-	CreditCard,
-	Plus,
-	Users,
-} from "lucide-react";
+import { Banknote, Calendar, CreditCard, Plus, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -22,13 +16,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,6 +25,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsPageItemsResponse,
@@ -101,11 +95,11 @@ function formatCurrency(amount: number | undefined, symbol = "KES") {
 	return `${symbol} ${amount.toLocaleString()}`;
 }
 
-function formatDate(dateStr: string) {
+function _formatDate(dateStr: string) {
 	if (!dateStr) return "";
 	const date = new Date(dateStr);
 	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const _month = String(date.getMonth() + 1).padStart(2, "0");
 	const day = String(date.getDate()).padStart(2, "0");
 	return `${day} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()]} ${year}`;
 }
@@ -198,7 +192,11 @@ async function createLoan(tenantId: string, payload: PostLoansRequest) {
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(data.message || data.errors?.[0]?.defaultUserMessage || "Failed to create loan");
+		throw new Error(
+			data.message ||
+				data.errors?.[0]?.defaultUserMessage ||
+				"Failed to create loan",
+		);
 	}
 
 	return data;
@@ -209,7 +207,9 @@ export default function LoansPage() {
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
-	const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(null);
+	const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(
+		null,
+	);
 
 	const loansQuery = useQuery({
 		queryKey: ["loans", tenantId],
@@ -274,7 +274,8 @@ export default function LoansPage() {
 
 	const loans = loansQuery.data?.pageItems || [];
 	const pendingLoans = loans.filter(
-		(loan) => loan.status?.value?.toLowerCase() === "submitted and pending approval",
+		(loan) =>
+			loan.status?.value?.toLowerCase() === "submitted and pending approval",
 	);
 	const activeLoans = loans.filter((loan) => loan.status?.active);
 
@@ -326,8 +327,12 @@ export default function LoansPage() {
 			header: "Status",
 			cell: (loan: LoanListItem) => {
 				const status = loan.status?.value?.toLowerCase() || "";
-				let variant: "default" | "secondary" | "success" | "warning" | "destructive" =
-					"secondary";
+				let variant:
+					| "default"
+					| "secondary"
+					| "success"
+					| "warning"
+					| "destructive" = "secondary";
 				if (status.includes("active")) variant = "success";
 				else if (status.includes("pending")) variant = "warning";
 				else if (status.includes("closed") || status.includes("rejected"))
@@ -372,7 +377,8 @@ export default function LoansPage() {
 				setValue("numberOfRepayments", product.numberOfRepayments);
 			if (product.interestRatePerPeriod)
 				setValue("interestRatePerPeriod", product.interestRatePerPeriod);
-			if (product.repaymentEvery) setValue("repaymentEvery", product.repaymentEvery);
+			if (product.repaymentEvery)
+				setValue("repaymentEvery", product.repaymentEvery);
 			if (product.repaymentFrequencyType?.id)
 				setValue("repaymentFrequencyType", product.repaymentFrequencyType.id);
 		}
@@ -447,7 +453,9 @@ export default function LoansPage() {
 										<Calendar className="h-5 w-5 text-warning" />
 									</div>
 									<div>
-										<div className="text-2xl font-bold">{pendingLoans.length}</div>
+										<div className="text-2xl font-bold">
+											{pendingLoans.length}
+										</div>
 										<div className="text-sm text-muted-foreground">
 											Pending Approval
 										</div>
@@ -462,7 +470,9 @@ export default function LoansPage() {
 										<Banknote className="h-5 w-5 text-success" />
 									</div>
 									<div>
-										<div className="text-2xl font-bold">{activeLoans.length}</div>
+										<div className="text-2xl font-bold">
+											{activeLoans.length}
+										</div>
 										<div className="text-sm text-muted-foreground">
 											Active Loans
 										</div>
@@ -506,7 +516,10 @@ export default function LoansPage() {
 			</PageShell>
 
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-xl overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>Book New Loan</SheetTitle>
 						<SheetDescription>
@@ -631,12 +644,13 @@ export default function LoansPage() {
 									<div className="p-3 bg-muted/50 border text-sm space-y-1">
 										<div className="font-medium">{selectedProduct.name}</div>
 										<div className="text-muted-foreground">
-											Principal: {formatCurrency(selectedProduct.minPrincipal)} -{" "}
-											{formatCurrency(selectedProduct.maxPrincipal)}
+											Principal: {formatCurrency(selectedProduct.minPrincipal)}{" "}
+											- {formatCurrency(selectedProduct.maxPrincipal)}
 										</div>
 										<div className="text-muted-foreground">
 											Interest: {selectedProduct.interestRatePerPeriod}% per{" "}
-											{selectedProduct.repaymentFrequencyType?.value || "period"}
+											{selectedProduct.repaymentFrequencyType?.value ||
+												"period"}
 										</div>
 									</div>
 								)}
@@ -644,7 +658,8 @@ export default function LoansPage() {
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 									<div className="space-y-2">
 										<Label htmlFor="principal">
-											Principal Amount <span className="text-destructive">*</span>
+											Principal Amount{" "}
+											<span className="text-destructive">*</span>
 										</Label>
 										<Input
 											id="principal"
@@ -707,7 +722,9 @@ export default function LoansPage() {
 
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 									<div className="space-y-2">
-										<Label htmlFor="interestRatePerPeriod">Interest Rate (%)</Label>
+										<Label htmlFor="interestRatePerPeriod">
+											Interest Rate (%)
+										</Label>
 										<Input
 											id="interestRatePerPeriod"
 											type="number"

@@ -23,13 +23,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,6 +33,13 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import {
 	Tooltip,
 	TooltipContent,
@@ -2389,161 +2389,167 @@ export function LoanProductWizard({
 				)}
 
 				<Sheet open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
-					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetContent
+						side="right"
+						className="w-full sm:max-w-lg overflow-y-auto"
+					>
 						<SheetHeader>
 							<SheetTitle>Add Fee</SheetTitle>
-							<SheetDescription>
-								Create a new fee charge.
-							</SheetDescription>
+							<SheetDescription>Create a new fee charge.</SheetDescription>
 						</SheetHeader>
 						<div className="mt-4">
-						<form onSubmit={handleCreateFee} className="space-y-4">
-							{feeSubmitError && (
-								<Alert variant="destructive">
-									<AlertTitle>Fee creation failed</AlertTitle>
-									<AlertDescription>{feeSubmitError}</AlertDescription>
-								</Alert>
-							)}
-							<div className="space-y-2">
-								<Label htmlFor="fee-name">Fee Name</Label>
-								<Input
-									id="fee-name"
-									{...feeForm.register("name")}
-									placeholder="Processing Fee"
-								/>
-								{feeForm.formState.errors.name && (
-									<p className="text-sm text-destructive">
-										{String(feeForm.formState.errors.name.message)}
-									</p>
+							<form onSubmit={handleCreateFee} className="space-y-4">
+								{feeSubmitError && (
+									<Alert variant="destructive">
+										<AlertTitle>Fee creation failed</AlertTitle>
+										<AlertDescription>{feeSubmitError}</AlertDescription>
+									</Alert>
 								)}
-							</div>
-							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
-									<Label htmlFor="fee-calculation">Fee Type</Label>
-									<Controller
-										control={feeForm.control}
-										name="calculationMethod"
-										render={({ field }) => (
-											<Select
-												value={field.value}
-												onValueChange={field.onChange}
-											>
-												<SelectTrigger id="fee-calculation">
-													<SelectValue placeholder="Select fee type" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="flat">Flat amount</SelectItem>
-													<SelectItem value="percent">Percentage</SelectItem>
-												</SelectContent>
-											</Select>
-										)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label htmlFor="fee-amount">Amount</Label>
+									<Label htmlFor="fee-name">Fee Name</Label>
 									<Input
-										id="fee-amount"
-										type="number"
-										{...feeForm.register("amount", { valueAsNumber: true })}
+										id="fee-name"
+										{...feeForm.register("name")}
+										placeholder="Processing Fee"
 									/>
-									<p className="text-xs text-muted-foreground">
-										Fee value for the charge. Example: 500.
-									</p>
-									{feeForm.formState.errors.amount && (
+									{feeForm.formState.errors.name && (
 										<p className="text-sm text-destructive">
-											{String(feeForm.formState.errors.amount.message)}
+											{String(feeForm.formState.errors.name.message)}
 										</p>
 									)}
 								</div>
-							</div>
-							<div className="grid gap-4 md:grid-cols-2">
-								<div className="space-y-2">
-									<Label htmlFor="fee-charge-time">When Charged</Label>
-									<Controller
-										control={feeForm.control}
-										name="chargeTimeType"
-										render={({ field }) => (
-											<Select
-												value={field.value}
-												onValueChange={field.onChange}
-											>
-												<SelectTrigger id="fee-charge-time">
-													<SelectValue placeholder="Select charge timing" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="disbursement">
-														At disbursement
-													</SelectItem>
-													<SelectItem value="specifiedDueDate">
-														On specified due date
-													</SelectItem>
-													<SelectItem value="approval">On approval</SelectItem>
-												</SelectContent>
-											</Select>
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="fee-calculation">Fee Type</Label>
+										<Controller
+											control={feeForm.control}
+											name="calculationMethod"
+											render={({ field }) => (
+												<Select
+													value={field.value}
+													onValueChange={field.onChange}
+												>
+													<SelectTrigger id="fee-calculation">
+														<SelectValue placeholder="Select fee type" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="flat">Flat amount</SelectItem>
+														<SelectItem value="percent">Percentage</SelectItem>
+													</SelectContent>
+												</Select>
+											)}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="fee-amount">Amount</Label>
+										<Input
+											id="fee-amount"
+											type="number"
+											{...feeForm.register("amount", { valueAsNumber: true })}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Fee value for the charge. Example: 500.
+										</p>
+										{feeForm.formState.errors.amount && (
+											<p className="text-sm text-destructive">
+												{String(feeForm.formState.errors.amount.message)}
+											</p>
 										)}
-									/>
+									</div>
+								</div>
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="fee-charge-time">When Charged</Label>
+										<Controller
+											control={feeForm.control}
+											name="chargeTimeType"
+											render={({ field }) => (
+												<Select
+													value={field.value}
+													onValueChange={field.onChange}
+												>
+													<SelectTrigger id="fee-charge-time">
+														<SelectValue placeholder="Select charge timing" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="disbursement">
+															At disbursement
+														</SelectItem>
+														<SelectItem value="specifiedDueDate">
+															On specified due date
+														</SelectItem>
+														<SelectItem value="approval">
+															On approval
+														</SelectItem>
+													</SelectContent>
+												</Select>
+											)}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="fee-payment-mode">Payment Mode</Label>
+										<Controller
+											control={feeForm.control}
+											name="paymentMode"
+											render={({ field }) => (
+												<Select
+													value={field.value}
+													onValueChange={field.onChange}
+												>
+													<SelectTrigger id="fee-payment-mode">
+														<SelectValue placeholder="Select payment mode" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="deduct">
+															Deduct from disbursement
+														</SelectItem>
+														<SelectItem value="payable">
+															Payable separately
+														</SelectItem>
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Deducted fees reduce the disbursed amount; payable fees
+											are billed separately.
+										</p>
+									</div>
 								</div>
 								<div className="space-y-2">
-									<Label htmlFor="fee-payment-mode">Payment Mode</Label>
-									<Controller
-										control={feeForm.control}
-										name="paymentMode"
-										render={({ field }) => (
-											<Select
-												value={field.value}
-												onValueChange={field.onChange}
-											>
-												<SelectTrigger id="fee-payment-mode">
-													<SelectValue placeholder="Select payment mode" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="deduct">
-														Deduct from disbursement
-													</SelectItem>
-													<SelectItem value="payable">
-														Payable separately
-													</SelectItem>
-												</SelectContent>
-											</Select>
-										)}
+									<Label htmlFor="fee-currency">Currency</Label>
+									<Input
+										id="fee-currency"
+										{...feeForm.register("currencyCode")}
 									/>
-									<p className="text-xs text-muted-foreground">
-										Deducted fees reduce the disbursed amount; payable fees are
-										billed separately.
-									</p>
+									{feeForm.formState.errors.currencyCode && (
+										<p className="text-sm text-destructive">
+											{String(feeForm.formState.errors.currencyCode.message)}
+										</p>
+									)}
 								</div>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="fee-currency">Currency</Label>
-								<Input
-									id="fee-currency"
-									{...feeForm.register("currencyCode")}
-								/>
-								{feeForm.formState.errors.currencyCode && (
-									<p className="text-sm text-destructive">
-										{String(feeForm.formState.errors.currencyCode.message)}
-									</p>
-								)}
-							</div>
-							<div className="flex items-center justify-between">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => setIsFeeDrawerOpen(false)}
-								>
-									Cancel
-								</Button>
-								<Button type="submit" disabled={isCreatingFee}>
-									{isCreatingFee ? "Saving..." : "Save Fee"}
-								</Button>
-							</div>
-						</form>
+								<div className="flex items-center justify-between">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsFeeDrawerOpen(false)}
+									>
+										Cancel
+									</Button>
+									<Button type="submit" disabled={isCreatingFee}>
+										{isCreatingFee ? "Saving..." : "Save Fee"}
+									</Button>
+								</div>
+							</form>
 						</div>
 					</SheetContent>
 				</Sheet>
 
 				<Sheet open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
-					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+					<SheetContent
+						side="right"
+						className="w-full sm:max-w-lg overflow-y-auto"
+					>
 						<SheetHeader>
 							<SheetTitle>Select Existing Fees</SheetTitle>
 							<SheetDescription>
@@ -2551,194 +2557,199 @@ export function LoanProductWizard({
 							</SheetDescription>
 						</SheetHeader>
 						<div className="space-y-3 mt-4">
-						{feeOptions.length === 0 && (
-							<p className="text-sm text-muted-foreground">
-								No fee charges available.
-							</p>
-						)}
-						{feeOptions.map((option) => (
-							<div
-								key={option.id}
-								className="flex items-center justify-between rounded-sm border border-border/80 p-3"
-							>
-								<div>
-									<div className="text-sm font-medium">{option.name}</div>
-									<div className="text-xs text-muted-foreground">
-										{option.currency?.code} {option.amount}
-									</div>
-								</div>
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									onClick={() => handleAddExistingFee(option)}
+							{feeOptions.length === 0 && (
+								<p className="text-sm text-muted-foreground">
+									No fee charges available.
+								</p>
+							)}
+							{feeOptions.map((option) => (
+								<div
+									key={option.id}
+									className="flex items-center justify-between rounded-sm border border-border/80 p-3"
 								>
-									Add
-								</Button>
-							</div>
-						))}
+									<div>
+										<div className="text-sm font-medium">{option.name}</div>
+										<div className="text-xs text-muted-foreground">
+											{option.currency?.code} {option.amount}
+										</div>
+									</div>
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										onClick={() => handleAddExistingFee(option)}
+									>
+										Add
+									</Button>
+								</div>
+							))}
 						</div>
 					</SheetContent>
 				</Sheet>
 
-				<Sheet
-					open={isPenaltyDrawerOpen}
-					onOpenChange={setIsPenaltyDrawerOpen}
-				>
-					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<Sheet open={isPenaltyDrawerOpen} onOpenChange={setIsPenaltyDrawerOpen}>
+					<SheetContent
+						side="right"
+						className="w-full sm:max-w-lg overflow-y-auto"
+					>
 						<SheetHeader>
 							<SheetTitle>Add Penalty</SheetTitle>
-							<SheetDescription>
-								Create a new penalty charge.
-							</SheetDescription>
+							<SheetDescription>Create a new penalty charge.</SheetDescription>
 						</SheetHeader>
 						<div className="mt-4">
-						<form onSubmit={handleCreatePenalty} className="space-y-4">
-							{penaltySubmitError && (
-								<Alert variant="destructive">
-									<AlertTitle>Penalty creation failed</AlertTitle>
-									<AlertDescription>{penaltySubmitError}</AlertDescription>
-								</Alert>
-							)}
-							<p className="text-xs text-muted-foreground">
-								Applied when an installment becomes overdue.
-							</p>
-							<div className="space-y-2">
-								<Label htmlFor="penalty-name">Penalty Name</Label>
-								<Input
-									id="penalty-name"
-									{...penaltyForm.register("name")}
-									placeholder="Late Payment Penalty"
-								/>
-								{penaltyForm.formState.errors.name && (
-									<p className="text-sm text-destructive">
-										{String(penaltyForm.formState.errors.name.message)}
-									</p>
+							<form onSubmit={handleCreatePenalty} className="space-y-4">
+								{penaltySubmitError && (
+									<Alert variant="destructive">
+										<AlertTitle>Penalty creation failed</AlertTitle>
+										<AlertDescription>{penaltySubmitError}</AlertDescription>
+									</Alert>
 								)}
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="penalty-basis">Penalty Basis</Label>
-								<Controller
-									control={penaltyForm.control}
-									name="penaltyBasis"
-									render={({ field }) => (
-										<Select value={field.value} onValueChange={field.onChange}>
-											<SelectTrigger id="penalty-basis">
-												<SelectValue placeholder="Select penalty basis" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="totalOverdue">
-													Entire overdue amount
-												</SelectItem>
-												<SelectItem value="overduePrincipal">
-													Overdue principal only
-												</SelectItem>
-												<SelectItem value="overdueInterest">
-													Overdue interest only
-												</SelectItem>
-											</SelectContent>
-										</Select>
-									)}
-								/>
 								<p className="text-xs text-muted-foreground">
-									Example: 2% on overdue principal means if KES 10,000 is
-									overdue, penalty = KES 200.
+									Applied when an installment becomes overdue.
 								</p>
-							</div>
-							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
-									<Label htmlFor="penalty-method">Calculation Method</Label>
+									<Label htmlFor="penalty-name">Penalty Name</Label>
+									<Input
+										id="penalty-name"
+										{...penaltyForm.register("name")}
+										placeholder="Late Payment Penalty"
+									/>
+									{penaltyForm.formState.errors.name && (
+										<p className="text-sm text-destructive">
+											{String(penaltyForm.formState.errors.name.message)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="penalty-basis">Penalty Basis</Label>
 									<Controller
 										control={penaltyForm.control}
-										name="calculationMethod"
+										name="penaltyBasis"
 										render={({ field }) => (
 											<Select
 												value={field.value}
 												onValueChange={field.onChange}
 											>
-												<SelectTrigger id="penalty-method">
-													<SelectValue placeholder="Select method" />
+												<SelectTrigger id="penalty-basis">
+													<SelectValue placeholder="Select penalty basis" />
 												</SelectTrigger>
 												<SelectContent>
-													<SelectItem value="flat">Flat amount</SelectItem>
-													<SelectItem value="percent">Percentage</SelectItem>
+													<SelectItem value="totalOverdue">
+														Entire overdue amount
+													</SelectItem>
+													<SelectItem value="overduePrincipal">
+														Overdue principal only
+													</SelectItem>
+													<SelectItem value="overdueInterest">
+														Overdue interest only
+													</SelectItem>
 												</SelectContent>
 											</Select>
 										)}
 									/>
 									<p className="text-xs text-muted-foreground">
-										Flat fee means the same penalty regardless of overdue
-										amount.
+										Example: 2% on overdue principal means if KES 10,000 is
+										overdue, penalty = KES 200.
+									</p>
+								</div>
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="penalty-method">Calculation Method</Label>
+										<Controller
+											control={penaltyForm.control}
+											name="calculationMethod"
+											render={({ field }) => (
+												<Select
+													value={field.value}
+													onValueChange={field.onChange}
+												>
+													<SelectTrigger id="penalty-method">
+														<SelectValue placeholder="Select method" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="flat">Flat amount</SelectItem>
+														<SelectItem value="percent">Percentage</SelectItem>
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Flat fee means the same penalty regardless of overdue
+											amount.
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="penalty-amount">Amount</Label>
+										<Input
+											id="penalty-amount"
+											type="number"
+											{...penaltyForm.register("amount", {
+												valueAsNumber: true,
+											})}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Penalty value. Example: 2 for 2% or 500 for flat.
+										</p>
+										{penaltyForm.formState.errors.amount && (
+											<p className="text-sm text-destructive">
+												{String(penaltyForm.formState.errors.amount.message)}
+											</p>
+										)}
+									</div>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="penalty-grace">
+										Grace Period Override (days)
+									</Label>
+									<Input
+										id="penalty-grace"
+										type="number"
+										{...penaltyForm.register("gracePeriodOverride", {
+											valueAsNumber: true,
+										})}
+										placeholder="3"
+									/>
+									<p className="text-xs text-muted-foreground">
+										Optional. Overrides the delinquency grace period for this
+										penalty. Example: 3 days.
 									</p>
 								</div>
 								<div className="space-y-2">
-									<Label htmlFor="penalty-amount">Amount</Label>
+									<Label htmlFor="penalty-currency">Currency</Label>
 									<Input
-										id="penalty-amount"
-										type="number"
-										{...penaltyForm.register("amount", { valueAsNumber: true })}
+										id="penalty-currency"
+										{...penaltyForm.register("currencyCode")}
 									/>
-									<p className="text-xs text-muted-foreground">
-										Penalty value. Example: 2 for 2% or 500 for flat.
-									</p>
-									{penaltyForm.formState.errors.amount && (
+									{penaltyForm.formState.errors.currencyCode && (
 										<p className="text-sm text-destructive">
-											{String(penaltyForm.formState.errors.amount.message)}
+											{String(
+												penaltyForm.formState.errors.currencyCode.message,
+											)}
 										</p>
 									)}
 								</div>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="penalty-grace">
-									Grace Period Override (days)
-								</Label>
-								<Input
-									id="penalty-grace"
-									type="number"
-									{...penaltyForm.register("gracePeriodOverride", {
-										valueAsNumber: true,
-									})}
-									placeholder="3"
-								/>
-								<p className="text-xs text-muted-foreground">
-									Optional. Overrides the delinquency grace period for this
-									penalty. Example: 3 days.
-								</p>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="penalty-currency">Currency</Label>
-								<Input
-									id="penalty-currency"
-									{...penaltyForm.register("currencyCode")}
-								/>
-								{penaltyForm.formState.errors.currencyCode && (
-									<p className="text-sm text-destructive">
-										{String(penaltyForm.formState.errors.currencyCode.message)}
-									</p>
-								)}
-							</div>
-							<div className="flex items-center justify-between">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => setIsPenaltyDrawerOpen(false)}
-								>
-									Cancel
-								</Button>
-								<Button type="submit" disabled={isCreatingPenalty}>
-									{isCreatingPenalty ? "Saving..." : "Save Penalty"}
-								</Button>
-							</div>
-						</form>
+								<div className="flex items-center justify-between">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setIsPenaltyDrawerOpen(false)}
+									>
+										Cancel
+									</Button>
+									<Button type="submit" disabled={isCreatingPenalty}>
+										{isCreatingPenalty ? "Saving..." : "Save Penalty"}
+									</Button>
+								</div>
+							</form>
 						</div>
 					</SheetContent>
 				</Sheet>
 
-				<Sheet
-					open={isPenaltySelectOpen}
-					onOpenChange={setIsPenaltySelectOpen}
-				>
-					<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<Sheet open={isPenaltySelectOpen} onOpenChange={setIsPenaltySelectOpen}>
+					<SheetContent
+						side="right"
+						className="w-full sm:max-w-lg overflow-y-auto"
+					>
 						<SheetHeader>
 							<SheetTitle>Select Existing Penalties</SheetTitle>
 							<SheetDescription>
@@ -2746,32 +2757,32 @@ export function LoanProductWizard({
 							</SheetDescription>
 						</SheetHeader>
 						<div className="space-y-3 mt-4">
-						{penaltyOptions.length === 0 && (
-							<p className="text-sm text-muted-foreground">
-								No penalty charges available.
-							</p>
-						)}
-						{penaltyOptions.map((option) => (
-							<div
-								key={option.id}
-								className="flex items-center justify-between rounded-sm border border-border/80 p-3"
-							>
-								<div>
-									<div className="text-sm font-medium">{option.name}</div>
-									<div className="text-xs text-muted-foreground">
-										{option.currency?.code} {option.amount}
-									</div>
-								</div>
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									onClick={() => handleAddExistingPenalty(option)}
+							{penaltyOptions.length === 0 && (
+								<p className="text-sm text-muted-foreground">
+									No penalty charges available.
+								</p>
+							)}
+							{penaltyOptions.map((option) => (
+								<div
+									key={option.id}
+									className="flex items-center justify-between rounded-sm border border-border/80 p-3"
 								>
-									Add
-								</Button>
-							</div>
-						))}
+									<div>
+										<div className="text-sm font-medium">{option.name}</div>
+										<div className="text-xs text-muted-foreground">
+											{option.currency?.code} {option.amount}
+										</div>
+									</div>
+									<Button
+										type="button"
+										size="sm"
+										variant="outline"
+										onClick={() => handleAddExistingPenalty(option)}
+									>
+										Add
+									</Button>
+								</div>
+							))}
 						</div>
 					</SheetContent>
 				</Sheet>

@@ -93,7 +93,9 @@ export default function RolesPage() {
 								</div>
 								<div>
 									<div className="text-2xl font-bold">{roles.length}</div>
-									<div className="text-sm text-muted-foreground">Total Roles</div>
+									<div className="text-sm text-muted-foreground">
+										Total Roles
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -106,7 +108,9 @@ export default function RolesPage() {
 								</div>
 								<div>
 									<div className="text-2xl font-bold">{adminRoles.length}</div>
-									<div className="text-sm text-muted-foreground">Admin Roles</div>
+									<div className="text-sm text-muted-foreground">
+										Admin Roles
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -121,7 +125,9 @@ export default function RolesPage() {
 									<div className="text-2xl font-bold">
 										{operationalRoles.length}
 									</div>
-									<div className="text-sm text-muted-foreground">Operational</div>
+									<div className="text-sm text-muted-foreground">
+										Operational
+									</div>
 								</div>
 							</div>
 						</CardContent>

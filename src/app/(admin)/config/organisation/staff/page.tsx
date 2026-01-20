@@ -15,13 +15,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -30,6 +23,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	OfficeData,
@@ -103,7 +103,11 @@ async function createStaff(tenantId: string, data: StaffRequest) {
 	return response.json();
 }
 
-async function updateStaff(tenantId: string, staffId: number, data: StaffRequest) {
+async function updateStaff(
+	tenantId: string,
+	staffId: number,
+	data: StaffRequest,
+) {
 	const response = await fetch(`${BFF_ROUTES.staff}/${staffId}`, {
 		method: "PUT",
 		headers: {
@@ -263,7 +267,9 @@ export default function StaffPage() {
 								</div>
 								<div>
 									<div className="text-2xl font-bold">{staff.length}</div>
-									<div className="text-sm text-muted-foreground">Total Staff</div>
+									<div className="text-sm text-muted-foreground">
+										Total Staff
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -288,7 +294,9 @@ export default function StaffPage() {
 									<Building2 className="h-5 w-5 text-info" />
 								</div>
 								<div>
-									<div className="text-2xl font-bold">{loanOfficers.length}</div>
+									<div className="text-2xl font-bold">
+										{loanOfficers.length}
+									</div>
 									<div className="text-sm text-muted-foreground">
 										Loan Officers
 									</div>
@@ -310,10 +318,7 @@ export default function StaffPage() {
 								<Select
 									value={filters.officeId || "all"}
 									onValueChange={(value) =>
-										handleFilterChange(
-											"officeId",
-											value === "all" ? "" : value,
-										)
+										handleFilterChange("officeId", value === "all" ? "" : value)
 									}
 								>
 									<SelectTrigger id="officeFilter">
@@ -334,9 +339,7 @@ export default function StaffPage() {
 								<Label htmlFor="statusFilter">Status</Label>
 								<Select
 									value={filters.status || "all"}
-									onValueChange={(value) =>
-										handleFilterChange("status", value)
-									}
+									onValueChange={(value) => handleFilterChange("status", value)}
 								>
 									<SelectTrigger id="statusFilter">
 										<SelectValue placeholder="All" />
@@ -415,7 +418,10 @@ export default function StaffPage() {
 			</div>
 
 			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							{isEditing ? "Edit Staff Member" : "Add Staff Member"}

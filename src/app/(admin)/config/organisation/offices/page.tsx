@@ -314,7 +314,10 @@ export default function OfficesPage() {
 			</div>
 
 			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
-				<SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							{isEditing ? "Edit Office" : "Create New Office"}

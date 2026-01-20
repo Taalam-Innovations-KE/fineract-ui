@@ -13,6 +13,7 @@ export const FINERACT_ENDPOINTS = {
 	codes: "/v1/codes",
 	datatables: "/v1/datatables",
 	clients: "/v1/clients",
+	clientsTemplate: "/v1/clients/template",
 
 	// Financial Setup
 	currencies: "/v1/currencies",
@@ -46,6 +47,7 @@ export const BFF_ROUTES = {
 	codes: "/api/fineract/codes",
 	datatables: "/api/fineract/datatables",
 	clients: "/api/fineract/clients",
+	clientsTemplate: "/api/fineract/clients/template",
 
 	// Financial Setup
 	currencies: "/api/fineract/currencies",

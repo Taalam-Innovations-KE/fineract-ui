@@ -6,28 +6,30 @@ import {
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
-	GetRolesResponse,
-	PostRolesRequest,
-	PutRolesRoleIdRequest,
+	GetJournalEntriesTransactionIdResponse,
+	JournalEntryCommand,
+	PostJournalEntriesResponse,
 } from "@/lib/fineract/generated/types.gen";
 
 /**
- * GET /api/fineract/roles
- * Fetches all roles
+ * GET /api/fineract/journalentries
+ * Fetches journal entries with optional filters
  */
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
+		const url = new URL(request.url);
+		const params = new URLSearchParams(url.search);
 
-		const roles = await fineractFetch<GetRolesResponse[]>(
-			FINERACT_ENDPOINTS.roles,
+		const entries = await fineractFetch<GetJournalEntriesTransactionIdResponse>(
+			`${FINERACT_ENDPOINTS.journalEntries}?${params}`,
 			{
 				method: "GET",
 				tenantId,
 			},
 		);
 
-		return NextResponse.json(roles);
+		return NextResponse.json(entries);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {
@@ -37,16 +39,16 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/fineract/roles
- * Creates a new role
+ * POST /api/fineract/journalentries
+ * Creates a new journal entry
  */
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body: PostRolesRequest = await request.json();
+		const body = (await request.json()) as JournalEntryCommand;
 
-		const role = await fineractFetch<GetRolesResponse>(
-			FINERACT_ENDPOINTS.roles,
+		const result = await fineractFetch<PostJournalEntriesResponse>(
+			FINERACT_ENDPOINTS.journalEntries,
 			{
 				method: "POST",
 				body,
@@ -54,7 +56,7 @@ export async function POST(request: NextRequest) {
 			},
 		);
 
-		return NextResponse.json(role, { status: 201 });
+		return NextResponse.json(result);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {

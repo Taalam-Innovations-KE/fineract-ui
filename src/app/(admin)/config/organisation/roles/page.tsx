@@ -1,9 +1,20 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Shield, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	Edit,
+	MoreHorizontal,
+	Plus,
+	Settings,
+	Shield,
+	Trash,
+	Users,
+} from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -12,8 +23,26 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type { GetRolesResponse } from "@/lib/fineract/generated/types.gen";
+import type {
+	GetRolesResponse,
+	PostRolesRequest,
+	PutRolesRoleIdRequest,
+} from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
@@ -32,6 +61,72 @@ async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
 
 export default function RolesPage() {
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
+
+	async function createRole(data: PostRolesRequest): Promise<GetRolesResponse> {
+		const response = await fetch(BFF_ROUTES.roles, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(data),
+		});
+
+		if (!response.ok) {
+			throw new Error("Failed to create role");
+		}
+
+		return response.json();
+	}
+
+	async function updateRole(
+		roleId: number,
+		data: PutRolesRoleIdRequest,
+	): Promise<GetRolesResponse> {
+		const response = await fetch(`${BFF_ROUTES.roles}/${roleId}`, {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(data),
+		});
+
+		if (!response.ok) {
+			throw new Error("Failed to update role");
+		}
+
+		return response.json();
+	}
+
+	async function deleteRole(roleId: number): Promise<void> {
+		const response = await fetch(`${BFF_ROUTES.roles}/${roleId}`, {
+			method: "DELETE",
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		});
+
+		if (!response.ok) {
+			throw new Error("Failed to delete role");
+		}
+	}
+
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [editDialogOpen, setEditDialogOpen] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [selectedRole, setSelectedRole] = useState<GetRolesResponse | null>(
+		null,
+	);
+	const [formData, setFormData] = useState({ name: "", description: "" });
+
+	const roleTemplates = [
+		{ name: "Super User", description: "Full system access" },
+		{ name: "Loan Officer", description: "Manage loans and clients" },
+		{ name: "Teller", description: "Handle transactions" },
+		{ name: "Auditor", description: "View reports and logs" },
+	];
 
 	const {
 		data: roles = [],
@@ -41,6 +136,74 @@ export default function RolesPage() {
 		queryKey: ["roles", tenantId],
 		queryFn: () => fetchRoles(tenantId),
 	});
+
+	const createMutation = useMutation({
+		mutationFn: createRole,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+			setCreateDialogOpen(false);
+			setFormData({ name: "", description: "" });
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: ({
+			roleId,
+			data,
+		}: {
+			roleId: number;
+			data: PutRolesRoleIdRequest;
+		}) => updateRole(roleId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+			setEditDialogOpen(false);
+			setSelectedRole(null);
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: deleteRole,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+			setDeleteDialogOpen(false);
+			setSelectedRole(null);
+		},
+	});
+
+	const handleEdit = (role: GetRolesResponse) => {
+		setSelectedRole(role);
+		setFormData({ name: role.name || "", description: role.description || "" });
+		setEditDialogOpen(true);
+	};
+
+	const handleDelete = (role: GetRolesResponse) => {
+		setSelectedRole(role);
+		setDeleteDialogOpen(true);
+	};
+
+	const handleCreateSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		createMutation.mutate({
+			name: formData.name,
+			description: formData.description,
+		});
+	};
+
+	const handleEditSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (selectedRole?.id) {
+			updateMutation.mutate({
+				roleId: selectedRole.id,
+				data: { description: formData.description },
+			});
+		}
+	};
+
+	const handleDeleteConfirm = () => {
+		if (selectedRole?.id) {
+			deleteMutation.mutate(selectedRole.id);
+		}
+	};
 
 	const isAdminRole = (role: GetRolesResponse) =>
 		role.name?.toLowerCase().includes("admin") ||
@@ -74,6 +237,39 @@ export default function RolesPage() {
 						Operational
 					</Badge>
 				),
+		},
+		{
+			header: "Actions",
+			cell: (role: GetRolesResponse) => (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" className="h-8 w-8 p-0">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onClick={() => handleEdit(role)}>
+							<Edit className="mr-2 h-4 w-4" />
+							Edit
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<Link
+								href={`/admin/config/organisation/roles/${role.id}/permissions`}
+							>
+								<Settings className="mr-2 h-4 w-4" />
+								Manage Permissions
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => handleDelete(role)}
+							className="text-destructive"
+						>
+							<Trash className="mr-2 h-4 w-4" />
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			),
 		},
 	];
 
@@ -136,7 +332,94 @@ export default function RolesPage() {
 
 				<Card>
 					<CardHeader>
-						<CardTitle>Roles</CardTitle>
+						<CardTitle className="flex items-center justify-between">
+							Roles
+							<Dialog
+								open={createDialogOpen}
+								onOpenChange={setCreateDialogOpen}
+							>
+								<DialogTrigger asChild>
+									<Button>
+										<Plus className="mr-2 h-4 w-4" />
+										Create Role
+									</Button>
+								</DialogTrigger>
+								<DialogContent>
+									<DialogHeader>
+										<DialogTitle>Create New Role</DialogTitle>
+										<DialogDescription>
+											Add a new custom role to the system.
+										</DialogDescription>
+									</DialogHeader>
+									<form onSubmit={handleCreateSubmit} className="space-y-4">
+										<div>
+											<label className="text-sm font-medium">
+												Template (Optional)
+											</label>
+											<select
+												onChange={(e) => {
+													const template = roleTemplates.find(
+														(t) => t.name === e.target.value,
+													);
+													if (template) {
+														setFormData({
+															name: template.name,
+															description: template.description,
+														});
+													}
+												}}
+												className="mt-1 block w-full rounded border px-3 py-2"
+											>
+												<option value="">Select a template</option>
+												{roleTemplates.map((template) => (
+													<option key={template.name} value={template.name}>
+														{template.name}
+													</option>
+												))}
+											</select>
+										</div>
+										<div>
+											<label className="text-sm font-medium">Name</label>
+											<input
+												type="text"
+												value={formData.name}
+												onChange={(e) =>
+													setFormData({ ...formData, name: e.target.value })
+												}
+												className="mt-1 block w-full rounded border px-3 py-2"
+												required
+											/>
+										</div>
+										<div>
+											<label className="text-sm font-medium">Description</label>
+											<textarea
+												value={formData.description}
+												onChange={(e) =>
+													setFormData({
+														...formData,
+														description: e.target.value,
+													})
+												}
+												className="mt-1 block w-full rounded border px-3 py-2"
+												rows={3}
+											/>
+										</div>
+										<div className="flex justify-end space-x-2">
+											<Button
+												type="button"
+												variant="outline"
+												onClick={() => setCreateDialogOpen(false)}
+											>
+												Cancel
+											</Button>
+											<Button type="submit" disabled={createMutation.isPending}>
+												{createMutation.isPending ? "Creating..." : "Create"}
+											</Button>
+										</div>
+									</form>
+								</DialogContent>
+							</Dialog>
+						</CardTitle>
 						<CardDescription>
 							{roles.length} role{roles.length !== 1 ? "s" : ""} in the system
 						</CardDescription>
@@ -166,6 +449,82 @@ export default function RolesPage() {
 						)}
 					</CardContent>
 				</Card>
+
+				{/* Edit Dialog */}
+				<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Edit Role</DialogTitle>
+							<DialogDescription>Modify the role details.</DialogDescription>
+						</DialogHeader>
+						<form onSubmit={handleEditSubmit} className="space-y-4">
+							<div>
+								<label className="text-sm font-medium">Name</label>
+								<input
+									type="text"
+									value={formData.name}
+									onChange={(e) =>
+										setFormData({ ...formData, name: e.target.value })
+									}
+									className="mt-1 block w-full rounded border px-3 py-2"
+									required
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Description</label>
+								<textarea
+									value={formData.description}
+									onChange={(e) =>
+										setFormData({ ...formData, description: e.target.value })
+									}
+									className="mt-1 block w-full rounded border px-3 py-2"
+									rows={3}
+								/>
+							</div>
+							<div className="flex justify-end space-x-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setEditDialogOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button type="submit" disabled={updateMutation.isPending}>
+									{updateMutation.isPending ? "Updating..." : "Update"}
+								</Button>
+							</div>
+						</form>
+					</DialogContent>
+				</Dialog>
+
+				{/* Delete Dialog */}
+				<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Delete Role</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to delete "{selectedRole?.name}"? This
+								action cannot be undone.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="flex justify-end space-x-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setDeleteDialogOpen(false)}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={handleDeleteConfirm}
+								disabled={deleteMutation.isPending}
+							>
+								{deleteMutation.isPending ? "Deleting..." : "Delete"}
+							</Button>
+						</div>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</PageShell>
 	);

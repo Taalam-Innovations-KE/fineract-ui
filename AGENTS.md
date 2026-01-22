@@ -67,6 +67,8 @@ All scripts are in `package.json`; use pnpm.
 - Reuse `cn` helper from `src/lib/utils.ts` for class merging.
 - Use the enforced spacing scale (see below) and run `pnpm check:spacing`.
 - Prefer `next/image` when adding new images (Biome warns on `<img>`).
+- shadcn/ui Select.Item components must have non-empty string value prop (use "all" for "select all" options, not "").
+- Use browser confirm() for action confirmations instead of AlertDialog if not available.
 
 ## Enforced Spacing Scale
 Use only these sizes to keep layouts consistent:

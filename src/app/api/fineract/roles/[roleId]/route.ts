@@ -7,27 +7,31 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetRolesResponse,
-	PostRolesRequest,
 	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 
 /**
- * GET /api/fineract/roles
- * Fetches all roles
+ * PUT /api/fineract/roles/[roleId]
+ * Updates an existing role
  */
-export async function GET(request: NextRequest) {
+export async function PUT(
+	request: NextRequest,
+	{ params }: { params: { roleId: string } },
+) {
 	try {
 		const tenantId = getTenantFromRequest(request);
+		const body: PutRolesRoleIdRequest = await request.json();
 
-		const roles = await fineractFetch<GetRolesResponse[]>(
-			FINERACT_ENDPOINTS.roles,
+		const role = await fineractFetch<GetRolesResponse>(
+			`${FINERACT_ENDPOINTS.roles}/${params.roleId}`,
 			{
-				method: "GET",
+				method: "PUT",
+				body,
 				tenantId,
 			},
 		);
 
-		return NextResponse.json(roles);
+		return NextResponse.json(role);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {
@@ -37,24 +41,22 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/fineract/roles
- * Creates a new role
+ * DELETE /api/fineract/roles/[roleId]
+ * Deletes a role
  */
-export async function POST(request: NextRequest) {
+export async function DELETE(
+	request: NextRequest,
+	{ params }: { params: { roleId: string } },
+) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body: PostRolesRequest = await request.json();
 
-		const role = await fineractFetch<GetRolesResponse>(
-			FINERACT_ENDPOINTS.roles,
-			{
-				method: "POST",
-				body,
-				tenantId,
-			},
-		);
+		await fineractFetch(`${FINERACT_ENDPOINTS.roles}/${params.roleId}`, {
+			method: "DELETE",
+			tenantId,
+		});
 
-		return NextResponse.json(role, { status: 201 });
+		return NextResponse.json({ success: true });
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {

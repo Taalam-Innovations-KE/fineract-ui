@@ -69,6 +69,7 @@ const navItems: NavItem[] = [
 		icon: Settings,
 		children: [
 			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
+			{ title: "Maker Checker", href: "/admin/maker-checker", icon: Shield },
 		],
 	},
 	{

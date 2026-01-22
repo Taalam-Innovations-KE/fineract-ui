@@ -31,6 +31,10 @@ export const FINERACT_ENDPOINTS = {
 	loansCatchUp: "/v1/loans/catch-up",
 	loansCatchUpRunning: "/v1/loans/is-catch-up-running",
 	loansOldestCOB: "/v1/loans/oldest-cob-closed",
+
+	// Accounting - Journal Entries
+	journalEntries: "/v1/journalentries",
+	glaccounts: "/v1/glaccounts",
 } as const;
 
 /**
@@ -60,9 +64,15 @@ export const BFF_ROUTES = {
 	// Loans
 	loans: "/api/fineract/loans",
 	loansTemplate: "/api/fineract/loans/template",
+	paymentTypes: "/api/fineract/paymenttypes",
+	loanAudit: "/api/fineract/loans/audit",
 
 	// Operations - COB
 	loansCatchUp: "/api/fineract/loans/catch-up",
 	loansCatchUpRunning: "/api/fineract/loans/is-catch-up-running",
 	loansOldestCOB: "/api/fineract/loans/oldest-cob-closed",
+
+	// Accounting - Journal Entries
+	journalEntries: "/api/fineract/journalentries",
+	glaccounts: "/api/fineract/glaccounts",
 } as const;

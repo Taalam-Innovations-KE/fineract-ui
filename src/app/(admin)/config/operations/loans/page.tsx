@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Calendar, CreditCard, Plus, Users } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -299,12 +300,17 @@ export default function LoansPage() {
 		{
 			header: "Loan",
 			cell: (loan: LoanListItem) => (
-				<div>
-					<div className="font-medium">{loan.accountNo || "—"}</div>
-					<div className="text-xs text-muted-foreground">
-						{loan.productName || "Unknown product"}
+				<Link
+					href={`/operations/loans/${loan.id}`}
+					className="block hover:underline"
+				>
+					<div>
+						<div className="font-medium">{loan.accountNo || "—"}</div>
+						<div className="text-xs text-muted-foreground">
+							{loan.productName || "Unknown product"}
+						</div>
 					</div>
-				</div>
+				</Link>
 			),
 		},
 		{

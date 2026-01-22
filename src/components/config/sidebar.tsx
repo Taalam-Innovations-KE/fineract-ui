@@ -3,16 +3,22 @@
 import {
 	Banknote,
 	Building2,
+	Calendar,
+	CalendarDays,
 	ChevronDown,
 	Clock,
 	CreditCard,
 	DollarSign,
+	FileText,
+	Globe,
 	LayoutGrid,
 	Receipt,
 	Settings,
 	Shield,
+	Timer,
 	UserCog,
 	Users,
+	Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -50,6 +56,21 @@ const navItems: NavItem[] = [
 				href: "/config/organisation/roles",
 				icon: Shield,
 			},
+			{
+				title: "Working Days",
+				href: "/config/organisation/working-days",
+				icon: Clock,
+			},
+			{
+				title: "Holidays",
+				href: "/config/organisation/holidays",
+				icon: Calendar,
+			},
+			{
+				title: "Business Date",
+				href: "/config/organisation/business-date",
+				icon: CalendarDays,
+			},
 		],
 	},
 	{
@@ -70,7 +91,21 @@ const navItems: NavItem[] = [
 		icon: Settings,
 		children: [
 			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
-			{ title: "Maker Checker", href: "/admin/maker-checker", icon: Shield },
+			{
+				title: "Maker Checker",
+				href: "/config/system/maker-checker",
+				icon: Shield,
+			},
+			{
+				title: "Global Configuration",
+				href: "/config/system/global",
+				icon: Globe,
+			},
+			{
+				title: "Scheduler Jobs",
+				href: "/config/system/scheduler",
+				icon: Timer,
+			},
 		],
 	},
 	{
@@ -101,6 +136,16 @@ const navItems: NavItem[] = [
 				title: "Transactions",
 				href: "/config/operations/transactions",
 				icon: Receipt,
+			},
+			{
+				title: "Batch Operations",
+				href: "/config/operations/batch",
+				icon: Zap,
+			},
+			{
+				title: "Audit Trail",
+				href: "/config/operations/audits",
+				icon: FileText,
 			},
 		],
 	},

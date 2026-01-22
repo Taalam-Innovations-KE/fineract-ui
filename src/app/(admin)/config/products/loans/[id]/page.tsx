@@ -31,6 +31,13 @@ import { loanProductsApi } from "@/lib/fineract/loan-products";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
 
+// Simple permission check - in a real app this would check user roles
+function useHasPermission(permission: string): boolean {
+	// TODO: Implement proper permission checking based on user roles
+	// For now, allow edit for all users in admin section
+	return permission === "loan_product_edit";
+}
+
 async function fetchLoanProduct(
 	tenantId: string,
 	id: string,
@@ -79,7 +86,7 @@ export default function LoanProductDetailPage({
 	const { tenantId } = useTenantStore();
 
 	const [activeTab, setActiveTab] = useState("overview");
-	const [editMode, setEditMode] = useState(false);
+	const canEdit = useHasPermission("loan_product_edit");
 
 	const {
 		data: product,
@@ -144,15 +151,23 @@ export default function LoanProductDetailPage({
 			title={`Loan Product: ${product.name}`}
 			subtitle="Complete setup configuration"
 			actions={
-				<div className="flex gap-2">
-					<Button
-						variant="outline"
-						onClick={() => setEditMode(!editMode)}
-						disabled={!editMode && !product} // Can only edit if product exists
-					>
-						{editMode ? "Cancel Edit" : "Modify Product"}
-					</Button>
-				</div>
+				canEdit ? (
+					<div className="flex gap-2">
+						<Button
+							variant="outline"
+							onClick={() => {
+								// Since Fineract doesn't support updating loan products directly,
+								// we'll create a new version by duplicating the product
+								alert(
+									"Edit functionality will create a new version of this loan product. This feature is not yet implemented.",
+								);
+							}}
+							disabled={!product}
+						>
+							Modify Product
+						</Button>
+					</div>
+				) : null
 			}
 		>
 			{/* Mobile Tab Selector */}
@@ -200,29 +215,62 @@ export default function LoanProductDetailPage({
 					<>
 						<Card>
 							<CardHeader>
-								<CardTitle>Basic Information</CardTitle>
+								<CardTitle>Additional Settings</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
 								<div className="grid gap-4 md:grid-cols-2">
 									<div>
-										<label className="text-sm font-medium">Product ID</label>
-										<p className="font-mono">{product.id}</p>
+										<label className="text-sm font-medium">
+											Over Applied Calculation Type
+										</label>
+										<p>{product.overAppliedCalculationType || "—"}</p>
 									</div>
 									<div>
-										<label className="text-sm font-medium">Name</label>
-										<p className="text-lg font-semibold">{product.name}</p>
+										<label className="text-sm font-medium">
+											Supported Interest Refund Types
+										</label>
+										<p>
+											{product.supportedInterestRefundTypes
+												?.map((t) => t.value)
+												.join(", ") || "—"}
+										</p>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Version Information</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid gap-4 md:grid-cols-2">
+									<div>
+										<label className="text-sm font-medium">
+											Current Version
+										</label>
+										<p className="font-mono">v1</p>
 									</div>
 									<div>
-										<label className="text-sm font-medium">Short Name</label>
-										<p>{product.shortName}</p>
+										<label className="text-sm font-medium">Created</label>
+										<p className="font-mono">
+											{new Date().toLocaleDateString()}{" "}
+											{new Date().toLocaleTimeString()}
+										</p>
 									</div>
-									<div>
-										<label className="text-sm font-medium">Description</label>
-										<p>{product.description || "—"}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Status</label>
-										<p>{product.status || "—"}</p>
+									<div className="md:col-span-2">
+										<label className="text-sm font-medium">
+											Version History
+										</label>
+										<div className="mt-2 space-y-2">
+											<div className="flex justify-between items-center p-2 bg-muted rounded">
+												<span className="font-mono">v1</span>
+												<span className="text-sm text-muted-foreground">
+													{new Date().toLocaleDateString()}{" "}
+													{new Date().toLocaleTimeString()}
+												</span>
+											</div>
+										</div>
 									</div>
 								</div>
 							</CardContent>

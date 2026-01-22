@@ -12,11 +12,6 @@ import {
 } from "@/components/ui/card";
 
 import type { MakerCheckerEntry } from "@/lib/fineract/maker-checker";
-import {
-	approveRejectEntry,
-	canApproveEntry,
-	getFilteredInbox,
-} from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function InboxPage() {
@@ -29,7 +24,10 @@ export default function InboxPage() {
 			try {
 				// TODO: Get current user ID from authentication context
 				const userId = undefined; // Placeholder
-				const items = await getFilteredInbox(userId);
+				const response = await fetch(
+					`/api/maker-checker/inbox${userId ? `?userId=${userId}` : ""}`,
+				);
+				const items = await response.json();
 				setInbox(items);
 			} catch (error) {
 				console.error("Failed to load inbox:", error);
@@ -46,16 +44,19 @@ export default function InboxPage() {
 	) => {
 		setProcessing(auditId);
 		try {
-			// Validate permissions before approving
-			const userId = undefined; // TODO: Get from auth context
-			const canApprove = await canApproveEntry(auditId, userId);
+			// TODO: Add permission validation via API
+			const response = await fetch("/api/maker-checker/inbox", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ auditId, command }),
+			});
 
-			if (!canApprove) {
-				alert("You do not have permission to approve this entry.");
+			if (!response.ok) {
+				const errorData = await response.json();
+				alert(errorData.error || "Failed to approve/reject entry");
 				return;
 			}
 
-			await approveRejectEntry(auditId, command);
 			// Remove from inbox
 			setInbox(inbox.filter((item) => item.auditId !== auditId));
 			console.log(`Entry ${auditId} ${command}d.`);

@@ -19,10 +19,19 @@ import {
 const configModules = [
 	{
 		title: "Organisation",
-		description: "Manage offices, staff, users, and roles",
+		description:
+			"Manage offices, staff, users, roles, and operational calendar",
 		icon: Building2,
 		href: "/config/organisation/offices",
-		items: ["Offices", "Staff", "Users", "Roles & Permissions"],
+		items: [
+			"Offices",
+			"Staff",
+			"Users",
+			"Roles & Permissions",
+			"Working Days",
+			"Holidays",
+			"Business Date",
+		],
 	},
 	{
 		title: "Financial Setup",
@@ -33,10 +42,10 @@ const configModules = [
 	},
 	{
 		title: "System Configuration",
-		description: "Manage codes, values, and metadata",
+		description: "Manage codes, global settings, and automated processes",
 		icon: Settings,
 		href: "/config/system/codes",
-		items: ["Code Registry", "Datatable Metadata"],
+		items: ["Code Registry", "Global Configuration", "Scheduler Jobs"],
 	},
 	{
 		title: "Products",
@@ -47,14 +56,16 @@ const configModules = [
 	},
 	{
 		title: "Operations",
-		description: "Manage close of business and scheduled jobs",
+		description: "Manage close of business, batch operations, and audit trails",
 		icon: Clock,
 		href: "/config/operations/cob",
 		items: [
 			"Close of Business",
 			"Clients",
-			"Jobs & Scheduler (coming soon)",
-			"Audit (coming soon)",
+			"Loans",
+			"Transactions",
+			"Batch Operations",
+			"Audit Trail",
 		],
 	},
 ];

@@ -11,15 +11,9 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	getGlobalConfig,
-	getInbox,
-	getMakerCheckerImpact,
-	getUsersForSuperChecker,
-	type MakerCheckerEntry,
-	type SuperCheckerUser,
-	updateGlobalConfig,
-	updateSuperCheckerStatus,
+import type {
+	MakerCheckerEntry,
+	SuperCheckerUser,
 } from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
@@ -43,12 +37,20 @@ export default function GlobalPage() {
 	useEffect(() => {
 		async function loadData() {
 			try {
-				const [config, users, impactData, activity] = await Promise.all([
-					getGlobalConfig(),
-					getUsersForSuperChecker(),
-					getMakerCheckerImpact(),
-					getInbox(), // Get all entries, we'll slice later
-				]);
+				const [configRes, usersRes, impactRes, activityRes] = await Promise.all(
+					[
+						fetch("/api/maker-checker/global"),
+						fetch("/api/maker-checker/super-checkers"),
+						fetch("/api/maker-checker/super-checkers?type=impact"),
+						fetch("/api/maker-checker/inbox"),
+					],
+				);
+
+				const config = await configRes.json();
+				const users = await usersRes.json();
+				const impactData = await impactRes.json();
+				const activity = await activityRes.json();
+
 				setGlobalConfig(config);
 				setSuperCheckerUsers(users);
 				setImpact(impactData);
@@ -65,10 +67,20 @@ export default function GlobalPage() {
 	const handleToggle = async (enabled: boolean) => {
 		setSaving(true);
 		try {
-			await updateGlobalConfig(enabled);
+			const response = await fetch("/api/maker-checker/global", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled }),
+			});
+
+			if (!response.ok) throw new Error("Failed to update global config");
+
 			setGlobalConfig({ enabled });
 			// Refresh impact data
-			const impactData = await getMakerCheckerImpact();
+			const impactRes = await fetch(
+				"/api/maker-checker/super-checkers?type=impact",
+			);
+			const impactData = await impactRes.json();
 			setImpact(impactData);
 			console.log(
 				`Maker checker ${enabled ? "enabled" : "disabled"} globally.`,
@@ -86,10 +98,21 @@ export default function GlobalPage() {
 	) => {
 		setSuperCheckerSaving(user.id);
 		try {
-			await updateSuperCheckerStatus(user.id, isSuperChecker);
+			const response = await fetch("/api/maker-checker/super-checkers", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ userId: user.id, isSuperChecker }),
+			});
+
+			if (!response.ok)
+				throw new Error("Failed to update super checker status");
+
 			updateSuperCheckerStatus(user.id, isSuperChecker);
 			// Refresh impact data
-			const impactData = await getMakerCheckerImpact();
+			const impactRes = await fetch(
+				"/api/maker-checker/super-checkers?type=impact",
+			);
+			const impactData = await impactRes.json();
 			setImpact(impactData);
 		} catch (error) {
 			console.error("Failed to update super checker status:", error);
@@ -216,7 +239,7 @@ export default function GlobalPage() {
 											<div className="mt-2 text-sm text-yellow-700">
 												Configure permissions in the{" "}
 												<a
-													href="/admin/maker-checker/tasks"
+													href="/config/system/maker-checker/tasks"
 													className="underline"
 												>
 													Tasks page
@@ -259,7 +282,7 @@ export default function GlobalPage() {
 												{impact.pendingApprovals} approvals are pending. Check
 												the{" "}
 												<a
-													href="/admin/maker-checker/inbox"
+													href="/config/system/maker-checker/inbox"
 													className="underline"
 												>
 													inbox
@@ -410,7 +433,9 @@ export default function GlobalPage() {
 					{recentActivity.length > 0 && (
 						<div className="mt-4 text-center">
 							<Button variant="outline" size="sm" asChild>
-								<a href="/admin/maker-checker/inbox">View All Activity</a>
+								<a href="/config/system/maker-checker/inbox">
+									View All Activity
+								</a>
 							</Button>
 						</div>
 					)}

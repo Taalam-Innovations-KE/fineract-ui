@@ -27,7 +27,7 @@ export default function MakerCheckerPage() {
 					</CardHeader>
 					<CardContent>
 						<Link
-							href="/admin/maker-checker/global"
+							href="/config/system/maker-checker/global"
 							className="text-blue-600 hover:underline"
 						>
 							Configure Global Settings
@@ -44,7 +44,7 @@ export default function MakerCheckerPage() {
 					</CardHeader>
 					<CardContent>
 						<Link
-							href="/admin/maker-checker/tasks"
+							href="/config/system/maker-checker/tasks"
 							className="text-blue-600 hover:underline"
 						>
 							Configure Tasks
@@ -61,7 +61,7 @@ export default function MakerCheckerPage() {
 					</CardHeader>
 					<CardContent>
 						<Link
-							href="/admin/maker-checker/inbox"
+							href="/config/system/maker-checker/inbox"
 							className="text-blue-600 hover:underline"
 						>
 							View Inbox

@@ -13,11 +13,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import type { Permission } from "@/lib/fineract/maker-checker";
-import {
-	getPermissions,
-	updateBulkPermissions,
-	updatePermissions,
-} from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function TasksPage() {
@@ -30,7 +25,8 @@ export default function TasksPage() {
 	useEffect(() => {
 		async function loadPermissions() {
 			try {
-				const perms = await getPermissions();
+				const response = await fetch("/api/maker-checker/permissions");
+				const perms = await response.json();
 				setPermissions(perms);
 			} catch (error) {
 				console.error("Failed to load permissions:", error);
@@ -53,7 +49,15 @@ export default function TasksPage() {
 	const handleBulkEnable = async (codes: string[]) => {
 		setBulkSaving(true);
 		try {
-			await updateBulkPermissions(codes, true);
+			const updates = codes.map((code) => ({ code, selected: true }));
+			const response = await fetch("/api/maker-checker/permissions", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(updates),
+			});
+
+			if (!response.ok) throw new Error("Failed to bulk enable permissions");
+
 			codes.forEach((code) => updatePermission(code, true));
 		} catch (error) {
 			console.error("Failed to bulk enable permissions:", error);
@@ -65,7 +69,15 @@ export default function TasksPage() {
 	const handleBulkDisable = async (codes: string[]) => {
 		setBulkSaving(true);
 		try {
-			await updateBulkPermissions(codes, false);
+			const updates = codes.map((code) => ({ code, selected: false }));
+			const response = await fetch("/api/maker-checker/permissions", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(updates),
+			});
+
+			if (!response.ok) throw new Error("Failed to bulk disable permissions");
+
 			codes.forEach((code) => updatePermission(code, false));
 		} catch (error) {
 			console.error("Failed to bulk disable permissions:", error);
@@ -81,7 +93,14 @@ export default function TasksPage() {
 				code: p.code,
 				selected: p.selected,
 			}));
-			await updatePermissions(updates);
+			const response = await fetch("/api/maker-checker/permissions", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(updates),
+			});
+
+			if (!response.ok) throw new Error("Failed to update permissions");
+
 			console.log("Permissions updated successfully.");
 		} catch (error) {
 			console.error("Failed to update permissions:", error);

@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/card";
 
 import type { MakerCheckerEntry } from "@/lib/fineract/maker-checker";
-import { approveRejectEntry, getInbox } from "@/lib/fineract/maker-checker";
+import {
+	approveRejectEntry,
+	canApproveEntry,
+	getFilteredInbox,
+} from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function InboxPage() {
@@ -23,7 +27,9 @@ export default function InboxPage() {
 	useEffect(() => {
 		async function loadInbox() {
 			try {
-				const items = await getInbox();
+				// TODO: Get current user ID from authentication context
+				const userId = undefined; // Placeholder
+				const items = await getFilteredInbox(userId);
 				setInbox(items);
 			} catch (error) {
 				console.error("Failed to load inbox:", error);
@@ -40,6 +46,15 @@ export default function InboxPage() {
 	) => {
 		setProcessing(auditId);
 		try {
+			// Validate permissions before approving
+			const userId = undefined; // TODO: Get from auth context
+			const canApprove = await canApproveEntry(auditId, userId);
+
+			if (!canApprove) {
+				alert("You do not have permission to approve this entry.");
+				return;
+			}
+
 			await approveRejectEntry(auditId, command);
 			// Remove from inbox
 			setInbox(inbox.filter((item) => item.auditId !== auditId));
@@ -66,58 +81,99 @@ export default function InboxPage() {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Pending Approvals</CardTitle>
+					<CardTitle>Pending Approvals ({inbox.length})</CardTitle>
 					<CardDescription>
-						Items requiring your approval before execution.
+						Operations awaiting your approval. Only items you have permission to
+						check are shown.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{inbox.length === 0 ? (
-						<p className="text-muted-foreground">No pending approvals.</p>
+						<div className="text-center py-8">
+							<p className="text-muted-foreground">
+								No pending approvals requiring your attention.
+							</p>
+							<p className="text-sm text-muted-foreground mt-2">
+								Items will appear here when operations you can approve are
+								submitted.
+							</p>
+						</div>
 					) : (
 						<div className="space-y-4">
-							{inbox.map((item: MakerCheckerEntry) => (
-								<div key={item.auditId} className="border rounded p-4">
-									<div className="flex justify-between items-start">
-										<div>
-											<p>
-												<strong>ID:</strong> {item.auditId}
-											</p>
-											<p>
-												<strong>Maker:</strong> {item.makerId}
-											</p>
-											<p>
-												<strong>Entity:</strong>{" "}
-												<Badge variant="outline">{item.entityName}</Badge>
-											</p>
-											<p>
-												<strong>Date:</strong>{" "}
+							{inbox.map((item: MakerCheckerEntry) => {
+								const getStatusColor = (status: string) => {
+									switch (status.toLowerCase()) {
+										case "awaiting.approval":
+											return "secondary";
+										case "approved":
+											return "default";
+										case "rejected":
+											return "destructive";
+										default:
+											return "outline";
+									}
+								};
+
+								return (
+									<div
+										key={item.auditId}
+										className="border rounded-lg p-4 bg-card"
+									>
+										<div className="flex justify-between items-start mb-3">
+											<div className="flex items-center space-x-4">
+												<div>
+													<h3 className="font-medium">Entry #{item.auditId}</h3>
+													<p className="text-sm text-muted-foreground">
+														{item.entityName} • Maker: {item.makerId}
+													</p>
+												</div>
+												<Badge variant={getStatusColor(item.processingResult)}>
+													{item.processingResult}
+												</Badge>
+											</div>
+											<div className="text-right text-sm text-muted-foreground">
 												{new Date(item.madeOnDate).toLocaleDateString()}
-											</p>
-											<p>
-												<strong>Status:</strong> {item.processingResult}
-											</p>
+											</div>
 										</div>
-										<div className="flex space-x-2">
-											<Button
-												size="sm"
-												onClick={() => handleAction(item.auditId, "approve")}
-												disabled={processing === item.auditId}
-											>
-												Approve
-											</Button>
-											<Button
-												size="sm"
-												variant="destructive"
-												onClick={() => handleAction(item.auditId, "reject")}
-												disabled={processing === item.auditId}
-											>
-												Reject
-											</Button>
+
+										<div className="flex justify-between items-center">
+											<div className="text-sm">
+												<strong>Resource:</strong> {item.resourceId}
+												{item.commandAsJson && (
+													<>
+														<br />
+														<strong>Action:</strong>{" "}
+														<code className="text-xs bg-muted px-1 py-0.5 rounded">
+															{JSON.parse(item.commandAsJson).actionName ||
+																"Unknown"}
+														</code>
+													</>
+												)}
+											</div>
+											<div className="flex space-x-2">
+												<Button
+													size="sm"
+													variant="default"
+													onClick={() => handleAction(item.auditId, "approve")}
+													disabled={processing === item.auditId}
+												>
+													{processing === item.auditId
+														? "Processing..."
+														: "Approve"}
+												</Button>
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => handleAction(item.auditId, "reject")}
+													disabled={processing === item.auditId}
+												>
+													Reject
+												</Button>
+											</div>
 										</div>
 									</div>
-								</div>
-							))}
+								);
+							})}
 						</div>
 					)}
 				</CardContent>

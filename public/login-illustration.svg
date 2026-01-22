@@ -3,15 +3,15 @@
   <defs>
     <!-- Main gradient background -->
     <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#0b7285;stop-opacity:1" />
       <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#fff5f2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e6fffb;stop-opacity:1" />
     </linearGradient>
 
     <!-- Accent gradient -->
     <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:0.3" />
-      <stop offset="100%" style="stop-color:#fff5f2;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#e6fffb;stop-opacity:0.1" />
     </linearGradient>
 
     <!-- Shadow filter -->
@@ -29,10 +29,10 @@
   <rect width="800" height="1200" fill="url(#bgGradient)"/>
 
   <!-- Decorative circles - using theme colors with opacity -->
-  <circle cx="150" cy="100" r="120" fill="#fff5f2" opacity="0.2"/>
+  <circle cx="150" cy="100" r="120" fill="#e6fffb" opacity="0.2"/>
   <circle cx="700" cy="200" r="180" fill="#f59e0b" opacity="0.15"/>
   <circle cx="100" cy="800" r="100" fill="#ffffff" opacity="0.1"/>
-  <circle cx="650" cy="950" r="140" fill="#fff5f2" opacity="0.2"/>
+  <circle cx="650" cy="950" r="140" fill="#e6fffb" opacity="0.2"/>
   <circle cx="400" cy="1100" r="90" fill="#ffffff" opacity="0.08"/>
 
   <!-- Top decorative wave pattern -->
@@ -46,24 +46,24 @@
     <rect x="0" y="0" width="240" height="350" fill="#ffffff" rx="12" filter="url(#shadow)"/>
 
     <!-- Building windows -->
-    <rect x="25" y="30" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="95" y="30" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="165" y="30" width="50" height="50" fill="#fff5f2" rx="6"/>
+    <rect x="25" y="30" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="95" y="30" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="165" y="30" width="50" height="50" fill="#e6fffb" rx="6"/>
 
-    <rect x="25" y="100" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="95" y="100" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="165" y="100" width="50" height="50" fill="#fff5f2" rx="6"/>
+    <rect x="25" y="100" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="95" y="100" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="165" y="100" width="50" height="50" fill="#e6fffb" rx="6"/>
 
-    <rect x="25" y="170" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="95" y="170" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="165" y="170" width="50" height="50" fill="#fff5f2" rx="6"/>
+    <rect x="25" y="170" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="95" y="170" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="165" y="170" width="50" height="50" fill="#e6fffb" rx="6"/>
 
-    <rect x="25" y="240" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="95" y="240" width="50" height="50" fill="#fff5f2" rx="6"/>
-    <rect x="165" y="240" width="50" height="50" fill="#fff5f2" rx="6"/>
+    <rect x="25" y="240" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="95" y="240" width="50" height="50" fill="#e6fffb" rx="6"/>
+    <rect x="165" y="240" width="50" height="50" fill="#e6fffb" rx="6"/>
 
     <!-- Main door -->
-    <rect x="70" y="280" width="100" height="70" fill="#ff6b35" rx="8"/>
+    <rect x="70" y="280" width="100" height="70" fill="#0b7285" rx="8"/>
     <circle cx="150" cy="315" r="5" fill="#ffffff"/>
   </g>
 
@@ -72,34 +72,34 @@
     <rect x="0" y="0" width="180" height="240" fill="#ffffff" rx="12" filter="url(#shadow)"/>
 
     <!-- Document header -->
-    <line x1="25" y1="35" x2="155" y2="35" stroke="#ff6b35" stroke-width="4" stroke-linecap="round"/>
+    <line x1="25" y1="35" x2="155" y2="35" stroke="#0b7285" stroke-width="4" stroke-linecap="round"/>
     <line x1="25" y1="55" x2="120" y2="55" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
     <line x1="25" y1="75" x2="140" y2="75" stroke="#e5e7eb" stroke-width="3" stroke-linecap="round"/>
 
     <!-- Chart visualization -->
     <polyline points="30,180 55,160 80,140 105,155 130,125 150,135"
-              stroke="#ff6b35" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke="#0b7285" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 
     <!-- Chart gradient area -->
     <linearGradient id="chartFill" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#ff6b35;stop-opacity:0.3" />
-      <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:0.05" />
+      <stop offset="0%" style="stop-color:#0b7285;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#0b7285;stop-opacity:0.05" />
     </linearGradient>
     <polygon points="30,180 55,160 80,140 105,155 130,125 150,135 150,200 30,200" fill="url(#chartFill)"/>
 
     <!-- Data points -->
-    <circle cx="30" cy="180" r="5" fill="#ff6b35"/>
-    <circle cx="55" cy="160" r="5" fill="#ff6b35"/>
-    <circle cx="80" cy="140" r="5" fill="#ff6b35"/>
-    <circle cx="105" cy="155" r="5" fill="#ff6b35"/>
-    <circle cx="130" cy="125" r="5" fill="#ff6b35"/>
-    <circle cx="150" cy="135" r="5" fill="#ff6b35"/>
+    <circle cx="30" cy="180" r="5" fill="#0b7285"/>
+    <circle cx="55" cy="160" r="5" fill="#0b7285"/>
+    <circle cx="80" cy="140" r="5" fill="#0b7285"/>
+    <circle cx="105" cy="155" r="5" fill="#0b7285"/>
+    <circle cx="130" cy="125" r="5" fill="#0b7285"/>
+    <circle cx="150" cy="135" r="5" fill="#0b7285"/>
   </g>
 
   <!-- Credit/Debit Card -->
   <g transform="translate(320, 600)">
     <rect x="0" y="0" width="220" height="140" fill="#ffffff" rx="16" filter="url(#shadow)"/>
-    <rect x="0" y="30" width="220" height="40" fill="#ff6b35"/>
+    <rect x="0" y="30" width="220" height="40" fill="#0b7285"/>
 
     <!-- Chip -->
     <rect x="30" y="90" width="50" height="38" fill="#f59e0b" rx="6"/>
@@ -110,9 +110,9 @@
 
     <!-- Contactless symbol -->
     <g transform="translate(160, 100)">
-      <path d="M 0 0 Q 8 -8 15 0" stroke="#ff6b35" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <path d="M 2 4 Q 8 -2 13 4" stroke="#ff6b35" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <path d="M 4 8 Q 8 4 11 8" stroke="#ff6b35" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M 0 0 Q 8 -8 15 0" stroke="#0b7285" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M 2 4 Q 8 -2 13 4" stroke="#0b7285" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M 4 8 Q 8 4 11 8" stroke="#0b7285" stroke-width="2.5" fill="none" stroke-linecap="round"/>
     </g>
   </g>
 
@@ -128,13 +128,13 @@
     <!-- App content - financial dashboard -->
     <g transform="translate(15, 60)">
       <!-- Balance card -->
-      <rect x="0" y="0" width="80" height="50" fill="#fff5f2" rx="6"/>
-      <line x1="8" y1="12" x2="50" y2="12" stroke="#ff6b35" stroke-width="2.5" stroke-linecap="round"/>
+      <rect x="0" y="0" width="80" height="50" fill="#e6fffb" rx="6"/>
+      <line x1="8" y1="12" x2="50" y2="12" stroke="#0b7285" stroke-width="2.5" stroke-linecap="round"/>
       <line x1="8" y1="25" x2="40" y2="25" stroke="#e5e7eb" stroke-width="2" stroke-linecap="round"/>
       <line x1="8" y1="35" x2="60" y2="35" stroke="#e5e7eb" stroke-width="2" stroke-linecap="round"/>
 
       <!-- Bar chart -->
-      <rect x="8" y="90" width="10" height="50" fill="#ff6b35" rx="3"/>
+      <rect x="8" y="90" width="10" height="50" fill="#0b7285" rx="3"/>
       <rect x="23" y="75" width="10" height="65" fill="#f59e0b" rx="3"/>
       <rect x="38" y="85" width="10" height="55" fill="#3b82f6" rx="3"/>
       <rect x="53" y="70" width="10" height="70" fill="#10b981" rx="3"/>
@@ -176,7 +176,7 @@
     <rect x="44" y="115" width="14" height="50" fill="#ffffff" rx="7" filter="url(#softShadow)"/>
 
     <!-- Holding tablet/device -->
-    <rect x="60" y="65" width="45" height="35" fill="#ff6b35" rx="4" filter="url(#softShadow)"/>
+    <rect x="60" y="65" width="45" height="35" fill="#0b7285" rx="4" filter="url(#softShadow)"/>
     <rect x="65" y="70" width="35" height="25" fill="#ffffff" rx="2"/>
   </g>
 
@@ -184,7 +184,7 @@
   <g transform="translate(620, 480)">
     <path d="M 30 0 C 13.431 0 0 13.431 0 30 C 0 52.5 30 85 30 85 C 30 85 60 52.5 60 30 C 60 13.431 46.569 0 30 0 Z"
           fill="#ffffff" filter="url(#shadow)"/>
-    <circle cx="30" cy="30" r="12" fill="#ff6b35"/>
+    <circle cx="30" cy="30" r="12" fill="#0b7285"/>
   </g>
 
   <!-- Connecting Lines/Transaction Paths -->
@@ -206,7 +206,7 @@
     <path d="M 40 0 L 70 15 L 70 50 Q 70 80 40 95 Q 10 80 10 50 L 10 15 Z"
           fill="#ffffff" filter="url(#shadow)"/>
     <path d="M 40 15 L 55 22 L 55 50 Q 55 70 40 80 Q 25 70 25 50 L 25 22 Z"
-          fill="#ff6b35"/>
+          fill="#0b7285"/>
     <!-- Checkmark -->
     <path d="M 32 48 L 38 54 L 50 38" stroke="#ffffff" stroke-width="3"
           fill="none" stroke-linecap="round" stroke-linejoin="round"/>

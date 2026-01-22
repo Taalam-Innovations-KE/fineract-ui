@@ -106,46 +106,46 @@
 	--radius: 0.75rem;
 
 	/* ============================================
-     BASE COLORS - Backgrounds & Surfaces
-     Ultra-light, clean aesthetic
-     ============================================ */
-	--background: #fafafa;
-	--background-subtle: #f5f5f5;
+      BASE COLORS - Backgrounds & Surfaces
+      Ultra-light, clean aesthetic
+      ============================================ */
+	--background: #f8fafc;
+	--background-subtle: #f1f5f9;
 	--background-tint: #ffffff;
-	--foreground: #1a1a1a;
+	--foreground: #0f172a;
 
 	/* Card surfaces - Pure white with subtle elevation */
 	--card: #ffffff;
-	--card-foreground: #1a1a1a;
+	--card-foreground: #0f172a;
 
 	/* Popovers & dropdowns */
 	--popover: #ffffff;
-	--popover-foreground: #1a1a1a;
+	--popover-foreground: #0f172a;
 
 	/* ============================================
-     PRIMARY - Vibrant Orange
-     Base: #FF6B35 (More vibrant, matches inspiration)
-     ============================================ */
-	--primary: #ff6b35;
+      PRIMARY - Deep Teal
+      Base: #0B7285 (Taalam deep teal)
+      ============================================ */
+	--primary: #0b7285;
 	--primary-foreground: #ffffff;
 
 	/* ============================================
-     SECONDARY - Soft Neutral Gray
-     ============================================ */
-	--secondary: #f3f4f6;
-	--secondary-foreground: #374151;
+      SECONDARY - Soft Neutral Gray
+      ============================================ */
+	--secondary: #eef2f6;
+	--secondary-foreground: #1f2937;
 
 	/* ============================================
-     MUTED - Subtle Backgrounds
-     ============================================ */
-	--muted: #f9fafb;
-	--muted-foreground: #6b7280;
+      MUTED - Subtle Backgrounds
+      ============================================ */
+	--muted: #f1f5f9;
+	--muted-foreground: #64748b;
 
 	/* ============================================
-     ACCENT - Soft Orange Tint
-     ============================================ */
-	--accent: #fff5f2;
-	--accent-foreground: #374151;
+      ACCENT - Soft Teal Tint
+      ============================================ */
+	--accent: #e6fffb;
+	--accent-foreground: #0f172a;
 
 	/* ============================================
      DESTRUCTIVE - Error Red
@@ -154,51 +154,57 @@
 	--destructive-foreground: #ffffff;
 
 	/* ============================================
-     SUCCESS - Fresh Green
-     ============================================ */
-	--success: #10b981;
+      SUCCESS - Fresh Green
+      ============================================ */
+	--success: #16a34a;
 	--success-foreground: #ffffff;
 
 	/* ============================================
-     WARNING - Warm Amber
-     ============================================ */
+      WARNING - Spark Gold
+      ============================================ */
 	--warning: #f59e0b;
-	--warning-foreground: #1f2937;
+	--warning-foreground: #0f172a;
 
 	/* ============================================
-     INFO - Cool Blue
-     ============================================ */
-	--info: #3b82f6;
+      INFO - Cool Blue
+      ============================================ */
+	--info: #2563eb;
 	--info-foreground: #ffffff;
 
 	/* ============================================
-     BORDERS & INPUTS - Very subtle
-     ============================================ */
-	--border: #e5e7eb;
-	--input: #f3f4f6;
-	--ring: #ff6b35;
+      BORDERS & INPUTS - Very subtle
+      ============================================ */
+	--border: #e2e8f0;
+	--input: #eef2f6;
+	--ring: #14b8a6;
 
 	/* ============================================
-     CHARTS - Dashboard Data Visualization
-     Multi-color vibrant palette
-     ============================================ */
-	--chart-1: #ff6b35;
-	--chart-2: #3b82f6;
-	--chart-3: #8b5cf6;
-	--chart-4: #10b981;
+      CHARTS - Dashboard Data Visualization
+      Multi-color vibrant palette
+      ============================================ */
+	--chart-1: #0b7285;
+	--chart-2: #2563eb;
+	--chart-3: #7c3aed;
+	--chart-4: #16a34a;
 	--chart-5: #f59e0b;
 
 	/* ============================================
-     SIDEBAR - Navigation
-     ============================================ */
+      SIDEBAR - Navigation
+      ============================================ */
 	--sidebar: #ffffff;
-	--sidebar-foreground: #374151;
-	--sidebar-primary: #ff6b35;
+	--sidebar-foreground: #0f172a;
+	--sidebar-primary: #0b7285;
 	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #fff5f2;
-	--sidebar-accent-foreground: #374151;
-	--sidebar-border: #f3f4f6;
-	--sidebar-ring: #ff6b35;
+	--sidebar-accent: #e6fffb;
+	--sidebar-accent-foreground: #0f172a;
+	--sidebar-border: #eef2f6;
+	--sidebar-ring: #14b8a6;
+
+	/* ============================================
+      BRAND HELPERS - Optional for gradients/highlights
+      ============================================ */
+	--brand-teal-2: #14b8a6;
+	--brand-spark: #f59e0b;
 }
 
 .dark {
@@ -208,96 +214,102 @@
      ============================================ */
 
 	/* ============================================
-     BASE COLORS - Dark Backgrounds
-     ============================================ */
-	--background: #0a0a0a;
-	--background-subtle: #141414;
-	--background-tint: #1f1f1f;
-	--foreground: #fafafa;
+      BASE COLORS - Dark Backgrounds
+      ============================================ */
+	--background: #0b1220;
+	--background-subtle: #0f172a;
+	--background-tint: #111c2f;
+	--foreground: #e2e8f0;
 
 	/* Card surfaces - Elevated */
-	--card: #171717;
-	--card-foreground: #fafafa;
+	--card: #0f172a;
+	--card-foreground: #e2e8f0;
 
 	/* Popovers & dropdowns */
-	--popover: #171717;
-	--popover-foreground: #fafafa;
+	--popover: #0f172a;
+	--popover-foreground: #e2e8f0;
 
 	/* ============================================
-     PRIMARY - Vibrant Orange
-     ============================================ */
-	--primary: #ff7849;
-	--primary-foreground: #ffffff;
+      PRIMARY - Bright Teal
+      ============================================ */
+	--primary: #14b8a6;
+	--primary-foreground: #062a2a;
 
 	/* ============================================
-     SECONDARY - Deep Gray
-     ============================================ */
-	--secondary: #262626;
-	--secondary-foreground: #d4d4d4;
+      SECONDARY - Deep Gray
+      ============================================ */
+	--secondary: #111c2f;
+	--secondary-foreground: #cbd5e1;
 
 	/* ============================================
-     MUTED - Dark Backgrounds & Disabled
-     ============================================ */
-	--muted: #1f1f1f;
-	--muted-foreground: #a3a3a3;
+      MUTED - Dark Backgrounds & Disabled
+      ============================================ */
+	--muted: #0f172a;
+	--muted-foreground: #94a3b8;
 
 	/* ============================================
-     ACCENT - Warm Dark Tint
-     ============================================ */
-	--accent: #2a1f1a;
-	--accent-foreground: #fafafa;
+      ACCENT - Deep Teal Tint
+      ============================================ */
+	--accent: #062a2a;
+	--accent-foreground: #e2e8f0;
 
 	/* ============================================
-     DESTRUCTIVE - Error Red
-     ============================================ */
+      DESTRUCTIVE - Error Red
+      ============================================ */
 	--destructive: #f87171;
-	--destructive-foreground: #ffffff;
+	--destructive-foreground: #0b1220;
 
 	/* ============================================
-     SUCCESS - Emerald Green
-     ============================================ */
-	--success: #34d399;
-	--success-foreground: #ffffff;
+      SUCCESS - Emerald Green
+      ============================================ */
+	--success: #22c55e;
+	--success-foreground: #052e16;
 
 	/* ============================================
-     WARNING - Amber
-     ============================================ */
+      WARNING - Spark Gold
+      ============================================ */
 	--warning: #fbbf24;
-	--warning-foreground: #ffffff;
+	--warning-foreground: #0b1220;
 
 	/* ============================================
-     INFO - Cool Blue
-     ============================================ */
+      INFO - Cool Blue
+      ============================================ */
 	--info: #60a5fa;
-	--info-foreground: #ffffff;
+	--info-foreground: #0b1220;
 
 	/* ============================================
-     BORDERS & INPUTS
-     ============================================ */
-	--border: #262626;
-	--input: #262626;
-	--ring: #ff7849;
+      BORDERS & INPUTS
+      ============================================ */
+	--border: #1e293b;
+	--input: #111c2f;
+	--ring: #2dd4bf;
 
 	/* ============================================
-     CHARTS - Financial Data Visualization
-     ============================================ */
-	--chart-1: #ff7849;
+      CHARTS - Financial Data Visualization
+      ============================================ */
+	--chart-1: #14b8a6;
 	--chart-2: #60a5fa;
 	--chart-3: #a78bfa;
-	--chart-4: #34d399;
+	--chart-4: #22c55e;
 	--chart-5: #fbbf24;
 
 	/* ============================================
-     SIDEBAR - Dark Navigation
-     ============================================ */
-	--sidebar: #0f0f0f;
-	--sidebar-foreground: #d4d4d4;
-	--sidebar-primary: #ff7849;
-	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #1f1f1f;
-	--sidebar-accent-foreground: #fafafa;
-	--sidebar-border: #262626;
-	--sidebar-ring: #ff7849;
+      SIDEBAR - Dark Navigation
+      ============================================ */
+	--sidebar: #0b1220;
+	--sidebar-foreground: #cbd5e1;
+	--sidebar-primary: #14b8a6;
+	--sidebar-primary-foreground: #062a2a;
+	--sidebar-accent: #0f172a;
+	--sidebar-accent-foreground: #e2e8f0;
+	--sidebar-border: #1e293b;
+	--sidebar-ring: #2dd4bf;
+
+	/* ============================================
+      BRAND HELPERS - Optional for gradients/highlights
+      ============================================ */
+	--brand-teal-2: #2dd4bf;
+	--brand-spark: #fbbf24;
 }
 
 @layer base {

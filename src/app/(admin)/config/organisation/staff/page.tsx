@@ -170,11 +170,6 @@ export default function StaffPage() {
 		},
 	});
 
-	const handleRowClick = (member: Staff) => {
-		setSelectedStaff(member);
-		setIsDialogOpen(true);
-	};
-
 	const handleCreateNew = () => {
 		setSelectedStaff(null);
 		setIsDialogOpen(true);
@@ -410,7 +405,10 @@ export default function StaffPage() {
 								getRowId={(member) =>
 									member.id ?? member.displayName ?? "staff-row"
 								}
-								onRowClick={handleRowClick}
+								enableActions={true}
+								getViewUrl={(member) =>
+									`/admin/config/organisation/staff/${member.id}`
+								}
 							/>
 						)}
 					</CardContent>

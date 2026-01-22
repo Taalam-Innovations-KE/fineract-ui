@@ -11,10 +11,10 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 
 interface RouteContext {
-	params: {
+	params: Promise<{
 		codeId: string;
 		codeValueId: string;
-	};
+	}>;
 }
 
 /**
@@ -24,7 +24,7 @@ interface RouteContext {
 export async function PUT(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { codeId, codeValueId } = context.params;
+		const { codeId, codeValueId } = await context.params;
 		const body = (await request.json()) as PutCodeValuesDataRequest;
 
 		const result = await fineractFetch<PutCodeValueDataResponse>(
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 export async function DELETE(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { codeId, codeValueId } = context.params;
+		const { codeId, codeValueId } = await context.params;
 
 		const result = await fineractFetch(
 			`${FINERACT_ENDPOINTS.codes}/${codeId}/codevalues/${codeValueId}`,

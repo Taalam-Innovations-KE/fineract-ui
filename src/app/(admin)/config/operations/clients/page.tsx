@@ -781,6 +781,10 @@ export default function ClientsPage() {
 									client.id || client.accountNo || "client-row"
 								}
 								emptyMessage="No clients found."
+								enableActions={true}
+								getViewUrl={(client) =>
+									`/admin/config/operations/clients/${client.id}`
+								}
 							/>
 						)}
 					</CardContent>

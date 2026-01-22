@@ -247,6 +247,10 @@ export default function CurrenciesPage() {
 									currency.code || currency.name || "currency-row"
 								}
 								emptyMessage="No active currencies configured."
+								enableActions={true}
+								getViewUrl={(currency) =>
+									`/admin/config/financial/currencies/${currency.code}`
+								}
 							/>
 						)}
 					</CardContent>

@@ -101,21 +101,23 @@ export async function getInbox(params?: {
 	if (params?.officeId) query.append("officeId", params.officeId.toString());
 	if (params?.includeJson) query.append("includeJson", "true");
 
-	const response = await fineractFetch<any>(
-		`/v1/makercheckers?${query.toString()}`,
-		{ method: "GET" },
-	);
+	const response = await fineractFetch<{
+		pageItems?: unknown[];
+	}>(`/v1/makercheckers?${query.toString()}`, { method: "GET" });
 	return (
-		response.pageItems?.map((item: any) => ({
-			auditId: item.auditId,
-			makerId: item.maker,
-			checkerId: item.checker,
-			madeOnDate: item.madeOnDate,
-			processingResult: item.processingResult,
-			resourceId: item.resourceId,
-			entityName: item.entityName,
-			commandAsJson: item.commandAsJson,
-		})) || []
+		response.pageItems?.map((item: unknown) => {
+			const obj = item as Record<string, unknown>;
+			return {
+				auditId: obj.auditId as number,
+				makerId: obj.maker as number,
+				checkerId: obj.checker as number | undefined,
+				madeOnDate: obj.madeOnDate as string,
+				processingResult: obj.processingResult as string,
+				resourceId: obj.resourceId as string,
+				entityName: obj.entityName as string,
+				commandAsJson: obj.commandAsJson as string | undefined,
+			};
+		}) || []
 	);
 }
 

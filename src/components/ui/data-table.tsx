@@ -1,5 +1,7 @@
 "use client";
 
+import { Eye } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +21,8 @@ interface DataTableProps<T> {
 	emptyMessage?: string;
 	className?: string;
 	onRowClick?: (row: T) => void;
+	enableActions?: boolean;
+	getViewUrl?: (row: T) => string;
 }
 
 export function DataTable<T>({
@@ -29,6 +33,8 @@ export function DataTable<T>({
 	emptyMessage = "No records found.",
 	className,
 	onRowClick,
+	enableActions,
+	getViewUrl,
 }: DataTableProps<T>) {
 	const [pageIndex, setPageIndex] = React.useState(0);
 	const pageCount = Math.max(1, Math.ceil(data.length / pageSize));
@@ -44,13 +50,32 @@ export function DataTable<T>({
 	const end = Math.min(start + pageSize, data.length);
 	const pageRows = data.slice(start, start + pageSize);
 
+	const columnsWithActions = enableActions
+		? [
+				...columns,
+				{
+					header: "Actions",
+					cell: (row: T) => (
+						<Button variant="outline" size="sm" asChild>
+							<Link href={getViewUrl?.(row) || "#"}>
+								<Eye className="mr-1 h-3 w-3" />
+								View
+							</Link>
+						</Button>
+					),
+					className: "text-right",
+					headerClassName: "text-right",
+				},
+			]
+		: columns;
+
 	return (
 		<div className={cn("space-y-2", className)}>
 			<div className="rounded-sm border border-border/60">
 				<table className="w-full text-left text-sm">
 					<thead className="border-b border-border/60 bg-muted/40">
 						<tr>
-							{columns.map((column) => (
+							{columnsWithActions.map((column) => (
 								<th
 									key={column.header}
 									scope="col"
@@ -68,7 +93,7 @@ export function DataTable<T>({
 						{pageRows.length === 0 ? (
 							<tr>
 								<td
-									colSpan={columns.length}
+									colSpan={columnsWithActions.length}
 									className="px-3 py-6 text-center text-sm text-muted-foreground"
 								>
 									{emptyMessage}
@@ -84,7 +109,7 @@ export function DataTable<T>({
 									)}
 									onClick={() => onRowClick?.(row)}
 								>
-									{columns.map((column) => (
+									{columnsWithActions.map((column) => (
 										<td
 											key={column.header}
 											className={cn("px-3 py-2 align-middle", column.className)}

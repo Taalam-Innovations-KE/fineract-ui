@@ -307,6 +307,10 @@ export default function OfficesPage() {
 									row.office.id ?? row.office.name ?? "office-row"
 								}
 								onRowClick={handleRowClick}
+								enableActions={true}
+								getViewUrl={(row) =>
+									`/admin/config/organisation/offices/${row.office.id}`
+								}
 							/>
 						)}
 					</CardContent>

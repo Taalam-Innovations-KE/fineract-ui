@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { use, useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { JournalEntryForm } from "@/components/journal-entry-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,9 +24,19 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type { JournalEntryData } from "@/lib/fineract/generated/types.gen";
+import type {
+	CreditDebit,
+	JournalEntryData,
+} from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 import { useTransactionStore } from "@/store/transactions";
 
@@ -175,8 +186,8 @@ function TransactionLines({ entry }: TransactionLinesProps) {
 							>
 								<div>
 									<div className="font-medium">
-										{(debit as any).glAccountName ||
-											`Account ${debit.glAccountId}`}
+										{(debit as CreditDebit & { glAccountName?: string })
+											.glAccountName || `Account ${debit.glAccountId}`}
 									</div>
 									<div className="text-sm text-muted-foreground">
 										ID: {debit.glAccountId}
@@ -209,8 +220,8 @@ function TransactionLines({ entry }: TransactionLinesProps) {
 							>
 								<div>
 									<div className="font-medium">
-										{(credit as any).glAccountName ||
-											`Account ${credit.glAccountId}`}
+										{(credit as CreditDebit & { glAccountName?: string })
+											.glAccountName || `Account ${credit.glAccountId}`}
 									</div>
 									<div className="text-sm text-muted-foreground">
 										ID: {credit.glAccountId}
@@ -224,6 +235,100 @@ function TransactionLines({ entry }: TransactionLinesProps) {
 								</div>
 							</div>
 						))}
+					</div>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+
+interface TransactionDetailsProps {
+	entry: JournalEntryData;
+}
+
+function TransactionDetails({ entry }: TransactionDetailsProps) {
+	const details = entry.transactionDetails;
+	const paymentDetails = details?.paymentDetails;
+
+	return (
+		<div className="space-y-6">
+			<Card>
+				<CardHeader>
+					<CardTitle>Transaction Details</CardTitle>
+					<CardDescription>
+						Additional information and payment details
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="grid gap-4 md:grid-cols-2">
+						<div>
+							<div className="text-sm font-medium text-muted-foreground">
+								Entity Type
+							</div>
+							<div className="text-lg">{entry.entityType?.value || "—"}</div>
+						</div>
+						<div>
+							<div className="text-sm font-medium text-muted-foreground">
+								Entity ID
+							</div>
+							<div className="text-lg">{entry.entityId || "—"}</div>
+						</div>
+						<div>
+							<div className="text-sm font-medium text-muted-foreground">
+								Entry Type
+							</div>
+							<div className="text-lg">{entry.entryType?.value || "—"}</div>
+						</div>
+						<div>
+							<div className="text-sm font-medium text-muted-foreground">
+								Reference Number
+							</div>
+							<div className="text-lg">{entry.referenceNumber || "—"}</div>
+						</div>
+						{paymentDetails && (
+							<>
+								<div>
+									<div className="text-sm font-medium text-muted-foreground">
+										Account Number
+									</div>
+									<div className="text-lg">
+										{paymentDetails.accountNumber || "—"}
+									</div>
+								</div>
+								<div>
+									<div className="text-sm font-medium text-muted-foreground">
+										Bank Number
+									</div>
+									<div className="text-lg">
+										{paymentDetails.bankNumber || "—"}
+									</div>
+								</div>
+								<div>
+									<div className="text-sm font-medium text-muted-foreground">
+										Check Number
+									</div>
+									<div className="text-lg">
+										{paymentDetails.checkNumber || "—"}
+									</div>
+								</div>
+								<div>
+									<div className="text-sm font-medium text-muted-foreground">
+										Routing Code
+									</div>
+									<div className="text-lg">
+										{paymentDetails.routingCode || "—"}
+									</div>
+								</div>
+								<div>
+									<div className="text-sm font-medium text-muted-foreground">
+										Receipt Number
+									</div>
+									<div className="text-lg">
+										{paymentDetails.receiptNumber || "—"}
+									</div>
+								</div>
+							</>
+						)}
 					</div>
 				</CardContent>
 			</Card>
@@ -254,6 +359,12 @@ function TransactionAudit({ entry }: TransactionAuditProps) {
 								<span>{formatDate(entry.submittedOnDate || "")}</span>
 							</div>
 						</div>
+						<div>
+							<div className="text-sm font-medium text-muted-foreground">
+								Created By
+							</div>
+							<div className="text-lg">{entry.createdByUserName || "—"}</div>
+						</div>
 						{entry.reversed && (
 							<div>
 								<div className="text-sm font-medium text-muted-foreground">
@@ -280,8 +391,9 @@ export default function TransactionDetailPage({
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
-	const { getStatus, setStatus } = useTransactionStore();
+	const { setStatus } = useTransactionStore();
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
+	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 
 	const entryQuery = useQuery({
 		queryKey: ["journalEntry", tenantId, id],
@@ -348,86 +460,101 @@ export default function TransactionDetailPage({
 								Back to List
 							</a>
 						</Button>
-						{!entry.reversed && (
-							<>
-								<Button
-									variant="outline"
-									onClick={() => {
-										const transactionId = entry.transactionId;
-										if (
-											transactionId &&
-											confirm(
-												"Are you sure you want to approve this journal entry?",
-											)
-										) {
-											setStatus(transactionId, "approved");
-											setToastMessage("Journal entry approved");
-										}
-									}}
-								>
-									<Check className="h-4 w-4 mr-2" />
-									Approve
-								</Button>
-								<Button
-									variant="outline"
-									onClick={() => {
-										const transactionId = entry.transactionId;
-										if (
-											transactionId &&
-											confirm(
-												"Are you sure you want to reject this journal entry?",
-											)
-										) {
-											setStatus(transactionId, "rejected");
-											setToastMessage("Journal entry rejected");
-										}
-									}}
-								>
-									<X className="h-4 w-4 mr-2" />
-									Reject
-								</Button>
-								<Button
-									variant="outline"
-									onClick={() => {
-										if (
-											entry.transactionId &&
-											confirm(
-												"Are you sure you want to edit this journal entry? This will reverse the original and create a new one.",
-											)
-										) {
-											window.location.href = `/config/operations/transactions/create?edit=true&transactionId=${entry.transactionId}`;
-										}
-									}}
-								>
-									<PenLine className="h-4 w-4 mr-2" />
-									Edit
-								</Button>
-								<Button
-									variant="outline"
-									onClick={() => {
-										if (
-											entry.transactionId &&
-											confirm(
-												"Are you sure you want to reverse this journal entry?",
-											)
-										) {
-											reverseMutation.mutate(entry.transactionId);
-										}
-									}}
-									disabled={reverseMutation.isPending}
-								>
-									<RotateCcw className="h-4 w-4 mr-2" />
-									Reverse
-								</Button>
-							</>
-						)}
 					</div>
 				}
 			>
 				<div className="space-y-6">
 					<TransactionOverview entry={entry} />
 					<TransactionLines entry={entry} />
+					<TransactionDetails entry={entry} />
 					<TransactionAudit entry={entry} />
+					{!entry.reversed && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Actions</CardTitle>
+								<CardDescription>
+									Perform operations on this transaction
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
+									<Button
+										variant="outline"
+										className="rounded-none"
+										onClick={() => {
+											const transactionId = entry.transactionId;
+											if (
+												transactionId &&
+												confirm(
+													"Are you sure you want to approve this journal entry?",
+												)
+											) {
+												setStatus(transactionId, "approved");
+												setToastMessage("Journal entry approved");
+											}
+										}}
+									>
+										<Check className="h-4 w-4 mr-2" />
+										Approve
+									</Button>
+									<Button
+										variant="outline"
+										className="rounded-none"
+										onClick={() => {
+											const transactionId = entry.transactionId;
+											if (
+												transactionId &&
+												confirm(
+													"Are you sure you want to reject this journal entry?",
+												)
+											) {
+												setStatus(transactionId, "rejected");
+												setToastMessage("Journal entry rejected");
+											}
+										}}
+									>
+										<X className="h-4 w-4 mr-2" />
+										Reject
+									</Button>
+									<Button
+										variant="outline"
+										className="rounded-none"
+										onClick={() => {
+											if (
+												entry.transactionId &&
+												confirm(
+													"Are you sure you want to edit this journal entry? This will reverse the original and create a new one.",
+												)
+											) {
+												setIsEditDrawerOpen(true);
+											}
+										}}
+									>
+										<PenLine className="h-4 w-4 mr-2" />
+										Edit
+									</Button>
+									<Button
+										variant="outline"
+										className="rounded-none"
+										onClick={() => {
+											if (
+												entry.transactionId &&
+												confirm(
+													"Are you sure you want to reverse this journal entry?",
+												)
+											) {
+												reverseMutation.mutate(entry.transactionId);
+											}
+										}}
+										disabled={reverseMutation.isPending}
+									>
+										<RotateCcw className="h-4 w-4 mr-2" />
+										Reverse
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					)}
 				</div>
 			</PageShell>
 
@@ -439,6 +566,31 @@ export default function TransactionDetailPage({
 					</Alert>
 				</div>
 			)}
+
+			<Sheet open={isEditDrawerOpen} onOpenChange={setIsEditDrawerOpen}>
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-lg overflow-y-auto"
+				>
+					<SheetHeader>
+						<SheetTitle>Edit Journal Entry</SheetTitle>
+						<SheetDescription>
+							Modify the journal entry details. This will reverse the original
+							entry and create a new one.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<JournalEntryForm
+							initialData={entry}
+							onSuccess={() => {
+								setIsEditDrawerOpen(false);
+								reverseMutation.mutate(entry.transactionId);
+							}}
+							onCancel={() => setIsEditDrawerOpen(false)}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</>
 	);
 }

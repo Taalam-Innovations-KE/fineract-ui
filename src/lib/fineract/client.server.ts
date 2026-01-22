@@ -116,7 +116,11 @@ export async function fineractFetch<T = unknown>(
  * Validates tenant ID header from request
  */
 export function getTenantFromRequest(request: Request): string {
-	const tenantId = request.headers.get("x-tenant-id");
+	// Check for tenant ID in different header formats
+	const tenantId =
+		request.headers.get("x-tenant-id") ||
+		request.headers.get("fineract-platform-tenantid") ||
+		request.headers.get("X-Tenant-Id");
 
 	if (!tenantId) {
 		throw new Error("Missing tenant ID header");

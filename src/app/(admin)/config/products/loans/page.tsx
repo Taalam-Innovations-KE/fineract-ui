@@ -244,6 +244,10 @@ export default function LoanProductsPage() {
 								getRowId={(product: LoanProductDisplay) =>
 									String(product.id ?? product.name ?? "product-row")
 								}
+								enableActions={true}
+								getViewUrl={(product) =>
+									`/admin/config/products/loans/${product.id}`
+								}
 							/>
 						)}
 					</CardContent>

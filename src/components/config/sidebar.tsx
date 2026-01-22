@@ -8,6 +8,7 @@ import {
 	CreditCard,
 	DollarSign,
 	LayoutGrid,
+	Receipt,
 	Settings,
 	Shield,
 	UserCog,
@@ -96,6 +97,11 @@ const navItems: NavItem[] = [
 			},
 			{ title: "Clients", href: "/config/operations/clients", icon: Users },
 			{ title: "Loans", href: "/config/operations/loans", icon: Banknote },
+			{
+				title: "Transactions",
+				href: "/config/operations/transactions",
+				icon: Receipt,
+			},
 		],
 	},
 ];

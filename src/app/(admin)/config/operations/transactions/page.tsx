@@ -1,21 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	BookOpen,
-	Check,
-	Eye,
-	PenLine,
-	Plus,
-	Receipt,
-	RotateCcw,
-	X,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Filter, Receipt, Search } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -35,581 +25,280 @@ import {
 } from "@/components/ui/select";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
-	GetGlAccountsResponse,
 	GetJournalEntriesTransactionIdResponse,
-	JournalEntryData,
-	OfficeData,
+	JournalEntryTransactionItem,
 } from "@/lib/fineract/generated/types.gen";
+import {
+	type TransactionFilters,
+	transactionFiltersSchema,
+} from "@/lib/schemas/transactions";
 import { useTenantStore } from "@/store/tenant";
-import { useTransactionStore } from "@/store/transactions";
 
-const DEFAULT_STALE_TIME = 5 * 60 * 1000;
+type TransactionListItem = JournalEntryTransactionItem;
 
-type JournalEntryListItem = JournalEntryData & {
-	id?: number;
-	transactionId?: string;
-	transactionDate?: string;
-	entryType?: { value?: string };
-	officeName?: string;
-	glAccountName?: string;
-	amount?: number;
-	manualEntry?: boolean;
-	reversed?: boolean;
-};
+function formatCurrency(amount: number | undefined, symbol = "KES") {
+	if (amount === undefined || amount === null) return "—";
+	return `${symbol} ${Math.abs(amount).toLocaleString()}`;
+}
 
-type JournalEntriesResponse = {
-	pageItems?: JournalEntryListItem[];
-	totalFilteredRecords?: number;
-};
+function formatDate(dateStr: string | undefined) {
+	if (!dateStr) return "—";
+	return new Date(dateStr).toLocaleDateString();
+}
 
-async function fetchJournalEntries(
+function getEntryTypeColor(entryType: { value?: string } | undefined) {
+	if (!entryType?.value) return "bg-gray-100 text-gray-800";
+	const type = entryType.value.toLowerCase();
+	if (type.includes("debit")) return "bg-blue-100 text-blue-800";
+	if (type.includes("credit")) return "bg-green-100 text-green-800";
+	return "bg-gray-100 text-gray-800";
+}
+
+async function fetchTransactions(
 	tenantId: string,
-	filters: Record<string, string>,
-): Promise<JournalEntriesResponse> {
+	filters: TransactionFilters = {},
+): Promise<GetJournalEntriesTransactionIdResponse> {
 	const params = new URLSearchParams();
+
+	// Add filters to query params
 	Object.entries(filters).forEach(([key, value]) => {
-		if (value && value !== "all") params.append(key, value);
+		if (value !== undefined && value !== null && value !== "") {
+			if (value instanceof Date) {
+				params.set(key, value.toISOString().split("T")[0]);
+			} else {
+				params.set(key, String(value));
+			}
+		}
 	});
-	const response = await fetch(`${BFF_ROUTES.journalEntries}?${params}`, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
+
+	// Default sorting and pagination
+	if (!params.has("orderBy")) params.set("orderBy", "transactionDate");
+	if (!params.has("sortOrder")) params.set("sortOrder", "DESC");
+	if (!params.has("limit")) params.set("limit", "50");
+
+	const queryString = params.toString();
+	const url = queryString
+		? `${BFF_ROUTES.journalEntries}?${queryString}`
+		: BFF_ROUTES.journalEntries;
+
+	const response = await fetch(url, {
+		headers: { "fineract-platform-tenantid": tenantId },
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch journal entries");
+		throw new Error("Failed to fetch transactions");
 	}
 
 	return response.json();
 }
 
-async function reverseJournalEntry(
-	tenantId: string,
-	transactionId: string,
-): Promise<{ transactionId: string }> {
-	const response = await fetch(
-		`${BFF_ROUTES.journalEntries}/reverse/${transactionId}`,
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify({}),
-		},
-	);
-
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(
-			data.message ||
-				data.errors?.[0]?.defaultUserMessage ||
-				"Failed to reverse journal entry",
-		);
-	}
-
-	return data;
-}
-
-function formatCurrency(amount: number | undefined, symbol = "KES") {
-	if (amount === undefined || amount === null) return "—";
-	return `${symbol} ${amount.toLocaleString()}`;
-}
-
-function formatDate(dateStr: string) {
-	if (!dateStr) return "—";
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${day}/${month}/${year}`;
-}
-
 export default function TransactionsPage() {
 	const { tenantId } = useTenantStore();
-	const queryClient = useQueryClient();
-	const { getStatus, setStatus } = useTransactionStore();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
+	const [filters, setFilters] = useState<TransactionFilters>({});
 
-	const [filters, setFilters] = useState({
-		officeId: "",
-		glAccountId: "",
-		fromDate: "",
-		toDate: "",
-		status: "all", // all, pending, approved, rejected, active, reversed
+	const transactionsQuery = useQuery({
+		queryKey: ["transactions", tenantId, filters],
+		queryFn: () => fetchTransactions(tenantId, filters),
 	});
 
-	const officesQuery = useQuery({
-		queryKey: ["offices", tenantId],
-		queryFn: async () => {
-			const response = await fetch(`${BFF_ROUTES.offices}`, {
-				headers: { "x-tenant-id": tenantId },
-			});
-			if (!response.ok) throw new Error("Failed to fetch offices");
-			return (await response.json()) as OfficeData[];
-		},
-		staleTime: DEFAULT_STALE_TIME,
-	});
+	const { register, handleSubmit, reset } = useForm<TransactionFilters>();
 
-	const glaccountsQuery = useQuery({
-		queryKey: ["glaccounts", tenantId],
-		queryFn: async () => {
-			const response = await fetch(`${BFF_ROUTES.glaccounts}`, {
-				headers: { "x-tenant-id": tenantId },
-			});
-			if (!response.ok) throw new Error("Failed to fetch GL accounts");
-			return (await response.json()) as GetGlAccountsResponse[];
-		},
-		staleTime: DEFAULT_STALE_TIME,
-	});
+	const transactions = transactionsQuery.data?.pageItems || [];
 
-	const journalEntriesQuery = useQuery({
-		queryKey: ["journalEntries", tenantId, filters],
-		queryFn: () => fetchJournalEntries(tenantId, filters),
-		staleTime: DEFAULT_STALE_TIME,
-	});
-
-	const reverseMutation = useMutation({
-		mutationFn: (transactionId: string) =>
-			reverseJournalEntry(tenantId, transactionId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: ["journalEntries", tenantId, filters],
-			});
-			setToastMessage("Journal entry reversed successfully");
-		},
-	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
-
-	const journalEntries = journalEntriesQuery.data?.pageItems || [];
-	const totalRecords = journalEntriesQuery.data?.totalFilteredRecords || 0;
-
-	// Client-side filter for status
-	let filteredEntries = journalEntries;
-	if (filters.status !== "all") {
-		filteredEntries = journalEntries.filter((entry) => {
-			const approvalStatus = getStatus(entry.transactionId || "");
-			switch (filters.status) {
-				case "pending":
-					return !entry.reversed && approvalStatus === "pending";
-				case "approved":
-					return !entry.reversed && approvalStatus === "approved";
-				case "rejected":
-					return !entry.reversed && approvalStatus === "rejected";
-				case "active":
-					return !entry.reversed;
-				case "reversed":
-					return entry.reversed;
-				default:
-					return true;
-			}
-		});
-	}
-
-	const manualEntries = journalEntries.filter((entry) => entry.manualEntry);
-	const systemEntries = journalEntries.filter((entry) => !entry.manualEntry);
-	const reversedEntries = journalEntries.filter((entry) => entry.reversed);
-
-	const journalEntryColumns = [
+	const transactionColumns = [
 		{
-			header: "Transaction",
-			cell: (entry: JournalEntryListItem) => (
-				<div>
-					<div className="font-medium">{entry.transactionId || "—"}</div>
-					<div className="text-xs text-muted-foreground">
-						{entry.manualEntry ? "Manual" : "System"}
-					</div>
-				</div>
+			header: "Transaction ID",
+			cell: (transaction: TransactionListItem) => (
+				<Link
+					href={`/config/operations/transactions/${transaction.id}`}
+					className="block hover:underline"
+				>
+					<div className="font-medium">{transaction.transactionId || "—"}</div>
+					<div className="text-xs text-muted-foreground">{transaction.id}</div>
+				</Link>
 			),
 		},
 		{
 			header: "Date",
-			cell: (entry: JournalEntryListItem) => (
-				<span>{formatDate(entry.transactionDate || "")}</span>
+			cell: (transaction: TransactionListItem) => (
+				<span>{formatDate(transaction.transactionDate)}</span>
 			),
 		},
 		{
-			header: "Office",
-			cell: (entry: JournalEntryListItem) => (
-				<span className={entry.officeName ? "" : "text-muted-foreground"}>
-					{entry.officeName || "—"}
-				</span>
+			header: "GL Account",
+			cell: (transaction: TransactionListItem) => (
+				<div>
+					<div className="font-medium">{transaction.glAccountName || "—"}</div>
+					<div className="text-xs text-muted-foreground">
+						{transaction.glAccountCode}
+					</div>
+				</div>
 			),
 		},
 		{
 			header: "Amount",
-			cell: (entry: JournalEntryListItem) => (
-				<span className="font-mono">{formatCurrency(entry.amount)}</span>
-			),
-		},
-		{
-			header: "Status",
-			cell: (entry: JournalEntryListItem) => {
-				const approvalStatus = getStatus(entry.transactionId || "");
-				if (entry.reversed) {
-					return (
-						<Badge variant="destructive" className="text-xs px-2 py-0.5">
-							Reversed
-						</Badge>
-					);
-				}
-				if (approvalStatus === "approved") {
-					return (
-						<Badge variant="success" className="text-xs px-2 py-0.5">
-							Approved
-						</Badge>
-					);
-				}
-				if (approvalStatus === "rejected") {
-					return (
-						<Badge variant="destructive" className="text-xs px-2 py-0.5">
-							Rejected
-						</Badge>
-					);
-				}
-				return (
-					<Badge variant="secondary" className="text-xs px-2 py-0.5">
-						Pending
-					</Badge>
-				);
-			},
-		},
-		{
-			header: "Actions",
-			cell: (entry: JournalEntryListItem) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button type="button" variant="outline" size="sm" asChild>
-						<a href={`/config/operations/transactions/${entry.id}`}>
-							<Eye className="mr-1 h-3 w-3" />
-							View
-						</a>
-					</Button>
-					{!entry.reversed && (
-						<>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									const transactionId = entry.transactionId;
-									if (
-										transactionId &&
-										confirm(
-											"Are you sure you want to approve this journal entry?",
-										)
-									) {
-										setStatus(transactionId, "approved");
-										setToastMessage("Journal entry approved");
-									}
-								}}
-							>
-								<Check className="mr-1 h-3 w-3" />
-								Approve
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									const transactionId = entry.transactionId;
-									if (
-										transactionId &&
-										confirm(
-											"Are you sure you want to reject this journal entry?",
-										)
-									) {
-										setStatus(transactionId, "rejected");
-										setToastMessage("Journal entry rejected");
-									}
-								}}
-							>
-								<X className="mr-1 h-3 w-3" />
-								Reject
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									if (
-										entry.transactionId &&
-										confirm(
-											"Are you sure you want to edit this journal entry? This will reverse the original and create a new one.",
-										)
-									) {
-										window.location.href = `/config/operations/transactions/create?edit=true&transactionId=${entry.transactionId}`;
-									}
-								}}
-							>
-								<PenLine className="mr-1 h-3 w-3" />
-								Edit
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									if (
-										entry.transactionId &&
-										confirm(
-											"Are you sure you want to reverse this journal entry?",
-										)
-									) {
-										reverseMutation.mutate(entry.transactionId);
-									}
-								}}
-								disabled={reverseMutation.isPending}
-							>
-								<RotateCcw className="mr-1 h-3 w-3" />
-								Reverse
-							</Button>
-						</>
-					)}
+			cell: (transaction: TransactionListItem) => (
+				<div className="text-right">
+					<div
+						className={`font-mono font-medium ${
+							transaction.entryType?.value?.toLowerCase().includes("credit")
+								? "text-green-600"
+								: "text-blue-600"
+						}`}
+					>
+						{transaction.entryType?.value?.toLowerCase().includes("credit")
+							? "+"
+							: "-"}
+						{formatCurrency(transaction.amount)}
+					</div>
 				</div>
 			),
-			className: "text-right",
-			headerClassName: "text-right",
+		},
+		{
+			header: "Type",
+			cell: (transaction: TransactionListItem) => (
+				<span
+					className={`px-2 py-1 rounded-full text-xs font-medium ${getEntryTypeColor(transaction.entryType)}`}
+				>
+					{transaction.entryType?.value || "Unknown"}
+				</span>
+			),
+		},
+		{
+			header: "Office",
+			cell: (transaction: TransactionListItem) => (
+				<span>{transaction.officeName || "—"}</span>
+			),
 		},
 	];
 
-	return (
-		<>
-			<PageShell
-				title="Journal Entries"
-				subtitle="View and manage journal entries and transactions"
-				actions={
-					<Button asChild>
-						<a href="/config/operations/transactions/create">
-							<Plus className="h-4 w-4 mr-2" />
-							Create Journal Entry
-						</a>
-					</Button>
-				}
-			>
-				<div className="space-y-6">
-					<div className="grid gap-4 md:grid-cols-4">
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-										<BookOpen className="h-5 w-5 text-primary" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">{totalRecords}</div>
-										<div className="text-sm text-muted-foreground">
-											Total Entries
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-blue-500/10">
-										<PenLine className="h-5 w-5 text-blue-500" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{manualEntries.length}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Manual Entries
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-gray-500/10">
-										<Receipt className="h-5 w-5 text-gray-500" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{systemEntries.length}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											System Entries
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-red-500/10">
-										<RotateCcw className="h-5 w-5 text-red-500" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{reversedEntries.length}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Reversed Entries
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</div>
+	const onSubmit = (data: TransactionFilters) => {
+		setFilters(data);
+	};
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Filters</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="grid gap-4 md:grid-cols-6">
-								<div>
-									<Label htmlFor="office">Office</Label>
-									<Select
-										value={filters.officeId}
-										onValueChange={(value) =>
-											setFilters((prev) => ({ ...prev, officeId: value }))
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="All offices" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All offices</SelectItem>
-											{officesQuery.data?.map((office) => (
-												<SelectItem
-													key={office.id}
-													value={office.id?.toString() || ""}
-												>
-													{office.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+	const clearFilters = () => {
+		reset();
+		setFilters({});
+	};
+
+	return (
+		<PageShell
+			title="Transactions"
+			subtitle="View and search journal entries and transactions"
+		>
+			<div className="space-y-6">
+				{/* Filters */}
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Filter className="w-5 h-5" />
+							Filters
+						</CardTitle>
+						<CardDescription>
+							Filter transactions by various criteria
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+								<div className="space-y-2">
+									<Label htmlFor="transactionId">Transaction ID</Label>
+									<Input
+										id="transactionId"
+										{...register("transactionId")}
+										placeholder="Search by transaction ID"
+									/>
 								</div>
-								<div>
-									<Label htmlFor="glAccount">GL Account</Label>
-									<Select
-										value={filters.glAccountId}
-										onValueChange={(value) =>
-											setFilters((prev) => ({ ...prev, glAccountId: value }))
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="All accounts" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All accounts</SelectItem>
-											{glaccountsQuery.data?.map((account) => (
-												<SelectItem
-													key={account.id}
-													value={account.id?.toString() || ""}
-												>
-													{account.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div>
+
+								<div className="space-y-2">
 									<Label htmlFor="fromDate">From Date</Label>
-									<Input
-										type="date"
-										value={filters.fromDate}
-										onChange={(e) =>
-											setFilters((prev) => ({
-												...prev,
-												fromDate: e.target.value,
-											}))
-										}
-									/>
+									<Input id="fromDate" type="date" {...register("fromDate")} />
 								</div>
-								<div>
+
+								<div className="space-y-2">
 									<Label htmlFor="toDate">To Date</Label>
-									<Input
-										type="date"
-										value={filters.toDate}
-										onChange={(e) =>
+									<Input id="toDate" type="date" {...register("toDate")} />
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="entryType">Entry Type</Label>
+									<Select
+										onValueChange={(value) =>
 											setFilters((prev) => ({
 												...prev,
-												toDate: e.target.value,
+												entryType:
+													value === "all" ? undefined : parseInt(value),
 											}))
-										}
-									/>
-								</div>
-								<div>
-									<Label htmlFor="status">Status</Label>
-									<Select
-										value={filters.status}
-										onValueChange={(value) =>
-											setFilters((prev) => ({ ...prev, status: value }))
 										}
 									>
 										<SelectTrigger>
-											<SelectValue />
+											<SelectValue placeholder="All types" />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											<SelectItem value="pending">Pending</SelectItem>
-											<SelectItem value="approved">Approved</SelectItem>
-											<SelectItem value="rejected">Rejected</SelectItem>
-											<SelectItem value="active">Active</SelectItem>
-											<SelectItem value="reversed">Reversed</SelectItem>
+											<SelectItem value="all">All Types</SelectItem>
+											<SelectItem value="1">Debit</SelectItem>
+											<SelectItem value="2">Credit</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
 							</div>
-						</CardContent>
-					</Card>
 
-					<Card>
-						<CardHeader>
-							<CardTitle>Journal Entries</CardTitle>
-							<CardDescription>
-								{filteredEntries.length} journal{" "}
-								{filteredEntries.length !== 1 ? "entries" : "entry"} in the
-								system
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{journalEntriesQuery.isLoading && (
-								<div className="py-6 text-center text-muted-foreground">
-									Loading journal entries...
-								</div>
-							)}
-							{journalEntriesQuery.error && (
-								<div className="py-6 text-center text-destructive">
-									Failed to load journal entries. Please try again.
-								</div>
-							)}
-							{!journalEntriesQuery.isLoading && !journalEntriesQuery.error && (
-								<DataTable
-									data={filteredEntries}
-									columns={journalEntryColumns}
-									getRowId={(entry) =>
-										entry.id?.toString() || entry.transactionId || "entry-row"
-									}
-									emptyMessage="No journal entries found."
-								/>
-							)}
-						</CardContent>
-					</Card>
-				</div>
-			</PageShell>
+							<div className="flex items-center gap-2">
+								<button
+									type="submit"
+									className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+								>
+									<Search className="w-4 h-4 mr-2" />
+									Apply Filters
+								</button>
+								<button
+									type="button"
+									onClick={clearFilters}
+									className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90"
+								>
+									Clear Filters
+								</button>
+							</div>
+						</form>
+					</CardContent>
+				</Card>
 
-			{toastMessage && (
-				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
-					<Alert variant="success">
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
-		</>
+				{/* Transactions List */}
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Receipt className="w-5 h-5" />
+							Transaction History
+						</CardTitle>
+						<CardDescription>
+							{transactions.length} transaction
+							{transactions.length !== 1 ? "s" : ""} found
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{transactionsQuery.isLoading && (
+							<div className="py-6 text-center text-muted-foreground">
+								Loading transactions...
+							</div>
+						)}
+						{transactionsQuery.error && (
+							<div className="py-6 text-center text-destructive">
+								Failed to load transactions. Please try again.
+							</div>
+						)}
+						{!transactionsQuery.isLoading && !transactionsQuery.error && (
+							<DataTable
+								data={transactions}
+								columns={transactionColumns}
+								getRowId={(transaction) =>
+									transaction.id?.toString() || "transaction-row"
+								}
+								emptyMessage="No transactions found. Try adjusting your filters."
+							/>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+		</PageShell>
 	);
 }

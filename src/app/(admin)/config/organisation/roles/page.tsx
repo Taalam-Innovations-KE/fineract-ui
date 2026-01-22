@@ -80,45 +80,7 @@ export default function RolesPage() {
 		return response.json();
 	}
 
-	async function updateRole(
-		roleId: number,
-		data: PutRolesRoleIdRequest,
-	): Promise<GetRolesResponse> {
-		const response = await fetch(`${BFF_ROUTES.roles}/${roleId}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify(data),
-		});
-
-		if (!response.ok) {
-			throw new Error("Failed to update role");
-		}
-
-		return response.json();
-	}
-
-	async function deleteRole(roleId: number): Promise<void> {
-		const response = await fetch(`${BFF_ROUTES.roles}/${roleId}`, {
-			method: "DELETE",
-			headers: {
-				"x-tenant-id": tenantId,
-			},
-		});
-
-		if (!response.ok) {
-			throw new Error("Failed to delete role");
-		}
-	}
-
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	const [editDialogOpen, setEditDialogOpen] = useState(false);
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [selectedRole, setSelectedRole] = useState<GetRolesResponse | null>(
-		null,
-	);
 	const [formData, setFormData] = useState({ name: "", description: "" });
 
 	const roleTemplates = [
@@ -146,63 +108,12 @@ export default function RolesPage() {
 		},
 	});
 
-	const updateMutation = useMutation({
-		mutationFn: ({
-			roleId,
-			data,
-		}: {
-			roleId: number;
-			data: PutRolesRoleIdRequest;
-		}) => updateRole(roleId, data),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
-			setEditDialogOpen(false);
-			setSelectedRole(null);
-		},
-	});
-
-	const deleteMutation = useMutation({
-		mutationFn: deleteRole,
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
-			setDeleteDialogOpen(false);
-			setSelectedRole(null);
-		},
-	});
-
-	const handleEdit = (role: GetRolesResponse) => {
-		setSelectedRole(role);
-		setFormData({ name: role.name || "", description: role.description || "" });
-		setEditDialogOpen(true);
-	};
-
-	const handleDelete = (role: GetRolesResponse) => {
-		setSelectedRole(role);
-		setDeleteDialogOpen(true);
-	};
-
 	const handleCreateSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		createMutation.mutate({
 			name: formData.name,
 			description: formData.description,
 		});
-	};
-
-	const handleEditSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		if (selectedRole?.id) {
-			updateMutation.mutate({
-				roleId: selectedRole.id,
-				data: { description: formData.description },
-			});
-		}
-	};
-
-	const handleDeleteConfirm = () => {
-		if (selectedRole?.id) {
-			deleteMutation.mutate(selectedRole.id);
-		}
 	};
 
 	const isAdminRole = (role: GetRolesResponse) =>
@@ -237,39 +148,6 @@ export default function RolesPage() {
 						Operational
 					</Badge>
 				),
-		},
-		{
-			header: "Actions",
-			cell: (role: GetRolesResponse) => (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="ghost" className="h-8 w-8 p-0">
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={() => handleEdit(role)}>
-							<Edit className="mr-2 h-4 w-4" />
-							Edit
-						</DropdownMenuItem>
-						<DropdownMenuItem asChild>
-							<Link
-								href={`/admin/config/organisation/roles/${role.id}/permissions`}
-							>
-								<Settings className="mr-2 h-4 w-4" />
-								Manage Permissions
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => handleDelete(role)}
-							className="text-destructive"
-						>
-							<Trash className="mr-2 h-4 w-4" />
-							Delete
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			),
 		},
 	];
 
@@ -445,86 +323,14 @@ export default function RolesPage() {
 								data={roles}
 								columns={roleColumns}
 								getRowId={(role) => role.id ?? role.name ?? "role-row"}
+								enableActions={true}
+								getViewUrl={(role) =>
+									`/admin/config/organisation/roles/${role.id}`
+								}
 							/>
 						)}
 					</CardContent>
 				</Card>
-
-				{/* Edit Dialog */}
-				<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Edit Role</DialogTitle>
-							<DialogDescription>Modify the role details.</DialogDescription>
-						</DialogHeader>
-						<form onSubmit={handleEditSubmit} className="space-y-4">
-							<div>
-								<label className="text-sm font-medium">Name</label>
-								<input
-									type="text"
-									value={formData.name}
-									onChange={(e) =>
-										setFormData({ ...formData, name: e.target.value })
-									}
-									className="mt-1 block w-full rounded border px-3 py-2"
-									required
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium">Description</label>
-								<textarea
-									value={formData.description}
-									onChange={(e) =>
-										setFormData({ ...formData, description: e.target.value })
-									}
-									className="mt-1 block w-full rounded border px-3 py-2"
-									rows={3}
-								/>
-							</div>
-							<div className="flex justify-end space-x-2">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => setEditDialogOpen(false)}
-								>
-									Cancel
-								</Button>
-								<Button type="submit" disabled={updateMutation.isPending}>
-									{updateMutation.isPending ? "Updating..." : "Update"}
-								</Button>
-							</div>
-						</form>
-					</DialogContent>
-				</Dialog>
-
-				{/* Delete Dialog */}
-				<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Delete Role</DialogTitle>
-							<DialogDescription>
-								Are you sure you want to delete "{selectedRole?.name}"? This
-								action cannot be undone.
-							</DialogDescription>
-						</DialogHeader>
-						<div className="flex justify-end space-x-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => setDeleteDialogOpen(false)}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								onClick={handleDeleteConfirm}
-								disabled={deleteMutation.isPending}
-							>
-								{deleteMutation.isPending ? "Deleting..." : "Delete"}
-							</Button>
-						</div>
-					</DialogContent>
-				</Dialog>
 			</div>
 		</PageShell>
 	);

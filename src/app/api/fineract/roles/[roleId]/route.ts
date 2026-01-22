@@ -16,14 +16,15 @@ import type {
  */
 export async function PUT(
 	request: NextRequest,
-	{ params }: { params: { roleId: string } },
+	{ params }: { params: Promise<{ roleId: string }> },
 ) {
 	try {
 		const tenantId = getTenantFromRequest(request);
+		const { roleId } = await params;
 		const body: PutRolesRoleIdRequest = await request.json();
 
 		const role = await fineractFetch<GetRolesResponse>(
-			`${FINERACT_ENDPOINTS.roles}/${params.roleId}`,
+			`${FINERACT_ENDPOINTS.roles}/${roleId}`,
 			{
 				method: "PUT",
 				body,
@@ -46,12 +47,13 @@ export async function PUT(
  */
 export async function DELETE(
 	request: NextRequest,
-	{ params }: { params: { roleId: string } },
+	{ params }: { params: Promise<{ roleId: string }> },
 ) {
 	try {
 		const tenantId = getTenantFromRequest(request);
+		const { roleId } = await params;
 
-		await fineractFetch(`${FINERACT_ENDPOINTS.roles}/${params.roleId}`, {
+		await fineractFetch(`${FINERACT_ENDPOINTS.roles}/${roleId}`, {
 			method: "DELETE",
 			tenantId,
 		});

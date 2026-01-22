@@ -168,11 +168,6 @@ export default function UsersPage() {
 		},
 	});
 
-	const handleRowClick = (user: GetUsersResponse) => {
-		setSelectedUser(user);
-		setIsDrawerOpen(true);
-	};
-
 	const handleCreateNew = () => {
 		setSelectedUser(null);
 		setIsDrawerOpen(true);
@@ -323,7 +318,10 @@ export default function UsersPage() {
 								data={users}
 								columns={userColumns}
 								getRowId={(user) => user.id ?? user.username ?? "user-row"}
-								onRowClick={handleRowClick}
+								enableActions={true}
+								getViewUrl={(user) =>
+									`/admin/config/organisation/users/${user.id}`
+								}
 							/>
 						)}
 					</CardContent>

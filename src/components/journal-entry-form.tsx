@@ -293,7 +293,7 @@ export function JournalEntryForm({
 
 	return (
 		<div className="space-y-6">
-			<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+			<form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
 				<Card>
 					<CardHeader>
 						<CardTitle>Basic Information</CardTitle>
@@ -301,8 +301,8 @@ export function JournalEntryForm({
 							Enter the basic details for the journal entry
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="grid gap-4 md:grid-cols-2">
+					<CardContent className="p-4 space-y-3">
+						<div className="grid gap-3 md:grid-cols-2">
 							<div className="space-y-2">
 								<Label htmlFor="officeId">Office</Label>
 								<Controller
@@ -357,7 +357,7 @@ export function JournalEntryForm({
 						<CardTitle>Debit Entries</CardTitle>
 						<CardDescription>Accounts to be debited</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
+					<CardContent className="p-4 space-y-3">
 						{debitsField.fields.map((field, index) => (
 							<DebitCreditEntry
 								key={field.id}
@@ -385,7 +385,7 @@ export function JournalEntryForm({
 						<CardTitle>Credit Entries</CardTitle>
 						<CardDescription>Accounts to be credited</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-4">
+					<CardContent className="p-4 space-y-3">
 						{creditsField.fields.map((field, index) => (
 							<DebitCreditEntry
 								key={field.id}
@@ -413,8 +413,8 @@ export function JournalEntryForm({
 						<CardTitle>Summary</CardTitle>
 						<CardDescription>Verify the entry balances</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<div className="grid gap-4 md:grid-cols-3">
+					<CardContent className="p-4">
+						<div className="grid gap-3 md:grid-cols-3">
 							<div className="text-center">
 								<div className="text-2xl font-bold text-blue-600">
 									{totalDebits.toFixed(2)}
@@ -445,7 +445,7 @@ export function JournalEntryForm({
 					</CardContent>
 				</Card>
 
-				<div className="flex gap-2">
+				<div className="flex gap-2 justify-end">
 					<Button
 						type="submit"
 						disabled={createMutation.isPending || !isBalanced}

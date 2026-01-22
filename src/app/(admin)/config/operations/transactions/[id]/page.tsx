@@ -14,6 +14,10 @@ import {
 import { use, useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { JournalEntryForm } from "@/components/journal-entry-form";
+import { TransactionAudit } from "@/components/transaction-audit";
+import { TransactionDetails } from "@/components/transaction-details";
+import { TransactionLines } from "@/components/transaction-lines";
+import { TransactionOverview } from "@/components/transaction-overview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,181 +73,6 @@ async function reverseJournalEntry(
 	}
 
 	return data;
-}
-
-function formatCurrency(amount: number | undefined, symbol = "KES") {
-	if (amount === undefined || amount === null) return "—";
-	return `${symbol} ${amount.toLocaleString()}`;
-}
-
-function formatDate(dateStr: string) {
-	if (!dateStr) return "—";
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${day}/${month}/${year}`;
-}
-
-interface TransactionOverviewProps {
-	entry: JournalEntryData;
-}
-
-function TransactionOverview({ entry }: TransactionOverviewProps) {
-	const { getStatus } = useTransactionStore();
-	const approvalStatus = getStatus(entry.transactionId || "");
-
-	return (
-		<div className="space-y-6">
-			<Card>
-				<CardHeader>
-					<CardTitle>Basic Information</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid gap-4 md:grid-cols-2">
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Transaction ID
-							</div>
-							<div className="text-lg font-semibold">{entry.transactionId}</div>
-						</div>
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Date
-							</div>
-							<div className="text-lg">
-								{formatDate(entry.transactionDate || "")}
-							</div>
-						</div>
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Office
-							</div>
-							<div className="text-lg">{entry.officeName}</div>
-						</div>
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Amount
-							</div>
-							<div className="text-lg font-semibold">
-								{formatCurrency(entry.amount)}
-							</div>
-						</div>
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Type
-							</div>
-							<div className="text-lg">
-								{entry.manualEntry ? "Manual" : "System"}
-							</div>
-						</div>
-						<div>
-							<div className="text-sm font-medium text-muted-foreground">
-								Status
-							</div>
-							<div className="flex items-center gap-2">
-								{entry.reversed ? (
-									<Badge variant="destructive">Reversed</Badge>
-								) : approvalStatus === "approved" ? (
-									<Badge variant="success">Approved</Badge>
-								) : approvalStatus === "rejected" ? (
-									<Badge variant="destructive">Rejected</Badge>
-								) : (
-									<Badge variant="secondary">Pending</Badge>
-								)}
-							</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	);
-}
-
-interface TransactionLinesProps {
-	entry: JournalEntryData;
-}
-
-function TransactionLines({ entry }: TransactionLinesProps) {
-	const credits = entry.credits || [];
-	const debits = entry.debits || [];
-
-	return (
-		<div className="space-y-6">
-			<Card>
-				<CardHeader>
-					<CardTitle>Debit Entries</CardTitle>
-					<CardDescription>
-						Accounts debited in this transaction
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-2">
-						{debits.map((debit, index) => (
-							<div
-								key={index}
-								className="flex justify-between items-center p-3 border rounded"
-							>
-								<div>
-									<div className="font-medium">
-										{(debit as CreditDebit & { glAccountName?: string })
-											.glAccountName || `Account ${debit.glAccountId}`}
-									</div>
-									<div className="text-sm text-muted-foreground">
-										ID: {debit.glAccountId}
-									</div>
-								</div>
-								<div className="text-right">
-									<div className="font-semibold">
-										{formatCurrency(debit.amount)}
-									</div>
-									<div className="text-sm text-muted-foreground">Debit</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardHeader>
-					<CardTitle>Credit Entries</CardTitle>
-					<CardDescription>
-						Accounts credited in this transaction
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-2">
-						{credits.map((credit, index) => (
-							<div
-								key={index}
-								className="flex justify-between items-center p-3 border rounded"
-							>
-								<div>
-									<div className="font-medium">
-										{(credit as CreditDebit & { glAccountName?: string })
-											.glAccountName || `Account ${credit.glAccountId}`}
-									</div>
-									<div className="text-sm text-muted-foreground">
-										ID: {credit.glAccountId}
-									</div>
-								</div>
-								<div className="text-right">
-									<div className="font-semibold">
-										{formatCurrency(credit.amount)}
-									</div>
-									<div className="text-sm text-muted-foreground">Credit</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	);
-}
-
-interface TransactionDetailsProps {
-	entry: JournalEntryData;
 }
 
 function TransactionDetails({ entry }: TransactionDetailsProps) {
@@ -334,10 +163,6 @@ function TransactionDetails({ entry }: TransactionDetailsProps) {
 			</Card>
 		</div>
 	);
-}
-
-interface TransactionAuditProps {
-	entry: JournalEntryData;
 }
 
 function TransactionAudit({ entry }: TransactionAuditProps) {
@@ -584,7 +409,9 @@ export default function TransactionDetailPage({
 							initialData={entry}
 							onSuccess={() => {
 								setIsEditDrawerOpen(false);
-								reverseMutation.mutate(entry.transactionId);
+								if (entry.transactionId) {
+									reverseMutation.mutate(entry.transactionId);
+								}
 							}}
 							onCancel={() => setIsEditDrawerOpen(false)}
 						/>

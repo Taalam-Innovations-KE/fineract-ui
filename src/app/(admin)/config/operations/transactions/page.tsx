@@ -1,11 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Filter, Receipt, Search } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
+import { JournalEntryForm } from "@/components/journal-entry-form";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -23,6 +25,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetJournalEntriesTransactionIdResponse,
@@ -94,7 +103,9 @@ async function fetchTransactions(
 
 export default function TransactionsPage() {
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
 	const [filters, setFilters] = useState<TransactionFilters>({});
+	const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
 
 	const transactionsQuery = useQuery({
 		queryKey: ["transactions", tenantId, filters],
@@ -185,6 +196,14 @@ export default function TransactionsPage() {
 		<PageShell
 			title="Transactions"
 			subtitle="View and search journal entries and transactions"
+			actions={
+				<Button
+					onClick={() => setIsCreateDrawerOpen(true)}
+					className="rounded-none"
+				>
+					Create Transaction
+				</Button>
+			}
 		>
 			<div className="space-y-6">
 				{/* Filters */}
@@ -246,7 +265,7 @@ export default function TransactionsPage() {
 							<div className="flex items-center gap-2">
 								<button
 									type="submit"
-									className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+									className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-none hover:bg-primary/90"
 								>
 									<Search className="w-4 h-4 mr-2" />
 									Apply Filters
@@ -254,7 +273,7 @@ export default function TransactionsPage() {
 								<button
 									type="button"
 									onClick={clearFilters}
-									className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90"
+									className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-none hover:bg-secondary/90"
 								>
 									Clear Filters
 								</button>
@@ -299,6 +318,31 @@ export default function TransactionsPage() {
 					</CardContent>
 				</Card>
 			</div>
+
+			<Sheet open={isCreateDrawerOpen} onOpenChange={setIsCreateDrawerOpen}>
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-2xl lg:max-w-4xl p-3 overflow-y-auto"
+				>
+					<SheetHeader>
+						<SheetTitle>Create Journal Entry</SheetTitle>
+						<SheetDescription>
+							Add a new manual journal entry to the system.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-3">
+						<JournalEntryForm
+							onSuccess={() => {
+								setIsCreateDrawerOpen(false);
+								queryClient.invalidateQueries({
+									queryKey: ["transactions", tenantId],
+								});
+							}}
+							onCancel={() => setIsCreateDrawerOpen(false)}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</PageShell>
 	);
 }

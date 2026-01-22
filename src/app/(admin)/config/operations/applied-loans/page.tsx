@@ -43,12 +43,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetLoansLoanIdResponse,
@@ -401,58 +395,33 @@ export default function AppliedLoansPage() {
 
 				return (
 					<div className="flex items-center gap-2">
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									asChild
-									variant="outline"
-									size="sm"
-									aria-label="View loan details"
-								>
-									<Link href={`/config/operations/loans/${loan.id}`}>
-										<Eye className="h-4 w-4" />
-									</Link>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								<p>View</p>
-							</TooltipContent>
-						</Tooltip>
+						<Button asChild variant="outline" size="sm">
+							<Link href={`/config/operations/loans/${loan.id}`}>
+								<Eye className="h-4 w-4 mr-1" />
+								View
+							</Link>
+						</Button>
 
 						{canApprove ? (
 							<>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="sm"
-											variant="default"
-											onClick={() => handleAction(loan, "approve")}
-											disabled={approveMutation.isPending}
-											aria-label="Approve loan"
-										>
-											<CheckCircle className="h-4 w-4" />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>
-										<p>Approve</p>
-									</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="sm"
-											variant="destructive"
-											onClick={() => handleAction(loan, "reject")}
-											disabled={rejectMutation.isPending}
-											aria-label="Reject loan"
-										>
-											<XCircle className="h-4 w-4" />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>
-										<p>Reject</p>
-									</TooltipContent>
-								</Tooltip>
+								<Button
+									size="sm"
+									variant="default"
+									onClick={() => handleAction(loan, "approve")}
+									disabled={approveMutation.isPending}
+								>
+									<CheckCircle className="h-4 w-4 mr-1" />
+									Approve
+								</Button>
+								<Button
+									size="sm"
+									variant="destructive"
+									onClick={() => handleAction(loan, "reject")}
+									disabled={rejectMutation.isPending}
+								>
+									<XCircle className="h-4 w-4 mr-1" />
+									Reject
+								</Button>
 							</>
 						) : loan.status?.pendingApproval ? (
 							<span className="text-sm text-muted-foreground">
@@ -468,350 +437,341 @@ export default function AppliedLoansPage() {
 	];
 
 	return (
-		<TooltipProvider>
-			<PageShell
-				title="Applied Loans"
-				subtitle="Manage and review all loan applications across the platform"
-			>
-				<div className="space-y-6">
-					{/* Summary Cards */}
-					<div className="grid gap-4 md:grid-cols-4">
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
-										<FileText className="h-5 w-5 text-primary" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{summaryStats.total}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Total Loans
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-warning/10">
-										<Clock className="h-5 w-5 text-warning" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{summaryStats.pending}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Pending Approval
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
-										<CheckCircle className="h-5 w-5 text-success" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{summaryStats.approved}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Recently Approved
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardContent className="pt-6">
-								<div className="flex items-center gap-3">
-									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-blue-500/10">
-										<Banknote className="h-5 w-5 text-blue-500" />
-									</div>
-									<div>
-										<div className="text-2xl font-bold">
-											{summaryStats.active}
-										</div>
-										<div className="text-sm text-muted-foreground">
-											Active Loans
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</div>
-
-					{/* Filters */}
+		<PageShell
+			title="Applied Loans"
+			subtitle="Manage and review all loan applications across the platform"
+		>
+			<div className="space-y-6">
+				{/* Summary Cards */}
+				<div className="grid gap-4 md:grid-cols-4">
 					<Card>
-						<CardHeader>
-							<CardTitle>Filters</CardTitle>
-							<CardDescription>
-								Filter loans by status, client, or account number
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-								<div className="space-y-2">
-									<Label htmlFor="status-filter">Status</Label>
-									<Select
-										value={filters.status}
-										onValueChange={(value) =>
-											handleFilterChange("status", value)
-										}
-									>
-										<SelectTrigger id="status-filter">
-											<SelectValue placeholder="All Statuses" />
-										</SelectTrigger>
-										<SelectContent>
-											{statusOptions
-												.filter((option) => option.value !== "")
-												.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-										</SelectContent>
-									</Select>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<FileText className="h-5 w-5 text-primary" />
 								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="client-filter">Client Name</Label>
-									<Input
-										id="client-filter"
-										placeholder="Search by client name"
-										value={clientSearch}
-										onChange={(e) => setClientSearch(e.target.value)}
-									/>
-									{clientSearch && (
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={() => setClientSearch("")}
-											className="text-xs"
-										>
-											Clear client search
-										</Button>
-									)}
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="account-filter">Account Number</Label>
-									<Input
-										id="account-filter"
-										placeholder="Filter by account number"
-										value={filters.accountNo}
-										onChange={(e) =>
-											handleFilterChange("accountNo", e.target.value)
-										}
-									/>
-								</div>
-
-								<div className="space-y-2">
-									<Label>Actions</Label>
-									<Button
-										variant="outline"
-										onClick={() => {
-											setFilters({
-												status: "",
-												clientId: undefined,
-												accountNo: "",
-											});
-											setClientSearch("");
-											setPagination((prev) => ({ ...prev, offset: 0 }));
-										}}
-										className="w-full"
-									>
-										Clear All Filters
-									</Button>
+								<div>
+									<div className="text-2xl font-bold">{summaryStats.total}</div>
+									<div className="text-sm text-muted-foreground">
+										Total Loans
+									</div>
 								</div>
 							</div>
 						</CardContent>
 					</Card>
 
-					{/* Loans Table */}
 					<Card>
-						<CardHeader>
-							<CardTitle>Loan Applications</CardTitle>
-							<CardDescription>
-								{loansQuery.isLoading
-									? "Loading loans..."
-									: `${totalRecords} loan${totalRecords !== 1 ? "s" : ""} found`}
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							{loansQuery.isLoading && (
-								<div className="py-6 text-center text-muted-foreground">
-									Loading loan applications...
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-warning/10">
+									<Clock className="h-5 w-5 text-warning" />
 								</div>
-							)}
-
-							{loansQuery.error && (
-								<Alert variant="destructive">
-									<AlertTitle>Failed to load loans</AlertTitle>
-									<AlertDescription>
-										Unable to fetch loan applications. Please try again.
-									</AlertDescription>
-								</Alert>
-							)}
-
-							{!loansQuery.isLoading &&
-								!loansQuery.error &&
-								loans.length === 0 && (
-									<div className="py-6 text-center text-muted-foreground">
-										No loan applications found matching your criteria.
+								<div>
+									<div className="text-2xl font-bold">
+										{summaryStats.pending}
 									</div>
-								)}
+									<div className="text-sm text-muted-foreground">
+										Pending Approval
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
 
-							{!loansQuery.isLoading &&
-								!loansQuery.error &&
-								loans.length > 0 && (
-									<>
-										<DataTable
-											data={loans}
-											columns={loanColumns}
-											getRowId={(loan) =>
-												String(loan.id ?? loan.accountNo ?? "loan-row")
-											}
-										/>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+									<CheckCircle className="h-5 w-5 text-success" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">
+										{summaryStats.approved}
+									</div>
+									<div className="text-sm text-muted-foreground">
+										Recently Approved
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
 
-										{/* Pagination */}
-										{totalPages > 1 && (
-											<div className="flex items-center justify-between px-2 py-4">
-												<div className="text-sm text-muted-foreground">
-													Showing {pagination.offset + 1} to{" "}
-													{Math.min(
-														pagination.offset + ITEMS_PER_PAGE,
-														totalRecords,
-													)}{" "}
-													of {totalRecords} loans
-												</div>
-												<div className="flex items-center space-x-2">
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handlePageChange(currentPage - 1)}
-														disabled={currentPage === 1}
-													>
-														Previous
-													</Button>
-
-													{/* Page numbers */}
-													{Array.from(
-														{ length: Math.min(5, totalPages) },
-														(_, i) => {
-															const pageNumber =
-																Math.max(1, currentPage - 2) + i;
-															if (pageNumber > totalPages) return null;
-
-															return (
-																<Button
-																	key={pageNumber}
-																	variant={
-																		pageNumber === currentPage
-																			? "default"
-																			: "outline"
-																	}
-																	size="sm"
-																	onClick={() => handlePageChange(pageNumber)}
-																>
-																	{pageNumber}
-																</Button>
-															);
-														},
-													)}
-
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handlePageChange(currentPage + 1)}
-														disabled={currentPage === totalPages}
-													>
-														Next
-													</Button>
-												</div>
-											</div>
-										)}
-									</>
-								)}
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-blue-500/10">
+									<Banknote className="h-5 w-5 text-blue-500" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">
+										{summaryStats.active}
+									</div>
+									<div className="text-sm text-muted-foreground">
+										Active Loans
+									</div>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
 
-				{/* Action Confirmation Dialog */}
-				<Dialog
-					open={actionDialog.open}
-					onOpenChange={(open) =>
-						setActionDialog({ open, action: null, loan: null })
-					}
-				>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>
-								{actionDialog.action === "approve" ? "Approve" : "Reject"} Loan
-								Application
-							</DialogTitle>
-							<DialogDescription>
-								{actionDialog.loan && (
-									<>
-										Are you sure you want to {actionDialog.action} the loan
-										application for{" "}
-										<strong>{actionDialog.loan.clientName}</strong> (
-										{actionDialog.loan.accountNo})?
-										{actionDialog.action === "reject" &&
-											" This action cannot be undone."}
-									</>
-								)}
-							</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() =>
-									setActionDialog({ open: false, action: null, loan: null })
-								}
-								disabled={approveMutation.isPending || rejectMutation.isPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant={
-									actionDialog.action === "reject" ? "destructive" : "default"
-								}
-								onClick={handleConfirmAction}
-								disabled={approveMutation.isPending || rejectMutation.isPending}
-							>
-								{approveMutation.isPending || rejectMutation.isPending
-									? "Processing..."
-									: actionDialog.action === "approve"
-										? "Approve Loan"
-										: "Reject Loan"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+				{/* Filters */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Filters</CardTitle>
+						<CardDescription>
+							Filter loans by status, client, or account number
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<div className="space-y-2">
+								<Label htmlFor="status-filter">Status</Label>
+								<Select
+									value={filters.status}
+									onValueChange={(value) => handleFilterChange("status", value)}
+								>
+									<SelectTrigger id="status-filter">
+										<SelectValue placeholder="All Statuses" />
+									</SelectTrigger>
+									<SelectContent>
+										{statusOptions
+											.filter((option) => option.value !== "")
+											.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							</div>
 
-				{/* Success/Error Messages */}
-				{(approveMutation.isError || rejectMutation.isError) && (
-					<div className="fixed bottom-6 right-6 z-50 w-[320px]">
-						<Alert variant="destructive">
-							<AlertTitle>Action Failed</AlertTitle>
-							<AlertDescription>
-								{((approveMutation.error || rejectMutation.error) as Error)
-									?.message ||
-									"Failed to process loan application. Please try again."}
-							</AlertDescription>
-						</Alert>
-					</div>
-				)}
-			</PageShell>
-		</TooltipProvider>
+							<div className="space-y-2">
+								<Label htmlFor="client-filter">Client Name</Label>
+								<Input
+									id="client-filter"
+									placeholder="Search by client name"
+									value={clientSearch}
+									onChange={(e) => setClientSearch(e.target.value)}
+								/>
+								{clientSearch && (
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => setClientSearch("")}
+										className="text-xs"
+									>
+										Clear client search
+									</Button>
+								)}
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="account-filter">Account Number</Label>
+								<Input
+									id="account-filter"
+									placeholder="Filter by account number"
+									value={filters.accountNo}
+									onChange={(e) =>
+										handleFilterChange("accountNo", e.target.value)
+									}
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label>Actions</Label>
+								<Button
+									variant="outline"
+									onClick={() => {
+										setFilters({
+											status: "",
+											clientId: undefined,
+											accountNo: "",
+										});
+										setClientSearch("");
+										setPagination((prev) => ({ ...prev, offset: 0 }));
+									}}
+									className="w-full"
+								>
+									Clear All Filters
+								</Button>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				{/* Loans Table */}
+				<Card>
+					<CardHeader>
+						<CardTitle>Loan Applications</CardTitle>
+						<CardDescription>
+							{loansQuery.isLoading
+								? "Loading loans..."
+								: `${totalRecords} loan${totalRecords !== 1 ? "s" : ""} found`}
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{loansQuery.isLoading && (
+							<div className="py-6 text-center text-muted-foreground">
+								Loading loan applications...
+							</div>
+						)}
+
+						{loansQuery.error && (
+							<Alert variant="destructive">
+								<AlertTitle>Failed to load loans</AlertTitle>
+								<AlertDescription>
+									Unable to fetch loan applications. Please try again.
+								</AlertDescription>
+							</Alert>
+						)}
+
+						{!loansQuery.isLoading &&
+							!loansQuery.error &&
+							loans.length === 0 && (
+								<div className="py-6 text-center text-muted-foreground">
+									No loan applications found matching your criteria.
+								</div>
+							)}
+
+						{!loansQuery.isLoading && !loansQuery.error && loans.length > 0 && (
+							<>
+								<DataTable
+									data={loans}
+									columns={loanColumns}
+									getRowId={(loan) =>
+										String(loan.id ?? loan.accountNo ?? "loan-row")
+									}
+								/>
+
+								{/* Pagination */}
+								{totalPages > 1 && (
+									<div className="flex items-center justify-between px-2 py-4">
+										<div className="text-sm text-muted-foreground">
+											Showing {pagination.offset + 1} to{" "}
+											{Math.min(
+												pagination.offset + ITEMS_PER_PAGE,
+												totalRecords,
+											)}{" "}
+											of {totalRecords} loans
+										</div>
+										<div className="flex items-center space-x-2">
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => handlePageChange(currentPage - 1)}
+												disabled={currentPage === 1}
+											>
+												Previous
+											</Button>
+
+											{/* Page numbers */}
+											{Array.from(
+												{ length: Math.min(5, totalPages) },
+												(_, i) => {
+													const pageNumber = Math.max(1, currentPage - 2) + i;
+													if (pageNumber > totalPages) return null;
+
+													return (
+														<Button
+															key={pageNumber}
+															variant={
+																pageNumber === currentPage
+																	? "default"
+																	: "outline"
+															}
+															size="sm"
+															onClick={() => handlePageChange(pageNumber)}
+														>
+															{pageNumber}
+														</Button>
+													);
+												},
+											)}
+
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => handlePageChange(currentPage + 1)}
+												disabled={currentPage === totalPages}
+											>
+												Next
+											</Button>
+										</div>
+									</div>
+								)}
+							</>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* Action Confirmation Dialog */}
+			<Dialog
+				open={actionDialog.open}
+				onOpenChange={(open) =>
+					setActionDialog({ open, action: null, loan: null })
+				}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>
+							{actionDialog.action === "approve" ? "Approve" : "Reject"} Loan
+							Application
+						</DialogTitle>
+						<DialogDescription>
+							{actionDialog.loan && (
+								<>
+									Are you sure you want to {actionDialog.action} the loan
+									application for{" "}
+									<strong>{actionDialog.loan.clientName}</strong> (
+									{actionDialog.loan.accountNo})?
+									{actionDialog.action === "reject" &&
+										" This action cannot be undone."}
+								</>
+							)}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() =>
+								setActionDialog({ open: false, action: null, loan: null })
+							}
+							disabled={approveMutation.isPending || rejectMutation.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant={
+								actionDialog.action === "reject" ? "destructive" : "default"
+							}
+							onClick={handleConfirmAction}
+							disabled={approveMutation.isPending || rejectMutation.isPending}
+						>
+							{approveMutation.isPending || rejectMutation.isPending
+								? "Processing..."
+								: actionDialog.action === "approve"
+									? "Approve Loan"
+									: "Reject Loan"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Success/Error Messages */}
+			{(approveMutation.isError || rejectMutation.isError) && (
+				<div className="fixed bottom-6 right-6 z-50 w-[320px]">
+					<Alert variant="destructive">
+						<AlertTitle>Action Failed</AlertTitle>
+						<AlertDescription>
+							{((approveMutation.error || rejectMutation.error) as Error)
+								?.message ||
+								"Failed to process loan application. Please try again."}
+						</AlertDescription>
+					</Alert>
+				</div>
+			)}
+		</PageShell>
 	);
 }

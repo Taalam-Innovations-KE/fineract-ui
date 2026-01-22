@@ -4,6 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageShell } from "@/components/config/page-shell";
+import { LoanCharges } from "@/components/sections/LoanCharges";
+import { LoanFinancialDetails } from "@/components/sections/LoanFinancialDetails";
+import { LoanOverview } from "@/components/sections/LoanOverview";
+import { LoanTerms } from "@/components/sections/LoanTerms";
+import { LoanTimeline } from "@/components/sections/LoanTimeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,14 +18,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetLoansLoanIdResponse } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
-
-function formatCurrency(amount: number | undefined, code = "KES") {
-	if (amount === undefined || amount === null) return "—";
-	return `${code} ${amount.toLocaleString()}`;
-}
 
 async function fetchLoan(tenantId: string, loanId: string) {
 	const response = await fetch(`${BFF_ROUTES.loans}/${loanId}`, {
@@ -47,22 +48,10 @@ export default function LoanDetailsPage() {
 		enabled: Boolean(tenantId) && Boolean(loanId),
 	});
 
-	const statusLabel =
-		data?.status?.description || data?.status?.code || "Unknown";
-	let statusVariant:
-		| "default"
-		| "secondary"
-		| "success"
-		| "warning"
-		| "destructive" = "secondary";
-	if (statusLabel.toLowerCase().includes("active")) statusVariant = "success";
-	else if (statusLabel.toLowerCase().includes("pending"))
-		statusVariant = "warning";
-	else if (
-		statusLabel.toLowerCase().includes("closed") ||
-		statusLabel.toLowerCase().includes("rejected")
-	)
-		statusVariant = "destructive";
+	const formatCurrency = (amount: number | undefined, symbol?: string) => {
+		if (amount === undefined || amount === null) return "—";
+		return `${symbol || "KES"} ${amount.toLocaleString()}`;
+	};
 
 	return (
 		<PageShell
@@ -74,98 +63,77 @@ export default function LoanDetailsPage() {
 				</Button>
 			}
 		>
-			<Card>
-				<CardHeader>
-					<CardTitle>Loan Overview</CardTitle>
-					<CardDescription>Read-only view of the loan profile.</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{isLoading && (
-						<div className="py-6 text-center text-muted-foreground">
-							Loading loan details...
-						</div>
-					)}
-					{error && (
-						<div className="py-6 text-center text-destructive">
-							Failed to load loan details. Please try again.
-						</div>
-					)}
-					{!isLoading && !error && data && (
-						<div className="grid gap-4 md:grid-cols-2">
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Account
-								</div>
-								<div className="text-lg font-semibold">
-									{data.accountNo || "—"}
-								</div>
-								<div className="text-sm text-muted-foreground">
-									{data.loanProductName || "Loan Product"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Status
-								</div>
-								<Badge variant={statusVariant}>{statusLabel}</Badge>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Client
-								</div>
-								<div className="text-sm">{data.clientName || "—"}</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Principal
-								</div>
-								<div className="text-sm font-mono">
-									{formatCurrency(data.principal, data.currency?.displaySymbol)}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Repayments
-								</div>
-								<div className="text-sm">
-									{data.numberOfRepayments || "—"} repayments every{" "}
-									{data.repaymentEvery || "—"}{" "}
-									{data.repaymentFrequencyType?.description ||
-										data.repaymentFrequencyType?.code ||
-										"period"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Interest Rate
-								</div>
-								<div className="text-sm">
-									{data.interestRatePerPeriod ?? "—"}% per{" "}
-									{data.interestRateFrequencyType?.description ||
-										data.interestRateFrequencyType?.code ||
-										"period"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Expected Disbursement
-								</div>
-								<div className="text-sm">
-									{data.timeline?.expectedDisbursementDate || "—"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Submitted On
-								</div>
-								<div className="text-sm">
-									{data.timeline?.submittedOnDate || "—"}
-								</div>
-							</div>
-						</div>
-					)}
-				</CardContent>
-			</Card>
+			{isLoading && (
+				<div className="py-6 text-center text-muted-foreground">
+					Loading loan details...
+				</div>
+			)}
+			{error && (
+				<div className="py-6 text-center text-destructive">
+					Failed to load loan details. Please try again.
+				</div>
+			)}
+			{!isLoading && !error && data && (
+				<>
+					<Tabs defaultValue="overview" className="w-full">
+						<TabsList className="grid w-full grid-cols-5 rounded-none">
+							<TabsTrigger
+								value="overview"
+								className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+							>
+								Overview
+							</TabsTrigger>
+							<TabsTrigger
+								value="financial"
+								className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+							>
+								Financial Details
+							</TabsTrigger>
+							<TabsTrigger
+								value="timeline"
+								className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+							>
+								Timeline
+							</TabsTrigger>
+							<TabsTrigger
+								value="terms"
+								className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+							>
+								Terms & Schedule
+							</TabsTrigger>
+							<TabsTrigger
+								value="charges"
+								className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+							>
+								Charges & Fees
+							</TabsTrigger>
+						</TabsList>
+
+						<TabsContent value="overview" className="mt-6">
+							<LoanOverview data={data} />
+						</TabsContent>
+
+						<TabsContent value="financial" className="mt-6">
+							<LoanFinancialDetails
+								data={data}
+								formatCurrency={formatCurrency}
+							/>
+						</TabsContent>
+
+						<TabsContent value="timeline" className="mt-6">
+							<LoanTimeline data={data} />
+						</TabsContent>
+
+						<TabsContent value="terms" className="mt-6">
+							<LoanTerms data={data} />
+						</TabsContent>
+
+						<TabsContent value="charges" className="mt-6">
+							<LoanCharges data={data} formatCurrency={formatCurrency} />
+						</TabsContent>
+					</Tabs>
+				</>
+			)}
 		</PageShell>
 	);
 }

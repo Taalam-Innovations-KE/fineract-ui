@@ -231,7 +231,6 @@ export default function MakerCheckerPage() {
 									<SelectValue placeholder="All actions" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="">All actions</SelectItem>
 									{template?.actionNames?.map((action) => (
 										<SelectItem key={action} value={action}>
 											{action}
@@ -248,7 +247,6 @@ export default function MakerCheckerPage() {
 									<SelectValue placeholder="All entities" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="">All entities</SelectItem>
 									{template?.entityNames?.map((entity) => (
 										<SelectItem key={entity} value={entity}>
 											{entity}

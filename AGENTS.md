@@ -55,6 +55,11 @@ All scripts are in `package.json`; use pnpm.
 - Keep hooks at top-level; no conditional hook calls.
 - Prefer functional components with named exports.
 
+## Next.js API Routes (Next.js 15+)
+- In API routes (`src/app/api/*`), `params` is a Promise and must be awaited before destructuring.
+- Always use: `const { paramName } = await params;` instead of `const { paramName } = params;`
+- This prevents "params is a Promise" runtime errors.
+
 ## Naming Conventions
 - React components: PascalCase file names and component names.
 - Hooks: `useX` naming; custom hooks live in `src/lib` or `src/store`.

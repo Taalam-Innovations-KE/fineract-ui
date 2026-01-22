@@ -12,13 +12,13 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
  */
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { loanId: string } },
+	{ params }: { params: Promise<{ loanId: string }> },
 ) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { loanId } = params;
+		const { loanId } = await params;
 
-		const path = `${FINERACT_ENDPOINTS.loans.replace("/v1/loans", "/v1/internal/loan")}/${loanId}/audit`;
+		const path = `/v1/internal/loan/${loanId}/audit`;
 
 		const audit = await fineractFetch(path, {
 			method: "GET",

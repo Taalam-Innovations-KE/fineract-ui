@@ -13,11 +13,11 @@ import type { PostLoansLoanIdRequest } from "@/lib/fineract/generated/types.gen"
  */
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { loanId: string } },
+	{ params }: { params: Promise<{ loanId: string }> },
 ) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { loanId } = params;
+		const { loanId } = await params;
 
 		const path = `${FINERACT_ENDPOINTS.loans}/${loanId}`;
 
@@ -41,11 +41,11 @@ export async function GET(
  */
 export async function PUT(
 	request: NextRequest,
-	{ params }: { params: { loanId: string } },
+	{ params }: { params: Promise<{ loanId: string }> },
 ) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { loanId } = params;
+		const { loanId } = await params;
 		const body = (await request.json()) as PostLoansLoanIdRequest;
 
 		// Determine command based on body fields

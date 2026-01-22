@@ -11,7 +11,7 @@ import {
 	User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { AuditTrailViewer } from "@/components/loans/audit-trail-viewer";
 import { LoanCommandDialog } from "@/components/loans/loan-command-dialog";
@@ -33,7 +33,7 @@ import type {
 import { useTenantStore } from "@/store/tenant";
 
 interface LoanDetailPageProps {
-	params: { loanId: string };
+	params: Promise<{ loanId: string }>;
 }
 
 function formatCurrency(amount: number | undefined, symbol = "KES") {
@@ -66,7 +66,13 @@ function getAvailableActions(loan: GetLoansLoanIdResponse | undefined) {
 }
 
 export default function LoanDetailPage({ params }: LoanDetailPageProps) {
-	const { loanId } = params;
+	const [loanId, setLoanId] = useState<string>("");
+
+	useEffect(() => {
+		params.then((resolvedParams) => {
+			setLoanId(resolvedParams.loanId);
+		});
+	}, [params]);
 	const { tenantId } = useTenantStore();
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -85,6 +91,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			if (!response.ok) throw new Error("Failed to fetch loan details");
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
+		enabled: !!loanId,
 	});
 
 	const auditTrailQuery = useQuery({
@@ -98,6 +105,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			// Handle different response structures - might be an array or wrapped in an object
 			return Array.isArray(data) ? data : data.events || [];
 		},
+		enabled: !!loanId,
 	});
 
 	const loan = loanQuery.data;

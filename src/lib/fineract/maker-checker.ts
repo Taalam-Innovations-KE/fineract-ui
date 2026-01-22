@@ -47,7 +47,7 @@ export async function getGlobalConfig(): Promise<GlobalConfig> {
 		{ method: "GET" },
 	);
 	const config = response.globalConfiguration?.find(
-		(c: GlobalConfigurationPropertyData) => c.name === "Maker-checker",
+		(c: GlobalConfigurationPropertyData) => c.name === "maker-checker",
 	);
 	return { enabled: config?.enabled || false };
 }
@@ -56,7 +56,7 @@ export async function getGlobalConfig(): Promise<GlobalConfig> {
  * Update global maker checker configuration
  */
 export async function updateGlobalConfig(enabled: boolean): Promise<void> {
-	await fineractFetch(`/v1/configurations/name/Maker-checker`, {
+	await fineractFetch(`/v1/configurations/name/maker-checker`, {
 		method: "PUT",
 		body: { value: enabled },
 	});

@@ -20,49 +20,22 @@ import { useMakerCheckerStore } from "@/store/maker-checker";
 export default function GlobalPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
-	const [superCheckerSaving, setSuperCheckerSaving] = useState<number | null>(
-		null,
-	);
-	const [recentActivity, setRecentActivity] = useState<MakerCheckerEntry[]>([]);
-	const {
-		globalConfig,
-		setGlobalConfig,
-		superCheckerUsers,
-		setSuperCheckerUsers,
-		impact,
-		setImpact,
-		updateSuperCheckerStatus,
-	} = useMakerCheckerStore();
+	const { globalConfig, setGlobalConfig } = useMakerCheckerStore();
 
 	useEffect(() => {
-		async function loadData() {
+		async function loadConfig() {
 			try {
-				const [configRes, usersRes, impactRes, activityRes] = await Promise.all(
-					[
-						fetch("/api/maker-checker/global"),
-						fetch("/api/maker-checker/super-checkers"),
-						fetch("/api/maker-checker/super-checkers?type=impact"),
-						fetch("/api/maker-checker/inbox"),
-					],
-				);
-
-				const config = await configRes.json();
-				const users = await usersRes.json();
-				const impactData = await impactRes.json();
-				const activity = await activityRes.json();
-
+				const response = await fetch("/api/maker-checker/global");
+				const config = await response.json();
 				setGlobalConfig(config);
-				setSuperCheckerUsers(users);
-				setImpact(impactData);
-				setRecentActivity(activity.slice(0, 5)); // Show only 5 most recent
 			} catch (error) {
-				console.error("Failed to load global data:", error);
+				console.error("Failed to load global configuration:", error);
 			} finally {
 				setLoading(false);
 			}
 		}
-		loadData();
-	}, [setGlobalConfig, setSuperCheckerUsers, setImpact]);
+		loadConfig();
+	}, [setGlobalConfig]);
 
 	const handleToggle = async (enabled: boolean) => {
 		setSaving(true);
@@ -73,15 +46,12 @@ export default function GlobalPage() {
 				body: JSON.stringify({ enabled }),
 			});
 
-			if (!response.ok) throw new Error("Failed to update global config");
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || "Failed to update global config");
+			}
 
 			setGlobalConfig({ enabled });
-			// Refresh impact data
-			const impactRes = await fetch(
-				"/api/maker-checker/super-checkers?type=impact",
-			);
-			const impactData = await impactRes.json();
-			setImpact(impactData);
 			console.log(
 				`Maker checker ${enabled ? "enabled" : "disabled"} globally.`,
 			);

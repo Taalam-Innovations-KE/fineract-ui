@@ -31,10 +31,6 @@ export const FINERACT_ENDPOINTS = {
 	loansCatchUp: "/v1/loans/catch-up",
 	loansCatchUpRunning: "/v1/loans/is-catch-up-running",
 	loansOldestCOB: "/v1/loans/oldest-cob-closed",
-
-	// Maker Checker
-	makercheckers: "/v1/makercheckers",
-	makercheckersSearchTemplate: "/v1/makercheckers/searchtemplate",
 } as const;
 
 /**
@@ -69,8 +65,4 @@ export const BFF_ROUTES = {
 	loansCatchUp: "/api/fineract/loans/catch-up",
 	loansCatchUpRunning: "/api/fineract/loans/is-catch-up-running",
 	loansOldestCOB: "/api/fineract/loans/oldest-cob-closed",
-
-	// Maker Checker
-	makercheckers: "/api/fineract/makercheckers",
-	makercheckersSearchTemplate: "/api/fineract/makercheckers/searchtemplate",
 } as const;

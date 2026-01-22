@@ -1,8 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, PenLine } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -79,14 +77,9 @@ export default function CurrenciesPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
-	const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<
-		string | null
-	>(null);
-	const [isEditActive, setIsEditActive] = useState(false);
 
 	const {
 		data: currencyConfig,
@@ -105,8 +98,6 @@ export default function CurrenciesPage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["currencies", tenantId] });
 			setIsDrawerOpen(false);
-			setIsEditDrawerOpen(false);
-			setSelectedCurrencyCode(null);
 			setToastMessage("Currencies updated successfully");
 		},
 	});
@@ -135,24 +126,6 @@ export default function CurrenciesPage() {
 			),
 		[activeCurrencies],
 	);
-
-	const selectedCurrency = useMemo(() => {
-		if (!selectedCurrencyCode) return null;
-		return (
-			currencyOptions.find(
-				(currency) => currency.code === selectedCurrencyCode,
-			) ||
-			activeCurrencies.find(
-				(currency) => currency.code === selectedCurrencyCode,
-			) ||
-			null
-		);
-	}, [activeCurrencies, currencyOptions, selectedCurrencyCode]);
-
-	useEffect(() => {
-		if (!selectedCurrencyCode) return;
-		setIsEditActive(activeCodes.has(selectedCurrencyCode));
-	}, [activeCodes, selectedCurrencyCode]);
 
 	const filteredOptions = useMemo(() => {
 		const normalized = searchTerm.trim().toLowerCase();
@@ -197,34 +170,6 @@ export default function CurrenciesPage() {
 			headerClassName: "text-right",
 			className: "text-right",
 		},
-		{
-			header: "Actions",
-			cell: (currency: CurrencyData) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button asChild variant="outline" size="sm" disabled={!currency.code}>
-						<Link href={`/config/financial/currencies/${currency.code ?? ""}`}>
-							<Eye className="mr-2 h-4 w-4" />
-							View
-						</Link>
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						onClick={() => {
-							if (!currency.code) return;
-							setSelectedCurrencyCode(currency.code);
-							setIsEditDrawerOpen(true);
-						}}
-						disabled={!currency.code}
-					>
-						<PenLine className="mr-2 h-4 w-4" />
-						Edit
-					</Button>
-				</div>
-			),
-			className: "text-right",
-			headerClassName: "text-right",
-		},
 	];
 
 	const toggleCurrency = (code?: string) => {
@@ -256,26 +201,8 @@ export default function CurrenciesPage() {
 		updateMutation.mutate(Array.from(selectedCodes));
 	};
 
-	const handleSaveCurrency = () => {
-		if (!selectedCurrencyCode) return;
-		const nextCodes = new Set(activeCodes);
-		if (isEditActive) {
-			nextCodes.add(selectedCurrencyCode);
-		} else {
-			nextCodes.delete(selectedCurrencyCode);
-		}
-		updateMutation.mutate(Array.from(nextCodes));
-	};
-
 	const handleCloseDrawer = () => {
 		setIsDrawerOpen(false);
-	};
-
-	const handleCloseEditDrawer = (open: boolean) => {
-		setIsEditDrawerOpen(open);
-		if (!open) {
-			setSelectedCurrencyCode(null);
-		}
 	};
 
 	return (
@@ -327,10 +254,7 @@ export default function CurrenciesPage() {
 			</PageShell>
 
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-				<SheetContent
-					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl flex flex-col"
-				>
+				<SheetContent side="right" className="w-full sm:max-w-lg flex flex-col">
 					<SheetHeader>
 						<SheetTitle>Manage Active Currencies</SheetTitle>
 						<SheetDescription>
@@ -436,91 +360,8 @@ export default function CurrenciesPage() {
 							onClick={handleSaveChanges}
 							disabled={!isSelectionDirty || updateMutation.isPending}
 						>
-							{updateMutation.isPending ? (
-								"Saving..."
-							) : (
-								<>
-									<PenLine className="mr-2 h-4 w-4" />
-									Save Changes
-								</>
-							)}
+							{updateMutation.isPending ? "Saving..." : "Save Changes"}
 						</Button>
-					</div>
-				</SheetContent>
-			</Sheet>
-
-			<Sheet open={isEditDrawerOpen} onOpenChange={handleCloseEditDrawer}>
-				<SheetContent side="right" className="w-full sm:max-w-2xl lg:max-w-3xl">
-					<SheetHeader>
-						<SheetTitle>Currency Details</SheetTitle>
-						<SheetDescription>
-							Review and update active status for this currency.
-						</SheetDescription>
-					</SheetHeader>
-					<div className="mt-6 space-y-4">
-						<div className="rounded-sm border border-border/60 p-4 space-y-3">
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									ISO Code
-								</div>
-								<div className="text-lg font-semibold">
-									{selectedCurrency?.code || "—"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Name
-								</div>
-								<div className="text-sm">
-									{selectedCurrency?.name ||
-										selectedCurrency?.displayLabel ||
-										"—"}
-								</div>
-							</div>
-							<div>
-								<div className="text-xs uppercase text-muted-foreground">
-									Decimal Places
-								</div>
-								<div className="text-sm">
-									{selectedCurrency?.decimalPlaces ?? "—"}
-								</div>
-							</div>
-						</div>
-						<div className="flex items-center justify-between rounded-sm border border-border/60 p-4">
-							<div>
-								<div className="text-sm font-medium">Active Currency</div>
-								<div className="text-xs text-muted-foreground">
-									Toggle availability in the platform.
-								</div>
-							</div>
-							<Checkbox
-								checked={isEditActive}
-								onCheckedChange={(value) => setIsEditActive(Boolean(value))}
-							/>
-						</div>
-						<div className="flex justify-end gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => handleCloseEditDrawer(false)}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="button"
-								onClick={handleSaveCurrency}
-								disabled={updateMutation.isPending || !selectedCurrencyCode}
-							>
-								{updateMutation.isPending ? (
-									"Saving..."
-								) : (
-									<>
-										<PenLine className="mr-2 h-4 w-4" />
-										Save Changes
-									</>
-								)}
-							</Button>
-						</div>
 					</div>
 				</SheetContent>
 			</Sheet>

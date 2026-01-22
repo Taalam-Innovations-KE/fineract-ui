@@ -54,10 +54,6 @@ All scripts are in `package.json`; use pnpm.
 - Add `"use client"` only when component needs client-side state/effects.
 - Keep hooks at top-level; no conditional hook calls.
 - Prefer functional components with named exports.
-- Do not infer data types; explicitly define or use provided types. Avoid extending generated types with assumptions.
-
-## Component Structure
-- For UIs broken into logical sections (e.g., tabs, panels, or multi-part forms), extract each section into a separate subcomponent in `src/components/sections/`. Pass shared data and utilities as props to maintain reusability, testability, and keep main components under 200 lines. Use PascalCase naming matching the section (e.g., `ProductOverview.tsx`).
 
 ## Naming Conventions
 - React components: PascalCase file names and component names.

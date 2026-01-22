@@ -12,14 +12,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type FieldPath, useForm } from "react-hook-form";
-import { z } from "zod";
-import { LoanProductAccountingFormSection } from "@/components/sections/LoanProductAccountingFormSection";
-import { LoanProductAmountFormSection } from "@/components/sections/LoanProductAmountFormSection";
-import { LoanProductFeesFormSection } from "@/components/sections/LoanProductFeesFormSection";
-import { LoanProductIdentityFormSection } from "@/components/sections/LoanProductIdentityFormSection";
-import { LoanProductInterestFormSection } from "@/components/sections/LoanProductInterestFormSection";
-import { LoanProductPenaltiesFormSection } from "@/components/sections/LoanProductPenaltiesFormSection";
-import { LoanProductScheduleFormSection } from "@/components/sections/LoanProductScheduleFormSection";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,9 +48,10 @@ import {
 } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
+	GetLoanProductsChargeOptions,
+	GetLoanProductsTemplateResponse,
 	PostLoanProductsRequest,
-	PutLoanProductsProductIdRequest,
-} from "@/lib/fineract/generated";
+} from "@/lib/fineract/generated/types.gen";
 import {
 	buildLoanProductRequest,
 	chargesApi,
@@ -89,12 +82,8 @@ import { useTenantStore } from "@/store/tenant";
 interface LoanProductWizardProps {
 	currencies: string[];
 	isOpen: boolean;
-	onSubmit: (
-		data: PostLoanProductsRequest | PutLoanProductsProductIdRequest,
-	) => Promise<void>;
+	onSubmit: (data: PostLoanProductsRequest) => Promise<void>;
 	onCancel: () => void;
-	isEdit?: boolean;
-	productId?: number | null;
 }
 
 type FeeItem = FeeSelection & { summary?: string };
@@ -192,47 +181,6 @@ const steps = [
 	},
 ];
 
-function getStepSchema(stepId: number): z.ZodSchema {
-	switch (stepId) {
-		case 1:
-			return loanProductIdentitySchema;
-		case 2:
-			return loanProductIdentitySchema.merge(loanProductAmountSchema);
-		case 3:
-			return loanProductIdentitySchema
-				.merge(loanProductAmountSchema)
-				.merge(loanProductScheduleSchema);
-		case 4:
-			return loanProductIdentitySchema
-				.merge(loanProductAmountSchema)
-				.merge(loanProductScheduleSchema)
-				.merge(loanProductInterestSchema);
-		case 5:
-			return loanProductIdentitySchema
-				.merge(loanProductAmountSchema)
-				.merge(loanProductScheduleSchema)
-				.merge(loanProductInterestSchema)
-				.merge(loanProductFeesSchema);
-		case 6:
-			return loanProductIdentitySchema
-				.merge(loanProductAmountSchema)
-				.merge(loanProductScheduleSchema)
-				.merge(loanProductInterestSchema)
-				.merge(loanProductFeesSchema)
-				.merge(loanProductPenaltiesSchema);
-		case 7:
-			return loanProductIdentitySchema
-				.merge(loanProductAmountSchema)
-				.merge(loanProductScheduleSchema)
-				.merge(loanProductInterestSchema)
-				.merge(loanProductFeesSchema)
-				.merge(loanProductPenaltiesSchema)
-				.merge(loanProductAccountingSchema);
-		default:
-			return loanProductIdentitySchema;
-	}
-}
-
 function optionLabel(option?: {
 	code?: string;
 	description?: string;
@@ -325,10 +273,6 @@ function waterfallLabel(option?: { code?: string; name?: string }) {
 	return mapping[option.code] || option?.name || option.code;
 }
 
-function isUnsetValue(value: unknown) {
-	return value === undefined || value === null || value === "";
-}
-
 function getTemplateCurrencyOptions(
 	template?: GetLoanProductsTemplateResponse,
 	allowedCurrencies?: string[],
@@ -346,20 +290,11 @@ export function LoanProductWizard({
 	isOpen,
 	onSubmit,
 	onCancel,
-	isEdit = false,
-	productId,
 }: LoanProductWizardProps) {
 	const { tenantId } = useTenantStore();
 	const [currentStep, setCurrentStep] = useState(1);
 	const [fees, setFees] = useState<FeeItem[]>([]);
 	const [penalties, setPenalties] = useState<PenaltyItem[]>([]);
-
-	const productQuery = useQuery({
-		queryKey: ["loanProduct", tenantId, productId],
-		queryFn: () => loanProductsApi.getById(tenantId, productId!),
-		enabled: isEdit && !!productId,
-	});
-
 	const [isFeeDrawerOpen, setIsFeeDrawerOpen] = useState(false);
 	const [isPenaltyDrawerOpen, setIsPenaltyDrawerOpen] = useState(false);
 	const [isFeeSelectOpen, setIsFeeSelectOpen] = useState(false);
@@ -370,11 +305,7 @@ export function LoanProductWizard({
 	);
 	const [isCreatingFee, setIsCreatingFee] = useState(false);
 	const [isCreatingPenalty, setIsCreatingPenalty] = useState(false);
-	const [isWizardSubmitting, setIsWizardSubmitting] = useState(false);
-	const [submissionErrors, setSubmissionErrors] = useState<Record<
-		string,
-		string[]
-	> | null>(null);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [copyMessage, setCopyMessage] = useState<string | null>(null);
 	const [draftMessage, setDraftMessage] = useState<string | null>(null);
@@ -391,42 +322,6 @@ export function LoanProductWizard({
 		() => getTemplateCurrencyOptions(template, currencies),
 		[template, currencies],
 	);
-	const repaymentFrequencyTypeOptions =
-		template?.repaymentFrequencyTypeOptions || [];
-	const interestTypeOptions = template?.interestTypeOptions || [];
-	const amortizationTypeOptions = template?.amortizationTypeOptions || [];
-	const interestRateFrequencyTypeOptions =
-		template?.interestRateFrequencyTypeOptions || [];
-	const interestCalculationPeriodTypeOptions =
-		template?.interestCalculationPeriodTypeOptions || [];
-	const transactionProcessingStrategyOptions =
-		template?.transactionProcessingStrategyOptions || [];
-	const accountingRuleOptions = template?.accountingRuleOptions || [];
-	const assetOptions =
-		template?.accountingMappingOptions?.assetAccountOptions || [];
-	const incomeOptions =
-		template?.accountingMappingOptions?.incomeAccountOptions || [];
-	const expenseOptions =
-		template?.accountingMappingOptions?.expenseAccountOptions || [];
-	const liabilityOptions =
-		template?.accountingMappingOptions?.liabilityAccountOptions || [];
-
-	const hasCurrencyOptions = currencyOptions.length > 0;
-	const hasRepaymentFrequencyTypeOptions =
-		repaymentFrequencyTypeOptions.length > 0;
-	const hasInterestTypeOptions = interestTypeOptions.length > 0;
-	const hasAmortizationTypeOptions = amortizationTypeOptions.length > 0;
-	const hasInterestRateFrequencyTypeOptions =
-		interestRateFrequencyTypeOptions.length > 0;
-	const hasInterestCalculationPeriodTypeOptions =
-		interestCalculationPeriodTypeOptions.length > 0;
-	const hasTransactionProcessingStrategyOptions =
-		transactionProcessingStrategyOptions.length > 0;
-	const hasAccountingRuleOptions = accountingRuleOptions.length > 0;
-	const hasAssetOptions = assetOptions.length > 0;
-	const hasIncomeOptions = incomeOptions.length > 0;
-	const hasExpenseOptions = expenseOptions.length > 0;
-	const hasLiabilityOptions = liabilityOptions.length > 0;
 
 	const form = useForm<CreateLoanProductFormData>({
 		resolver: zodResolver(createLoanProductSchema),
@@ -442,50 +337,17 @@ export function LoanProductWizard({
 		},
 	});
 
-	useEffect(() => {
-		form.clearErrors();
-	}, [currentStep]);
-
 	const {
 		register,
 		handleSubmit,
 		control,
 		trigger,
 		setValue,
+		watch,
 		getValues,
 		setError,
-		watch,
-		formState: { errors, isSubmitting: isFormSubmitting },
+		formState: { errors },
 	} = form;
-
-	useEffect(() => {
-		if (isEdit && productQuery.data) {
-			const data = productQuery.data;
-			if (data.name) setValue("name", data.name);
-			if (data.shortName) setValue("shortName", data.shortName);
-			setValue("description", data.description || "");
-			if (data.currency?.code) setValue("currencyCode", data.currency.code);
-			if (data.currency?.decimalPlaces !== undefined)
-				setValue("digitsAfterDecimal", data.currency.decimalPlaces);
-			if (data.principal !== undefined) setValue("principal", data.principal);
-			if (data.minPrincipal !== undefined)
-				setValue("minPrincipal", data.minPrincipal);
-			if (data.maxPrincipal !== undefined)
-				setValue("maxPrincipal", data.maxPrincipal);
-			if (data.numberOfRepayments !== undefined)
-				setValue("numberOfRepayments", data.numberOfRepayments);
-			if (data.minNumberOfRepayments !== undefined)
-				setValue("minNumberOfRepayments", data.minNumberOfRepayments);
-			if (data.maxNumberOfRepayments !== undefined)
-				setValue("maxNumberOfRepayments", data.maxNumberOfRepayments);
-			// Add more fields as needed
-		} else if (!isEdit) {
-			// Set defaults for new products
-			setValue("daysInYearType", 360);
-			setValue("daysInMonthType", 30);
-			setValue("isInterestRecalculationEnabled", false);
-		}
-	}, [isEdit, productQuery.data, setValue]);
 
 	const feeForm = useForm<FeeFormData>({
 		resolver: zodResolver(feeChargeFormSchema),
@@ -529,74 +391,65 @@ export function LoanProductWizard({
 
 		if (
 			getValues("repaymentFrequencyType") === undefined &&
-			repaymentFrequencyTypeOptions[0]?.id !== undefined
+			template.repaymentFrequencyTypeOptions?.[0]?.id !== undefined
 		) {
-			setValue("repaymentFrequencyType", repaymentFrequencyTypeOptions[0].id);
+			setValue(
+				"repaymentFrequencyType",
+				template.repaymentFrequencyTypeOptions[0].id,
+			);
 		}
 
 		if (
 			getValues("interestType") === undefined &&
-			interestTypeOptions[0]?.id !== undefined
+			template.interestTypeOptions?.[0]?.id !== undefined
 		) {
-			setValue("interestType", interestTypeOptions[0].id);
+			setValue("interestType", template.interestTypeOptions[0].id);
 		}
 
 		if (
 			getValues("amortizationType") === undefined &&
-			amortizationTypeOptions[0]?.id !== undefined
+			template.amortizationTypeOptions?.[0]?.id !== undefined
 		) {
-			setValue("amortizationType", amortizationTypeOptions[0].id);
+			setValue("amortizationType", template.amortizationTypeOptions[0].id);
 		}
 
 		if (
 			getValues("interestRateFrequencyType") === undefined &&
-			interestRateFrequencyTypeOptions[0]?.id !== undefined
+			template.interestRateFrequencyTypeOptions?.[0]?.id !== undefined
 		) {
 			setValue(
 				"interestRateFrequencyType",
-				interestRateFrequencyTypeOptions[0].id,
+				template.interestRateFrequencyTypeOptions[0].id,
 			);
 		}
 
 		if (
 			getValues("interestCalculationPeriodType") === undefined &&
-			interestCalculationPeriodTypeOptions[0]?.id !== undefined
+			template.interestCalculationPeriodTypeOptions?.[0]?.id !== undefined
 		) {
 			setValue(
 				"interestCalculationPeriodType",
-				interestCalculationPeriodTypeOptions[0].id,
+				template.interestCalculationPeriodTypeOptions[0].id,
 			);
 		}
 
 		if (
 			!getValues("transactionProcessingStrategyCode") &&
-			transactionProcessingStrategyOptions[0]?.code
+			template.transactionProcessingStrategyOptions?.[0]?.code
 		) {
 			setValue(
 				"transactionProcessingStrategyCode",
-				transactionProcessingStrategyOptions[0].code,
+				template.transactionProcessingStrategyOptions[0].code,
 			);
 		}
 
 		if (
 			getValues("accountingRule") === undefined &&
-			accountingRuleOptions[0]?.id !== undefined
+			template.accountingRuleOptions?.[0]?.id !== undefined
 		) {
-			setValue("accountingRule", accountingRuleOptions[0].id);
+			setValue("accountingRule", template.accountingRuleOptions[0].id);
 		}
-	}, [
-		template,
-		currencyOptions,
-		repaymentFrequencyTypeOptions,
-		interestTypeOptions,
-		amortizationTypeOptions,
-		interestRateFrequencyTypeOptions,
-		interestCalculationPeriodTypeOptions,
-		transactionProcessingStrategyOptions,
-		accountingRuleOptions,
-		getValues,
-		setValue,
-	]);
+	}, [template, currencyOptions, getValues, setValue]);
 
 	useEffect(() => {
 		if (!currencyCode) return;
@@ -649,193 +502,15 @@ export function LoanProductWizard({
 		}
 	}, [isPenaltyDrawerOpen]);
 
-	const missingTemplateLabels = useMemo(() => {
-		const missing: string[] = [];
-		if (!hasCurrencyOptions) missing.push("currencies");
-		if (!hasRepaymentFrequencyTypeOptions)
-			missing.push("repayment frequencies");
-		if (!hasInterestTypeOptions) missing.push("interest types");
-		if (!hasAmortizationTypeOptions) missing.push("amortization types");
-		if (!hasInterestRateFrequencyTypeOptions)
-			missing.push("interest rate frequencies");
-		if (!hasInterestCalculationPeriodTypeOptions)
-			missing.push("interest calculation periods");
-		if (!hasTransactionProcessingStrategyOptions)
-			missing.push("repayment strategies");
-		if (!hasAccountingRuleOptions) missing.push("accounting rules");
-		return missing;
-	}, [
-		hasCurrencyOptions,
-		hasRepaymentFrequencyTypeOptions,
-		hasInterestTypeOptions,
-		hasAmortizationTypeOptions,
-		hasInterestRateFrequencyTypeOptions,
-		hasInterestCalculationPeriodTypeOptions,
-		hasTransactionProcessingStrategyOptions,
-		hasAccountingRuleOptions,
-	]);
-
-	const validateTemplateRequirements = (stepId?: number) => {
-		let hasError = false;
-		const values = getValues();
-		const stepsToCheck = stepId ? [stepId] : steps.map((step) => step.id);
-
-		const requireSelect = (
-			field: FieldPath<CreateLoanProductFormData>,
-			optionsAvailable: boolean,
-			label: string,
-			missingMessage: string,
-		) => {
-			if (!optionsAvailable) {
-				setError(field, { message: missingMessage });
-				hasError = true;
-				return;
-			}
-			const value = getValues(field);
-			if (isUnsetValue(value)) {
-				setError(field, { message: `${label} is required` });
-				hasError = true;
-			}
-		};
-
-		if (stepsToCheck.includes(1)) {
-			requireSelect(
-				"currencyCode",
-				hasCurrencyOptions,
-				"Currency",
-				"No currency options configured",
-			);
-			if (
-				hasCurrencyOptions &&
-				(values.digitsAfterDecimal === undefined ||
-					values.digitsAfterDecimal === null)
-			) {
-				setError("digitsAfterDecimal", {
-					message: "Decimal places are required",
-				});
-				hasError = true;
-			}
-		}
-
-		if (stepsToCheck.includes(3)) {
-			requireSelect(
-				"repaymentFrequencyType",
-				hasRepaymentFrequencyTypeOptions,
-				"Repayment frequency",
-				"No repayment frequency options configured",
-			);
-		}
-
-		if (stepsToCheck.includes(4)) {
-			requireSelect(
-				"interestType",
-				hasInterestTypeOptions,
-				"Interest type",
-				"No interest type options configured",
-			);
-			requireSelect(
-				"amortizationType",
-				hasAmortizationTypeOptions,
-				"Amortization type",
-				"No amortization options configured",
-			);
-			requireSelect(
-				"interestRateFrequencyType",
-				hasInterestRateFrequencyTypeOptions,
-				"Interest rate frequency",
-				"No interest rate frequency options configured",
-			);
-			requireSelect(
-				"interestCalculationPeriodType",
-				hasInterestCalculationPeriodTypeOptions,
-				"Interest calculation period",
-				"No interest calculation period options configured",
-			);
-		}
-
-		if (stepsToCheck.includes(7)) {
-			requireSelect(
-				"transactionProcessingStrategyCode",
-				hasTransactionProcessingStrategyOptions,
-				"Repayment strategy",
-				"No repayment strategy options configured",
-			);
-			requireSelect(
-				"accountingRule",
-				hasAccountingRuleOptions,
-				"Accounting rule",
-				"No accounting rule options configured",
-			);
-
-			if (values.accountingRule && values.accountingRule !== 1) {
-				if (!hasAssetOptions) {
-					setError("fundSourceAccountId", {
-						message: "No asset accounts configured",
-					});
-					hasError = true;
-				}
-				if (!hasIncomeOptions) {
-					setError("interestOnLoanAccountId", {
-						message: "No income accounts configured",
-					});
-					hasError = true;
-				}
-				if (!hasExpenseOptions) {
-					setError("writeOffAccountId", {
-						message: "No expense accounts configured",
-					});
-					hasError = true;
-				}
-
-				if (
-					(values.accountingRule === 3 || values.accountingRule === 4) &&
-					!hasLiabilityOptions
-				) {
-					setError("overpaymentLiabilityAccountId", {
-						message: "No liability accounts configured",
-					});
-					hasError = true;
-				}
-			}
-		}
-
-		return !hasError;
-	};
-
-	const handleNext = async () => {
-		console.log("handleNext called for step", currentStep);
+	const handleNext = async (_data: CreateLoanProductFormData) => {
 		const step = steps[currentStep - 1];
 		const fields = step.fields as FieldPath<CreateLoanProductFormData>[];
-		const templateValid = validateTemplateRequirements(currentStep);
-		console.log("templateValid", templateValid);
-		if (!templateValid) {
-			console.log("Template validation failed");
-			return;
-		}
 
 		const isValid = await trigger(fields);
-		console.log("isValid", isValid, "errors", errors);
-		if (!isValid) {
-			console.log("Validation failed for fields:", fields);
-			// For now, use console.log, later add toast
-			console.error(
-				"Validation errors:",
-				Object.values(errors)
-					.map((e) => e.message)
-					.join(", "),
-			);
-			return;
-		}
+		if (!isValid) return;
 
 		if (currentStep < steps.length) {
-			console.log("advancing to step", currentStep + 1);
 			setCurrentStep(currentStep + 1);
-		}
-	};
-
-	const handlePrevious = () => {
-		if (currentStep > 1) {
-			setCurrentStep(currentStep - 1);
 		}
 	};
 
@@ -857,24 +532,39 @@ export function LoanProductWizard({
 
 	const handleFinalSubmit = async (data: CreateLoanProductFormData) => {
 		setSubmitError(null);
-		setIsWizardSubmitting(true);
-		const templateValid = validateTemplateRequirements();
-		if (!templateValid) {
-			setIsWizardSubmitting(false);
-			return;
-		}
+		setIsSubmitting(true);
 
 		try {
 			const payload = buildLoanProductRequest(data);
 			await onSubmit(payload);
 			localStorage.removeItem("loanProductDraft");
-		} catch (error: any) {
-			console.error(
-				"Submission failed:",
-				JSON.stringify(error.response?.data) || error,
-			);
-			setSubmissionErrors(error.response?.data.details || null);
-			setIsWizardSubmitting(false);
+		} catch (error) {
+			const err = error as {
+				message?: string;
+				details?: Record<string, string[]>;
+			};
+			if (err?.details) {
+				Object.entries(err.details).forEach(([field, messages]) => {
+					setError(field as FieldPath<CreateLoanProductFormData>, {
+						type: "server",
+						message: messages[0],
+					});
+				});
+				setSubmitError(err.message || "Validation failed");
+			} else {
+				const mapped = mapFineractError(error);
+				if (mapped.details) {
+					Object.entries(mapped.details).forEach(([field, messages]) => {
+						setError(field as FieldPath<CreateLoanProductFormData>, {
+							type: "server",
+							message: messages[0],
+						});
+					});
+				}
+				setSubmitError(mapped.message);
+			}
+		} finally {
+			setIsSubmitting(false);
 		}
 	};
 
@@ -1024,6 +714,15 @@ export function LoanProductWizard({
 		(option) => option.penalty === true && option.active !== false,
 	);
 
+	const assetOptions =
+		template?.accountingMappingOptions?.assetAccountOptions || [];
+	const incomeOptions =
+		template?.accountingMappingOptions?.incomeAccountOptions || [];
+	const expenseOptions =
+		template?.accountingMappingOptions?.expenseAccountOptions || [];
+	const liabilityOptions =
+		template?.accountingMappingOptions?.liabilityAccountOptions || [];
+
 	return (
 		<TooltipProvider>
 			<div className="space-y-6">
@@ -1087,24 +786,10 @@ export function LoanProductWizard({
 
 				{!templateQuery.isLoading && !templateQuery.error && (
 					<form
-						onSubmit={
-							currentStep === steps.length
-								? handleSubmit(handleFinalSubmit)
-								: (e) => {
-										e.preventDefault();
-										handleNext();
-									}
-						}
-					>
-						{missingTemplateLabels.length > 0 && (
-							<Alert variant="warning" className="mb-4">
-								<AlertTitle>Missing template configuration</AlertTitle>
-								<AlertDescription>
-									Configure {missingTemplateLabels.join(", ")} before creating a
-									loan product.
-								</AlertDescription>
-							</Alert>
+						onSubmit={handleSubmit(
+							currentStep === steps.length ? handleFinalSubmit : handleNext,
 						)}
+					>
 						{currentStep === 1 && (
 							<Card>
 								<CardHeader>
@@ -1113,14 +798,137 @@ export function LoanProductWizard({
 										Set the core product identity and currency defaults.
 									</CardDescription>
 								</CardHeader>
-								<CardContent>
-									<LoanProductIdentityFormSection
-										control={control}
-										register={register}
-										errors={errors}
-										shortNameValue={shortNameValue}
-										template={template}
-									/>
+								<CardContent className="space-y-4">
+									<div className="space-y-2">
+										<Label htmlFor="name">
+											Product Name <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="name"
+											{...register("name")}
+											placeholder="e.g. Working Capital Loan"
+										/>
+										{errors.name && (
+											<p className="text-sm text-destructive">
+												{String(errors.name.message)}
+											</p>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<div className="flex items-center justify-between">
+											<Label htmlFor="shortName">
+												Short Name <span className="text-destructive">*</span>
+											</Label>
+											<span className="text-xs text-muted-foreground">
+												{shortNameValue?.length || 0}/4
+											</span>
+										</div>
+										<Input
+											id="shortName"
+											{...register("shortName")}
+											placeholder="e.g. SWCL"
+											maxLength={4}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Short code appears in reports and account references. Max
+											4 characters (e.g. SWCL).
+										</p>
+										{errors.shortName && (
+											<p className="text-sm text-destructive">
+												{String(errors.shortName.message)}
+											</p>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<Label htmlFor="description">Description</Label>
+										<Input
+											id="description"
+											{...register("description")}
+											placeholder="Describe the product purpose"
+										/>
+									</div>
+
+									<div className="grid gap-4 md:grid-cols-2">
+										<div className="space-y-2">
+											<Label htmlFor="currencyCode">
+												Currency <span className="text-destructive">*</span>
+											</Label>
+											<Controller
+												control={control}
+												name="currencyCode"
+												render={({ field }) => (
+													<Select
+														value={field.value || undefined}
+														onValueChange={field.onChange}
+													>
+														<SelectTrigger id="currencyCode">
+															<SelectValue placeholder="Select currency" />
+														</SelectTrigger>
+														<SelectContent>
+															{currencyOptions
+																.filter((option) => option.code)
+																.map((option) => (
+																	<SelectItem
+																		key={option.code}
+																		value={option.code!}
+																	>
+																		{option.code} - {option.name}
+																	</SelectItem>
+																))}
+														</SelectContent>
+													</Select>
+												)}
+											/>
+											{errors.currencyCode && (
+												<p className="text-sm text-destructive">
+													{String(errors.currencyCode.message)}
+												</p>
+											)}
+										</div>
+										<div className="space-y-2">
+											<Label
+												htmlFor="digitsAfterDecimal"
+												className="flex items-center gap-2"
+											>
+												Decimal Places{" "}
+												<span className="text-destructive">*</span>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															className="inline-flex items-center"
+															aria-label="Decimal place info"
+														>
+															<Info className="h-4 w-4 text-muted-foreground" />
+														</button>
+													</TooltipTrigger>
+													<TooltipContent>
+														Default decimal places for the selected currency.
+													</TooltipContent>
+												</Tooltip>
+											</Label>
+											<Input
+												id="digitsAfterDecimal"
+												type="number"
+												min={0}
+												max={6}
+												{...register("digitsAfterDecimal", {
+													valueAsNumber: true,
+												})}
+											/>
+											<p className="text-xs text-muted-foreground">
+												Controls decimal precision for currency amounts.
+												Example: 2 for KES.
+											</p>
+											{errors.digitsAfterDecimal && (
+												<p className="text-sm text-destructive">
+													{String(errors.digitsAfterDecimal.message)}
+												</p>
+											)}
+										</div>
+									</div>
 								</CardContent>
 							</Card>
 						)}
@@ -1133,11 +941,111 @@ export function LoanProductWizard({
 										Define the minimum, typical, and maximum loan sizes.
 									</CardDescription>
 								</CardHeader>
-								<CardContent>
-									<LoanProductAmountFormSection
-										register={register}
-										errors={errors}
-									/>
+								<CardContent className="space-y-4">
+									<p className="text-xs text-muted-foreground">
+										Typical loan size is the default amount shown when creating
+										a loan; borrowers can still request any amount within
+										min/max.
+									</p>
+									<div className="grid gap-4 md:grid-cols-3">
+										<div className="space-y-2">
+											<Label htmlFor="minPrincipal">
+												Minimum Principal{" "}
+												<span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="minPrincipal"
+												type="number"
+												{...register("minPrincipal", { valueAsNumber: true })}
+												placeholder="1000"
+											/>
+											<p className="text-xs text-muted-foreground">
+												Lowest amount allowed. Example: 1,000.
+											</p>
+											{errors.minPrincipal && (
+												<p className="text-sm text-destructive">
+													{String(errors.minPrincipal.message)}
+												</p>
+											)}
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="principal">
+												Default Principal{" "}
+												<span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="principal"
+												type="number"
+												{...register("principal", { valueAsNumber: true })}
+												placeholder="10000"
+											/>
+											<p className="text-xs text-muted-foreground">
+												Default amount shown. Example: 10,000.
+											</p>
+											{errors.principal && (
+												<p className="text-sm text-destructive">
+													{String(errors.principal.message)}
+												</p>
+											)}
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="maxPrincipal">
+												Maximum Principal{" "}
+												<span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="maxPrincipal"
+												type="number"
+												{...register("maxPrincipal", { valueAsNumber: true })}
+												placeholder="100000"
+											/>
+											<p className="text-xs text-muted-foreground">
+												Highest amount allowed. Example: 100,000.
+											</p>
+											{errors.maxPrincipal && (
+												<p className="text-sm text-destructive">
+													{String(errors.maxPrincipal.message)}
+												</p>
+											)}
+										</div>
+									</div>
+									<div className="space-y-2">
+										<Label
+											htmlFor="inMultiplesOf"
+											className="flex items-center gap-2"
+										>
+											In Multiples Of
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<button
+														type="button"
+														className="inline-flex items-center"
+														aria-label="In multiples info"
+													>
+														<Info className="h-4 w-4 text-muted-foreground" />
+													</button>
+												</TooltipTrigger>
+												<TooltipContent>
+													Restrict approved amounts to this multiple (e.g.
+													1,000).
+												</TooltipContent>
+											</Tooltip>
+										</Label>
+										<Input
+											id="inMultiplesOf"
+											type="number"
+											{...register("inMultiplesOf", { valueAsNumber: true })}
+											placeholder="1"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Approved amounts must be in this multiple. Example: 500.
+										</p>
+										{errors.inMultiplesOf && (
+											<p className="text-sm text-destructive">
+												{String(errors.inMultiplesOf.message)}
+											</p>
+										)}
+									</div>
 								</CardContent>
 							</Card>
 						)}
@@ -1249,10 +1157,7 @@ export function LoanProductWizard({
 										</div>
 										<div className="space-y-2">
 											<Label htmlFor="repaymentFrequencyType">
-												Frequency
-												{hasRepaymentFrequencyTypeOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Frequency <span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1267,20 +1172,21 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasRepaymentFrequencyTypeOptions}
 													>
 														<SelectTrigger id="repaymentFrequencyType">
 															<SelectValue placeholder="Select frequency" />
 														</SelectTrigger>
 														<SelectContent>
-															{repaymentFrequencyTypeOptions.map((option) => (
-																<SelectItem
-																	key={option.id}
-																	value={String(option.id)}
-																>
-																	{optionLabel(option)}
-																</SelectItem>
-															))}
+															{template?.repaymentFrequencyTypeOptions?.map(
+																(option) => (
+																	<SelectItem
+																		key={option.id}
+																		value={String(option.id)}
+																	>
+																		{optionLabel(option)}
+																	</SelectItem>
+																),
+															)}
 														</SelectContent>
 													</Select>
 												)}
@@ -1288,11 +1194,6 @@ export function LoanProductWizard({
 											{errors.repaymentFrequencyType && (
 												<p className="text-sm text-destructive">
 													{String(errors.repaymentFrequencyType.message)}
-												</p>
-											)}
-											{!hasRepaymentFrequencyTypeOptions && (
-												<p className="text-xs text-muted-foreground">
-													No repayment frequency options configured.
 												</p>
 											)}
 										</div>
@@ -1328,14 +1229,12 @@ export function LoanProductWizard({
 										Control how interest is calculated and amortized.
 									</CardDescription>
 								</CardHeader>
-								<CardContent>
+								<CardContent className="space-y-4">
 									<div className="grid gap-4 md:grid-cols-2">
 										<div className="space-y-2">
 											<Label htmlFor="interestType">
-												Interest Type
-												{hasInterestTypeOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Interest Type{" "}
+												<span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1350,13 +1249,12 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasInterestTypeOptions}
 													>
 														<SelectTrigger id="interestType">
 															<SelectValue placeholder="Select type" />
 														</SelectTrigger>
 														<SelectContent>
-															{interestTypeOptions.map((option) => (
+															{template?.interestTypeOptions?.map((option) => (
 																<SelectItem
 																	key={option.id}
 																	value={String(option.id)}
@@ -1373,19 +1271,11 @@ export function LoanProductWizard({
 													{String(errors.interestType.message)}
 												</p>
 											)}
-											{!hasInterestTypeOptions && (
-												<p className="text-xs text-muted-foreground">
-													No interest type options configured.
-												</p>
-											)}
 										</div>
 
 										<div className="space-y-2">
 											<Label htmlFor="amortizationType">
-												Amortization
-												{hasAmortizationTypeOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Amortization <span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1400,20 +1290,21 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasAmortizationTypeOptions}
 													>
 														<SelectTrigger id="amortizationType">
 															<SelectValue placeholder="Select amortization" />
 														</SelectTrigger>
 														<SelectContent>
-															{amortizationTypeOptions.map((option) => (
-																<SelectItem
-																	key={option.id}
-																	value={String(option.id)}
-																>
-																	{optionLabel(option)}
-																</SelectItem>
-															))}
+															{template?.amortizationTypeOptions?.map(
+																(option) => (
+																	<SelectItem
+																		key={option.id}
+																		value={String(option.id)}
+																	>
+																		{optionLabel(option)}
+																	</SelectItem>
+																),
+															)}
 														</SelectContent>
 													</Select>
 												)}
@@ -1421,11 +1312,6 @@ export function LoanProductWizard({
 											{errors.amortizationType && (
 												<p className="text-sm text-destructive">
 													{String(errors.amortizationType.message)}
-												</p>
-											)}
-											{!hasAmortizationTypeOptions && (
-												<p className="text-xs text-muted-foreground">
-													No amortization options configured.
 												</p>
 											)}
 										</div>
@@ -1458,10 +1344,8 @@ export function LoanProductWizard({
 										</div>
 										<div className="space-y-2">
 											<Label htmlFor="interestRateFrequencyType">
-												Rate Frequency
-												{hasInterestRateFrequencyTypeOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Rate Frequency{" "}
+												<span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1476,13 +1360,12 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasInterestRateFrequencyTypeOptions}
 													>
 														<SelectTrigger id="interestRateFrequencyType">
 															<SelectValue placeholder="Select frequency" />
 														</SelectTrigger>
 														<SelectContent>
-															{interestRateFrequencyTypeOptions.map(
+															{template?.interestRateFrequencyTypeOptions?.map(
 																(option) => (
 																	<SelectItem
 																		key={option.id}
@@ -1501,21 +1384,14 @@ export function LoanProductWizard({
 													{String(errors.interestRateFrequencyType.message)}
 												</p>
 											)}
-											{!hasInterestRateFrequencyTypeOptions && (
-												<p className="text-xs text-muted-foreground">
-													No interest rate frequency options configured.
-												</p>
-											)}
 											<p className="text-xs text-muted-foreground">
 												15% per year ~ 1.25% per month (approx).
 											</p>
 										</div>
 										<div className="space-y-2">
 											<Label htmlFor="interestCalculationPeriodType">
-												Calculation Period
-												{hasInterestCalculationPeriodTypeOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Calculation Period{" "}
+												<span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1530,13 +1406,12 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasInterestCalculationPeriodTypeOptions}
 													>
 														<SelectTrigger id="interestCalculationPeriodType">
 															<SelectValue placeholder="Select period" />
 														</SelectTrigger>
 														<SelectContent>
-															{interestCalculationPeriodTypeOptions.map(
+															{template?.interestCalculationPeriodTypeOptions?.map(
 																(option) => (
 																	<SelectItem
 																		key={option.id}
@@ -1553,11 +1428,6 @@ export function LoanProductWizard({
 											{errors.interestCalculationPeriodType && (
 												<p className="text-sm text-destructive">
 													{String(errors.interestCalculationPeriodType.message)}
-												</p>
-											)}
-											{!hasInterestCalculationPeriodTypeOptions && (
-												<p className="text-xs text-muted-foreground">
-													No interest calculation period options configured.
 												</p>
 											)}
 											<p className="text-xs text-muted-foreground">
@@ -1789,10 +1659,8 @@ export function LoanProductWizard({
 									</CardHeader>
 									<CardContent className="space-y-2">
 										<Label htmlFor="transactionProcessingStrategyCode">
-											Transaction Processing Strategy
-											{hasTransactionProcessingStrategyOptions && (
-												<span className="text-destructive"> *</span>
-											)}
+											Transaction Processing Strategy{" "}
+											<span className="text-destructive">*</span>
 										</Label>
 										<Controller
 											control={control}
@@ -1801,14 +1669,13 @@ export function LoanProductWizard({
 												<Select
 													value={field.value || undefined}
 													onValueChange={field.onChange}
-													disabled={!hasTransactionProcessingStrategyOptions}
 												>
 													<SelectTrigger id="transactionProcessingStrategyCode">
 														<SelectValue placeholder="Select strategy" />
 													</SelectTrigger>
 													<SelectContent>
-														{transactionProcessingStrategyOptions
-															.filter((option) => option.code)
+														{template?.transactionProcessingStrategyOptions
+															?.filter((option) => option.code)
 															.map((option) => (
 																<SelectItem
 																	key={option.code}
@@ -1828,11 +1695,6 @@ export function LoanProductWizard({
 												)}
 											</p>
 										)}
-										{!hasTransactionProcessingStrategyOptions && (
-											<p className="text-xs text-muted-foreground">
-												No repayment strategy options configured.
-											</p>
-										)}
 									</CardContent>
 								</Card>
 
@@ -1846,10 +1708,8 @@ export function LoanProductWizard({
 									<CardContent className="space-y-4">
 										<div className="space-y-2">
 											<Label htmlFor="accountingRule">
-												Accounting Rule
-												{hasAccountingRuleOptions && (
-													<span className="text-destructive"> *</span>
-												)}
+												Accounting Rule{" "}
+												<span className="text-destructive">*</span>
 											</Label>
 											<Controller
 												control={control}
@@ -1864,20 +1724,21 @@ export function LoanProductWizard({
 														onValueChange={(value) =>
 															field.onChange(Number(value))
 														}
-														disabled={!hasAccountingRuleOptions}
 													>
 														<SelectTrigger id="accountingRule">
 															<SelectValue placeholder="Select rule" />
 														</SelectTrigger>
 														<SelectContent>
-															{accountingRuleOptions.map((option) => (
-																<SelectItem
-																	key={option.id}
-																	value={String(option.id)}
-																>
-																	{optionLabel(option)}
-																</SelectItem>
-															))}
+															{template?.accountingRuleOptions?.map(
+																(option) => (
+																	<SelectItem
+																		key={option.id}
+																		value={String(option.id)}
+																	>
+																		{optionLabel(option)}
+																	</SelectItem>
+																),
+															)}
 														</SelectContent>
 													</Select>
 												)}
@@ -1887,35 +1748,11 @@ export function LoanProductWizard({
 													{String(errors.accountingRule.message)}
 												</p>
 											)}
-											{!hasAccountingRuleOptions && (
-												<p className="text-xs text-muted-foreground">
-													No accounting rule options configured.
-												</p>
-											)}
 										</div>
 
 										{accountingRule && accountingRule !== 1 && (
 											<div className="space-y-4">
 												<Separator />
-												{(!hasAssetOptions ||
-													!hasIncomeOptions ||
-													!hasExpenseOptions ||
-													!hasLiabilityOptions) && (
-													<div className="space-y-1 text-xs text-muted-foreground">
-														{!hasAssetOptions && (
-															<p>No asset accounts configured.</p>
-														)}
-														{!hasIncomeOptions && (
-															<p>No income accounts configured.</p>
-														)}
-														{!hasExpenseOptions && (
-															<p>No expense accounts configured.</p>
-														)}
-														{!hasLiabilityOptions && (
-															<p>No liability accounts configured.</p>
-														)}
-													</div>
-												)}
 												<div className="grid gap-4 md:grid-cols-2">
 													<div className="space-y-2">
 														<Label htmlFor="fundSourceAccountId">
@@ -2430,7 +2267,7 @@ export function LoanProductWizard({
 											<p>
 												{watchedValues.interestRatePerPeriod || "-"}%{" "}
 												{optionLabel(
-													interestRateFrequencyTypeOptions.find(
+													template?.interestRateFrequencyTypeOptions?.find(
 														(option) =>
 															option.id ===
 															watchedValues.interestRateFrequencyType,
@@ -2438,7 +2275,7 @@ export function LoanProductWizard({
 												)}
 												, {watchedValues.repaymentEvery || "-"}{" "}
 												{optionLabel(
-													repaymentFrequencyTypeOptions.find(
+													template?.repaymentFrequencyTypeOptions?.find(
 														(option) =>
 															option.id ===
 															watchedValues.repaymentFrequencyType,
@@ -2466,7 +2303,7 @@ export function LoanProductWizard({
 											<p>
 												Repayment order:{" "}
 												{waterfallLabel(
-													transactionProcessingStrategyOptions.find(
+													template?.transactionProcessingStrategyOptions?.find(
 														(option) =>
 															option.code ===
 															watchedValues.transactionProcessingStrategyCode,
@@ -2518,17 +2355,23 @@ export function LoanProductWizard({
 							<Button
 								type="button"
 								variant="outline"
-								onClick={currentStep === 1 ? onCancel : handlePrevious}
-								disabled={currentStep === 1}
+								onClick={currentStep === 1 ? onCancel : handleBack}
 							>
 								<ChevronLeft className="h-4 w-4 mr-2" />
-								{currentStep === 1 ? "Cancel" : "Previous"}
+								{currentStep === 1 ? "Cancel" : "Back"}
 							</Button>
 
 							<div className="flex items-center gap-2">
-								<Button type="submit" disabled={isWizardSubmitting}>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleSaveDraft}
+								>
+									Save Draft
+								</Button>
+								<Button type="submit" disabled={isSubmitting}>
 									{currentStep === steps.length ? (
-										isWizardSubmitting ? (
+										isSubmitting ? (
 											"Submitting..."
 										) : (
 											"Submit Loan Product"
@@ -2548,7 +2391,7 @@ export function LoanProductWizard({
 				<Sheet open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+						className="w-full sm:max-w-lg overflow-y-auto"
 					>
 						<SheetHeader>
 							<SheetTitle>Add Fee</SheetTitle>
@@ -2705,34 +2548,14 @@ export function LoanProductWizard({
 				<Sheet open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+						className="w-full sm:max-w-lg overflow-y-auto"
 					>
 						<SheetHeader>
-							<SheetTitle>
-								{isEdit ? "Edit Loan Product" : "Create Loan Product"}
-							</SheetTitle>
+							<SheetTitle>Select Existing Fees</SheetTitle>
 							<SheetDescription>
-								{isEdit
-									? "Update core loan product settings"
-									: "Configure a new loan product with a multi-step wizard"}
+								Choose from configured fee charges.
 							</SheetDescription>
 						</SheetHeader>
-						{submissionErrors && (
-							<Alert variant="destructive">
-								<AlertTitle>Submission Failed</AlertTitle>
-								<AlertDescription>
-									<ul>
-										{Object.entries(submissionErrors).map(
-											([field, messages]) => (
-												<li key={field}>
-													<strong>{field}:</strong> {messages.join(", ")}
-												</li>
-											),
-										)}
-									</ul>
-								</AlertDescription>
-							</Alert>
-						)}
 						<div className="space-y-3 mt-4">
 							{feeOptions.length === 0 && (
 								<p className="text-sm text-muted-foreground">
@@ -2767,7 +2590,7 @@ export function LoanProductWizard({
 				<Sheet open={isPenaltyDrawerOpen} onOpenChange={setIsPenaltyDrawerOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+						className="w-full sm:max-w-lg overflow-y-auto"
 					>
 						<SheetHeader>
 							<SheetTitle>Add Penalty</SheetTitle>
@@ -2925,16 +2748,12 @@ export function LoanProductWizard({
 				<Sheet open={isPenaltySelectOpen} onOpenChange={setIsPenaltySelectOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+						className="w-full sm:max-w-lg overflow-y-auto"
 					>
 						<SheetHeader>
-							<SheetTitle>
-								{isEdit ? "Edit Loan Product" : "Create Loan Product"}
-							</SheetTitle>
+							<SheetTitle>Select Existing Penalties</SheetTitle>
 							<SheetDescription>
-								{isEdit
-									? "Update core loan product settings"
-									: "Configure a new loan product with a multi-step wizard"}
+								Choose from configured penalty charges.
 							</SheetDescription>
 						</SheetHeader>
 						<div className="space-y-3 mt-4">

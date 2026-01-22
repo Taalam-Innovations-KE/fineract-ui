@@ -1,10 +1,8 @@
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	ChargeRequest,
-	GetLoanProductsResponse,
 	GetLoanProductsTemplateResponse,
 	PostLoanProductsRequest,
-	PutLoanProductsProductIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import type {
 	CreateLoanProductFormData,
@@ -66,39 +64,11 @@ export const loanProductsApi = {
 
 		return parseJsonResponse(response);
 	},
-	async list(tenantId: string): Promise<GetLoanProductsResponse[]> {
+	async list(tenantId: string) {
 		const response = await fetch(BFF_ROUTES.loanProducts, {
 			headers: {
 				"x-tenant-id": tenantId,
 			},
-		});
-
-		return parseJsonResponse(response);
-	},
-	async getById(
-		tenantId: string,
-		productId: number,
-	): Promise<GetLoanProductsResponse> {
-		const response = await fetch(`${BFF_ROUTES.loanProducts}/${productId}`, {
-			headers: {
-				"x-tenant-id": tenantId,
-			},
-		});
-
-		return parseJsonResponse(response);
-	},
-	async update(
-		tenantId: string,
-		productId: number,
-		payload: PutLoanProductsProductIdRequest,
-	) {
-		const response = await fetch(`${BFF_ROUTES.loanProducts}/${productId}`, {
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify(payload),
 		});
 
 		return parseJsonResponse(response);

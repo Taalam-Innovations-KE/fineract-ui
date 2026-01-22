@@ -7,7 +7,6 @@ import {
 	Clock,
 	CreditCard,
 	DollarSign,
-	FileText,
 	LayoutGrid,
 	Settings,
 	Shield,
@@ -70,11 +69,6 @@ const navItems: NavItem[] = [
 		icon: Settings,
 		children: [
 			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
-			{
-				title: "Maker-Checker",
-				href: "/config/system/maker-checker",
-				icon: Shield,
-			},
 		],
 	},
 	{
@@ -101,11 +95,6 @@ const navItems: NavItem[] = [
 			},
 			{ title: "Clients", href: "/config/operations/clients", icon: Users },
 			{ title: "Loans", href: "/config/operations/loans", icon: Banknote },
-			{
-				title: "Applied Loans",
-				href: "/config/operations/applied-loans",
-				icon: FileText,
-			},
 		],
 	},
 ];

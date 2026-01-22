@@ -1,8 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, PenLine, Plus } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -812,30 +810,6 @@ export default function CodesPage() {
 				</button>
 			),
 		},
-		{
-			header: "Actions",
-			cell: (code: GetCodesResponse) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button asChild variant="outline" size="sm" disabled={!code.id}>
-						<Link href={`/config/system/codes/${code.id ?? ""}`}>
-							<Eye className="mr-2 h-4 w-4" />
-							View
-						</Link>
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						onClick={() => setSelectedCode(code)}
-						disabled={!code.id}
-					>
-						<PenLine className="mr-2 h-4 w-4" />
-						Edit
-					</Button>
-				</div>
-			),
-			className: "text-right",
-			headerClassName: "text-right",
-		},
 	];
 
 	return (
@@ -892,7 +866,7 @@ export default function CodesPage() {
 			>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+					className="w-full sm:max-w-lg overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>{selectedCode?.name || "Code Values"}</SheetTitle>
@@ -943,14 +917,7 @@ export default function CodesPage() {
 									onClick={handleAddValue}
 									disabled={!newValueName.trim() || addValueMutation.isPending}
 								>
-									{addValueMutation.isPending ? (
-										"Adding..."
-									) : (
-										<>
-											<Plus className="mr-2 h-4 w-4" />
-											Add Value
-										</>
-									)}
+									{addValueMutation.isPending ? "Adding..." : "Add Value"}
 								</Button>
 							</div>
 							{valueError && (
@@ -1023,7 +990,6 @@ export default function CodesPage() {
 															handleEditValue(value);
 														}}
 													>
-														<PenLine className="mr-2 h-4 w-4" />
 														Edit
 													</Button>
 													<Button
@@ -1138,7 +1104,7 @@ export default function CodesPage() {
 			>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+					className="w-full sm:max-w-lg overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>
@@ -1197,14 +1163,9 @@ export default function CodesPage() {
 										createDatatableMutation.isPending || !datatableName.trim()
 									}
 								>
-									{createDatatableMutation.isPending ? (
-										"Creating..."
-									) : (
-										<>
-											<Plus className="mr-2 h-4 w-4" />
-											Create Datatable
-										</>
-									)}
+									{createDatatableMutation.isPending
+										? "Creating..."
+										: "Create Datatable"}
 								</Button>
 							</div>
 						)}

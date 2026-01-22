@@ -11,15 +11,14 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
  */
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: Promise<{ clientId: string }> },
+	{ params }: { params: { clientId: string } },
 ) {
 	try {
-		const { clientId } = await params;
 		const tenantId = getTenantFromRequest(request);
 		const queryString = request.nextUrl.searchParams.toString();
 		const path = queryString
-			? `/v1/clients/${clientId}/identifiers/template?${queryString}`
-			: `/v1/clients/${clientId}/identifiers/template`;
+			? `/v1/clients/${params.clientId}/identifiers/template?${queryString}`
+			: `/v1/clients/${params.clientId}/identifiers/template`;
 
 		const template = await fineractFetch(path, {
 			method: "GET",

@@ -131,33 +131,16 @@ export const loanProductScheduleSchema = z
 	});
 
 // Step 4: Interest & Calculation Rules
-export const loanProductInterestSchema = z
-	.object({
-		interestType: z.number().min(0),
-		amortizationType: z.number().min(0),
-		interestRatePerPeriod: z
-			.number()
-			.positive("Interest rate must be greater than 0"),
-		interestRateFrequencyType: z.number().min(0),
-		interestCalculationPeriodType: z.number().min(0),
-		allowPartialPeriodInterestCalculation: z.boolean().optional(),
-		daysInYearType: z.number().min(1).max(365),
-		daysInMonthType: z.number().min(1).max(30),
-		isInterestRecalculationEnabled: z.boolean(),
-	})
-	.superRefine((data, ctx) => {
-		if (
-			data.interestCalculationPeriodType === 0 &&
-			data.allowPartialPeriodInterestCalculation
-		) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ["allowPartialPeriodInterestCalculation"],
-				message:
-					"Partial period interest calculation is not supported for daily calculations.",
-			});
-		}
-	});
+export const loanProductInterestSchema = z.object({
+	interestType: z.number().min(0),
+	amortizationType: z.number().min(0),
+	interestRatePerPeriod: z
+		.number()
+		.positive("Interest rate must be greater than 0"),
+	interestRateFrequencyType: z.number().min(0),
+	interestCalculationPeriodType: z.number().min(0),
+	allowPartialPeriodInterestCalculation: z.boolean().optional(),
+});
 
 // Step 5: Fees
 export const loanProductFeesSchema = z.object({

@@ -1,13 +1,9 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, PenLine, Shield, Users } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import { RoleForm } from "@/components/config/forms/role-form";
+import { useQuery } from "@tanstack/react-query";
+import { Shield, Users } from "lucide-react";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -16,18 +12,8 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type {
-	GetRolesResponse,
-	PutRolesRoleIdRequest,
-} from "@/lib/fineract/generated/types.gen";
+import type { GetRolesResponse } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
@@ -44,36 +30,8 @@ async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
 	return response.json();
 }
 
-async function updateRole(
-	tenantId: string,
-	roleId: number,
-	data: PutRolesRoleIdRequest,
-) {
-	const response = await fetch(`${BFF_ROUTES.roles}/${roleId}`, {
-		method: "PUT",
-		headers: {
-			"Content-Type": "application/json",
-			"x-tenant-id": tenantId,
-		},
-		body: JSON.stringify(data),
-	});
-
-	const payload = await response.json();
-
-	if (!response.ok) {
-		throw new Error(payload.message || "Failed to update role");
-	}
-
-	return payload;
-}
-
 export default function RolesPage() {
 	const { tenantId } = useTenantStore();
-	const queryClient = useQueryClient();
-	const [selectedRole, setSelectedRole] = useState<GetRolesResponse | null>(
-		null,
-	);
-	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
 	const {
 		data: roles = [],
@@ -82,16 +40,6 @@ export default function RolesPage() {
 	} = useQuery({
 		queryKey: ["roles", tenantId],
 		queryFn: () => fetchRoles(tenantId),
-	});
-
-	const updateMutation = useMutation({
-		mutationFn: (data: PutRolesRoleIdRequest) =>
-			updateRole(tenantId, selectedRole!.id!, data),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
-			setIsDrawerOpen(false);
-			setSelectedRole(null);
-		},
 	});
 
 	const isAdminRole = (role: GetRolesResponse) =>
@@ -127,41 +75,7 @@ export default function RolesPage() {
 					</Badge>
 				),
 		},
-		{
-			header: "Actions",
-			cell: (role: GetRolesResponse) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button asChild variant="outline" size="sm" disabled={!role.id}>
-						<Link href={`/config/organisation/roles/${role.id ?? ""}`}>
-							<Eye className="mr-2 h-4 w-4" />
-							View
-						</Link>
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						onClick={() => {
-							setSelectedRole(role);
-							setIsDrawerOpen(true);
-						}}
-						disabled={!role.id}
-					>
-						<PenLine className="mr-2 h-4 w-4" />
-						Edit
-					</Button>
-				</div>
-			),
-			className: "text-right",
-			headerClassName: "text-right",
-		},
 	];
-
-	const handleDrawerClose = (open: boolean) => {
-		setIsDrawerOpen(open);
-		if (!open) {
-			setSelectedRole(null);
-		}
-	};
 
 	return (
 		<PageShell
@@ -253,27 +167,6 @@ export default function RolesPage() {
 					</CardContent>
 				</Card>
 			</div>
-
-			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerClose}>
-				<SheetContent
-					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
-				>
-					<SheetHeader>
-						<SheetTitle>Edit Role</SheetTitle>
-						<SheetDescription>
-							Update role metadata and description.
-						</SheetDescription>
-					</SheetHeader>
-					<div className="mt-6">
-						<RoleForm
-							initialData={selectedRole}
-							onSubmit={(data) => updateMutation.mutateAsync(data)}
-							onCancel={() => handleDrawerClose(false)}
-						/>
-					</div>
-				</SheetContent>
-			</Sheet>
 		</PageShell>
 	);
 }

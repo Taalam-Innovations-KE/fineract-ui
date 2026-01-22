@@ -11,15 +11,14 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
  */
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: Promise<{ clientId: string }> },
+	{ params }: { params: { clientId: string } },
 ) {
 	try {
-		const { clientId } = await params;
 		const tenantId = getTenantFromRequest(request);
 		const queryString = request.nextUrl.searchParams.toString();
 		const path = queryString
-			? `/v1/clients/${clientId}/identifiers?${queryString}`
-			: `/v1/clients/${clientId}/identifiers`;
+			? `/v1/clients/${params.clientId}/identifiers?${queryString}`
+			: `/v1/clients/${params.clientId}/identifiers`;
 
 		const identifiers = await fineractFetch(path, {
 			method: "GET",
@@ -41,17 +40,19 @@ export async function GET(
  */
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: Promise<{ clientId: string }> },
+	{ params }: { params: { clientId: string } },
 ) {
 	try {
-		const { clientId } = await params;
 		const tenantId = getTenantFromRequest(request);
 		const body = await request.json();
-		const result = await fineractFetch(`/v1/clients/${clientId}/identifiers`, {
-			method: "POST",
-			body,
-			tenantId,
-		});
+		const result = await fineractFetch(
+			`/v1/clients/${params.clientId}/identifiers`,
+			{
+				method: "POST",
+				body,
+				tenantId,
+			},
+		);
 
 		return NextResponse.json(result);
 	} catch (error) {

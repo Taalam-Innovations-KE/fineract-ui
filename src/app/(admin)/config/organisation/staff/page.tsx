@@ -1,8 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Eye, PenLine, Plus, UserCheck, Users } from "lucide-react";
-import Link from "next/link";
+import { Building2, Plus, UserCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { StaffForm } from "@/components/config/forms/staff-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -171,7 +170,7 @@ export default function StaffPage() {
 		},
 	});
 
-	const handleEditStaff = (member: Staff) => {
+	const handleRowClick = (member: Staff) => {
 		setSelectedStaff(member);
 		setIsDialogOpen(true);
 	};
@@ -243,33 +242,6 @@ export default function StaffPage() {
 					{member.externalId || "—"}
 				</span>
 			),
-		},
-		{
-			header: "Actions",
-			cell: (member: Staff) => {
-				const staffId = member.id;
-				return (
-					<div className="flex items-center justify-end gap-2">
-						<Button asChild variant="outline" size="sm" disabled={!staffId}>
-							<Link href={`/config/organisation/staff/${staffId ?? ""}`}>
-								<Eye className="mr-2 h-4 w-4" />
-								View
-							</Link>
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							onClick={() => handleEditStaff(member)}
-							disabled={!staffId}
-						>
-							<PenLine className="mr-2 h-4 w-4" />
-							Edit
-						</Button>
-					</div>
-				);
-			},
-			className: "text-right",
-			headerClassName: "text-right",
 		},
 	];
 
@@ -438,6 +410,7 @@ export default function StaffPage() {
 								getRowId={(member) =>
 									member.id ?? member.displayName ?? "staff-row"
 								}
+								onRowClick={handleRowClick}
 							/>
 						)}
 					</CardContent>
@@ -447,7 +420,7 @@ export default function StaffPage() {
 			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+					className="w-full sm:max-w-lg overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>

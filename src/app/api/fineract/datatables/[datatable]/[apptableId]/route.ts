@@ -7,10 +7,10 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 
 interface RouteContext {
-	params: Promise<{
+	params: {
 		datatable: string;
 		apptableId: string;
-	}>;
+	};
 }
 
 /**
@@ -20,7 +20,7 @@ interface RouteContext {
 export async function GET(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { datatable, apptableId } = await context.params;
+		const { datatable, apptableId } = context.params;
 		const queryString = request.nextUrl.searchParams.toString();
 		const path = queryString
 			? `${FINERACT_ENDPOINTS.datatables}/${datatable}/${apptableId}?${queryString}`
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 export async function POST(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { datatable, apptableId } = await context.params;
+		const { datatable, apptableId } = context.params;
 		const body = await request.json();
 
 		const result = await fineractFetch(
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 export async function PUT(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { datatable, apptableId } = await context.params;
+		const { datatable, apptableId } = context.params;
 		const body = await request.json();
 
 		const result = await fineractFetch(

@@ -1,8 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, PenLine, Plus } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -37,9 +35,6 @@ import {
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	ClientAddressRequest,
-	ClientIdentifierRequest,
-	GetClientsClientIdIdentifiersResponse,
-	GetClientsClientIdResponse,
 	GetClientsPageItemsResponse,
 	GetClientsResponse,
 	GetCodeValuesDataResponse,
@@ -73,7 +68,7 @@ type LookupOption = GetCodeValuesDataResponse & {
 	isDefault?: boolean;
 	value?: string;
 };
-type IdentityType = "nationalId" | "passport";
+type ClientKind = "individual" | "business";
 
 type ClientNonPersonDetails = {
 	mainBusinessLineId?: number;
@@ -92,6 +87,7 @@ type ClientTemplateResponse = {
 	clientClassificationOptions?: LookupOption[];
 	clientLegalFormOptions?: LookupOption[];
 	clientNonPersonMainBusinessLineOptions?: LookupOption[];
+	clientTypeOptions?: LookupOption[];
 	genderOptions?: LookupOption[];
 	officeOptions?: OfficeData[];
 };
@@ -101,12 +97,14 @@ type ClientIdentifierTemplate = {
 };
 
 type ClientFormData = {
+	clientKind: ClientKind;
 	firstname: string;
 	middlename?: string;
 	lastname: string;
 	fullname: string;
 	officeId?: number;
 	genderId?: number;
+	clientTypeId?: number;
 	clientClassificationId?: number;
 	legalFormId?: number;
 	businessTypeId?: number;
@@ -119,8 +117,8 @@ type ClientFormData = {
 	addressLine1?: string;
 	city?: string;
 	countryId?: number;
-	identityType?: IdentityType;
-	identityNumber?: string;
+	nationalId?: string;
+	passportNo?: string;
 	taxId?: string;
 	businessLicenseNo?: string;
 	registrationNo?: string;
@@ -128,6 +126,7 @@ type ClientFormData = {
 
 type ClientCreatePayload = PostClientsRequest & {
 	genderId?: number;
+	clientTypeId?: number;
 	clientClassificationId?: number;
 	legalFormId?: number;
 	clientNonPersonDetails?: ClientNonPersonDetails;
@@ -164,20 +163,6 @@ function formatDateForFineract(value?: string) {
 	}).format(parsed);
 }
 
-function getAgeFromDate(value?: string) {
-	if (!value) return null;
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return null;
-	const today = new Date();
-	let age = today.getFullYear() - parsed.getFullYear();
-	const hasHadBirthday =
-		today.getMonth() > parsed.getMonth() ||
-		(today.getMonth() === parsed.getMonth() &&
-			today.getDate() >= parsed.getDate());
-	if (!hasHadBirthday) age -= 1;
-	return age;
-}
-
 function resolveDocumentTypeId(options: LookupOption[], matches: string[]) {
 	const normalizedMatches = matches.map((match) => match.toLowerCase());
 	const match = options.find((option) => {
@@ -185,23 +170,6 @@ function resolveDocumentTypeId(options: LookupOption[], matches: string[]) {
 		return normalizedMatches.some((value) => name.includes(value));
 	});
 	return match?.id;
-}
-
-function isEntityLegalForm(option?: LookupOption) {
-	if (!option) return false;
-	const label = `${option.value || ""} ${option.name || ""} ${
-		option.description || ""
-	}`
-		.toLowerCase()
-		.trim();
-	return (
-		label.includes("entity") ||
-		label.includes("non-person") ||
-		label.includes("non person") ||
-		label.includes("organisation") ||
-		label.includes("organization") ||
-		label.includes("business")
-	);
 }
 
 function LookupSkeleton() {
@@ -238,43 +206,6 @@ async function fetchClients(tenantId: string): Promise<GetClientsResponse> {
 
 	if (!response.ok) {
 		throw new Error("Failed to fetch clients");
-	}
-
-	return response.json();
-}
-
-async function fetchClientDetails(
-	tenantId: string,
-	clientId: number,
-): Promise<GetClientsClientIdResponse> {
-	const response = await fetch(`${BFF_ROUTES.clients}/${clientId}`, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch client details");
-	}
-
-	return response.json();
-}
-
-async function fetchClientIdentifiers(
-	tenantId: string,
-	clientId: number,
-): Promise<GetClientsClientIdIdentifiersResponse[]> {
-	const response = await fetch(
-		`/api/fineract/clients/${clientId}/identifiers`,
-		{
-			headers: {
-				"x-tenant-id": tenantId,
-			},
-		},
-	);
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch client identifiers");
 	}
 
 	return response.json();
@@ -360,88 +291,11 @@ async function createClient(tenantId: string, payload: ClientCreatePayload) {
 	return data;
 }
 
-async function updateClient(
-	tenantId: string,
-	clientId: number,
-	payload: ClientCreatePayload,
-) {
-	const response = await fetch(`${BFF_ROUTES.clients}/${clientId}`, {
-		method: "PUT",
-		headers: {
-			"Content-Type": "application/json",
-			"x-tenant-id": tenantId,
-		},
-		body: JSON.stringify(payload),
-	});
-
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to update client");
-	}
-
-	return data;
-}
-
-async function updateClientIdentifier(
-	tenantId: string,
-	clientId: number,
-	identifierId: number,
-	payload: ClientIdentifierRequest,
-) {
-	const response = await fetch(
-		`/api/fineract/clients/${clientId}/identifiers/${identifierId}`,
-		{
-			method: "PUT",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify(payload),
-		},
-	);
-
-	if (!response.ok) {
-		const data = await response.json();
-		throw new Error(data.message || "Failed to update client identifier");
-	}
-
-	return response.json();
-}
-
-function parseDisplayName(displayName?: string) {
-	const normalized = (displayName || "").trim();
-	if (!normalized) return { firstname: "", lastname: "" };
-	const parts = normalized.split(/\s+/);
-	return {
-		firstname: parts[0] || "",
-		lastname: parts.slice(1).join(" "),
-	};
-}
-
-function toDateInputValue(value?: string) {
-	if (!value) return "";
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return "";
-	const year = parsed.getFullYear();
-	const month = String(parsed.getMonth() + 1).padStart(2, "0");
-	const day = String(parsed.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function matchesDocumentType(name: string | undefined, matches: string[]) {
-	if (!name) return false;
-	const normalized = name.toLowerCase();
-	return matches.some((match) => normalized.includes(match.toLowerCase()));
-}
-
 export default function ClientsPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
-	const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-	const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
 
 	const clientsQuery = useQuery({
 		queryKey: ["clients", tenantId],
@@ -452,22 +306,6 @@ export default function ClientsPage() {
 		queryKey: ["clients-template", tenantId],
 		queryFn: () => fetchClientTemplate(tenantId),
 		enabled: isDrawerOpen,
-		staleTime: DEFAULT_STALE_TIME,
-		refetchOnWindowFocus: false,
-	});
-
-	const clientDetailsQuery = useQuery({
-		queryKey: ["client", tenantId, selectedClientId],
-		queryFn: () => fetchClientDetails(tenantId, selectedClientId ?? 0),
-		enabled: Boolean(selectedClientId) && drawerMode === "edit" && isDrawerOpen,
-		staleTime: DEFAULT_STALE_TIME,
-		refetchOnWindowFocus: false,
-	});
-
-	const clientIdentifiersQuery = useQuery({
-		queryKey: ["client-identifiers", tenantId, selectedClientId],
-		queryFn: () => fetchClientIdentifiers(tenantId, selectedClientId ?? 0),
-		enabled: Boolean(selectedClientId) && drawerMode === "edit" && isDrawerOpen,
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
 	});
@@ -521,68 +359,6 @@ export default function ClientsPage() {
 		},
 	});
 
-	const updateMutation = useMutation({
-		mutationFn: async ({ payload, identifiers }: ClientSubmission) => {
-			if (!selectedClientId) {
-				throw new Error("Missing client to update");
-			}
-			const result = await updateClient(tenantId, selectedClientId, payload);
-			if (!identifiers.length) return result;
-
-			const identifierTemplate = await fetchClientIdentifierTemplate(
-				tenantId,
-				selectedClientId,
-			);
-			const allowedDocumentTypes = (identifierTemplate.allowedDocumentTypes ||
-				[]) as LookupOption[];
-			const existingIdentifiers = await fetchClientIdentifiers(
-				tenantId,
-				selectedClientId,
-			);
-
-			const updateRequests = identifiers.map(async (identifier) => {
-				const documentTypeId = resolveDocumentTypeId(
-					allowedDocumentTypes,
-					identifier.matches,
-				);
-				if (!documentTypeId) {
-					throw new Error(
-						`Missing document type for ${identifier.label}. Configure identifier types in System Settings.`,
-					);
-				}
-				const existing = existingIdentifiers.find((item) =>
-					matchesDocumentType(item.documentType?.name, identifier.matches),
-				);
-				if (existing?.id) {
-					return updateClientIdentifier(
-						tenantId,
-						selectedClientId,
-						existing.id,
-						{
-							documentKey: identifier.value,
-							documentTypeId,
-						},
-					);
-				}
-
-				return createClientIdentifier(tenantId, selectedClientId, {
-					documentKey: identifier.value,
-					documentTypeId,
-				});
-			});
-
-			await Promise.all(updateRequests);
-			return result;
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-			setIsDrawerOpen(false);
-			setSelectedClientId(null);
-			setDrawerMode("create");
-			setToastMessage("Client updated successfully");
-		},
-	});
-
 	const {
 		register,
 		handleSubmit,
@@ -596,6 +372,7 @@ export default function ClientsPage() {
 		formState: { errors },
 	} = useForm<ClientFormData>({
 		defaultValues: {
+			clientKind: "individual",
 			fullname: "",
 			firstname: "",
 			middlename: "",
@@ -605,8 +382,8 @@ export default function ClientsPage() {
 			dateOfBirth: "",
 			addressLine1: "",
 			city: "",
-			identityType: undefined,
-			identityNumber: "",
+			nationalId: "",
+			passportNo: "",
 			taxId: "",
 			businessLicenseNo: "",
 			registrationNo: "",
@@ -621,6 +398,10 @@ export default function ClientsPage() {
 		() => (clientTemplate?.genderOptions || []) as LookupOption[],
 		[clientTemplate?.genderOptions],
 	);
+	const clientTypeOptions = useMemo(
+		() => (clientTemplate?.clientTypeOptions || []) as LookupOption[],
+		[clientTemplate?.clientTypeOptions],
+	);
 	const clientClassificationOptions = useMemo(
 		() => (clientTemplate?.clientClassificationOptions || []) as LookupOption[],
 		[clientTemplate?.clientClassificationOptions],
@@ -628,14 +409,6 @@ export default function ClientsPage() {
 	const legalFormOptions = useMemo(
 		() => (clientTemplate?.clientLegalFormOptions || []) as LookupOption[],
 		[clientTemplate?.clientLegalFormOptions],
-	);
-	const businessLegalFormId = useMemo(
-		() => legalFormOptions.find((option) => isEntityLegalForm(option))?.id,
-		[legalFormOptions],
-	);
-	const individualLegalFormId = useMemo(
-		() => legalFormOptions.find((option) => !isEntityLegalForm(option))?.id,
-		[legalFormOptions],
 	);
 	const businessLineOptions = useMemo(
 		() =>
@@ -652,40 +425,24 @@ export default function ClientsPage() {
 		[addressOptions.countryIdOptions],
 	);
 
-	const isEditLoading =
-		drawerMode === "edit" &&
-		(clientDetailsQuery.isLoading || clientIdentifiersQuery.isLoading);
-	const isLookupsLoading =
-		isDrawerOpen && (templateQuery.isLoading || isEditLoading);
+	const isLookupsLoading = isDrawerOpen && templateQuery.isLoading;
 
-	const lookupErrors = [
-		templateQuery.error,
-		clientDetailsQuery.error,
-		clientIdentifiersQuery.error,
-	].filter(Boolean) as Error[];
+	const lookupErrors = [templateQuery.error].filter(Boolean) as Error[];
 
 	const hasMissingOffice = !officeOptions.length;
 	const isAddressEnabled = Boolean(clientTemplate?.isAddressEnabled);
-	const legalFormId = watch("legalFormId");
-	const selectedLegalForm = useMemo(
-		() => legalFormOptions.find((option) => option.id === legalFormId),
-		[legalFormId, legalFormOptions],
-	);
-	const isBusiness = isEntityLegalForm(selectedLegalForm);
+	const clientKind = watch("clientKind");
+	const isBusiness = clientKind === "business";
 	const isActive = Boolean(watch("active"));
-	const identityType = watch("identityType");
-	const hasMissingLegalForm = !legalFormOptions.length;
 	const hasMissingCountry = isAddressEnabled && !countryOptions.length;
-	const hasMissingBusinessTypeOptions =
-		isBusiness && !businessLineOptions.length;
+	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
 
 	const disableSubmit =
 		isLookupsLoading ||
 		hasMissingOffice ||
-		hasMissingLegalForm ||
 		hasMissingCountry ||
-		createMutation.isPending ||
-		updateMutation.isPending;
+		hasMissingBusinessType ||
+		createMutation.isPending;
 
 	const clients = clientsQuery.data?.pageItems || [];
 
@@ -719,149 +476,38 @@ export default function ClientsPage() {
 				</Badge>
 			),
 		},
-		{
-			header: "Actions",
-			cell: (client: GetClientsPageItemsResponse) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button asChild variant="outline" size="sm" disabled={!client.id}>
-						<Link href={`/config/operations/clients/${client.id ?? ""}`}>
-							<Eye className="mr-2 h-4 w-4" />
-							View
-						</Link>
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						onClick={() => {
-							if (!client.id) return;
-							setSelectedClientId(client.id);
-							setDrawerMode("edit");
-							setIsDrawerOpen(true);
-						}}
-						disabled={!client.id}
-					>
-						<PenLine className="mr-2 h-4 w-4" />
-						Edit
-					</Button>
-				</div>
-			),
-			className: "text-right",
-			headerClassName: "text-right",
-		},
 	];
 
 	useEffect(() => {
 		if (!isDrawerOpen) return;
-		if (drawerMode === "create") {
-			reset({
-				fullname: "",
-				firstname: "",
-				middlename: "",
-				lastname: "",
-				officeId: undefined,
-				genderId: undefined,
-				clientClassificationId: undefined,
-				legalFormId: undefined,
-				businessTypeId: undefined,
-				mobileNo: "",
-				emailAddress: "",
-				externalId: "",
-				active: false,
-				activationDate: "",
-				dateOfBirth: "",
-				addressLine1: "",
-				city: "",
-				countryId: undefined,
-				identityType: undefined,
-				identityNumber: "",
-				taxId: "",
-				businessLicenseNo: "",
-				registrationNo: "",
-			});
-		}
-	}, [drawerMode, isDrawerOpen, reset]);
-
-	useEffect(() => {
-		if (!isDrawerOpen || drawerMode !== "edit") return;
-		if (!clientDetailsQuery.data) return;
-		const identifiers = clientIdentifiersQuery.data || [];
-		const passportIdentifier = identifiers.find((item) =>
-			matchesDocumentType(
-				item.documentType?.name,
-				DOCUMENT_TYPE_MATCHES.passport,
-			),
-		);
-		const nationalIdIdentifier = identifiers.find((item) =>
-			matchesDocumentType(
-				item.documentType?.name,
-				DOCUMENT_TYPE_MATCHES.nationalId,
-			),
-		);
-		const taxIdIdentifier = identifiers.find((item) =>
-			matchesDocumentType(item.documentType?.name, DOCUMENT_TYPE_MATCHES.taxId),
-		);
-		const licenseIdentifier = identifiers.find((item) =>
-			matchesDocumentType(
-				item.documentType?.name,
-				DOCUMENT_TYPE_MATCHES.businessLicense,
-			),
-		);
-		const registrationIdentifier = identifiers.find((item) =>
-			matchesDocumentType(
-				item.documentType?.name,
-				DOCUMENT_TYPE_MATCHES.registration,
-			),
-		);
-
-		const isBusinessClient = Boolean(
-			licenseIdentifier?.documentKey || registrationIdentifier?.documentKey,
-		);
-		const legalFormId = isBusinessClient
-			? businessLegalFormId
-			: individualLegalFormId;
-		const nameParts = parseDisplayName(clientDetailsQuery.data.displayName);
-
 		reset({
-			fullname: clientDetailsQuery.data.displayName || "",
-			firstname: nameParts.firstname,
+			clientKind: "individual",
+			fullname: "",
+			firstname: "",
 			middlename: "",
-			lastname: nameParts.lastname,
-			officeId: clientDetailsQuery.data.officeId,
+			lastname: "",
+			officeId: undefined,
 			genderId: undefined,
+			clientTypeId: undefined,
 			clientClassificationId: undefined,
-			legalFormId: legalFormId,
+			legalFormId: undefined,
 			businessTypeId: undefined,
 			mobileNo: "",
-			emailAddress: clientDetailsQuery.data.emailAddress || "",
-			externalId: clientDetailsQuery.data.externalId || "",
-			active: clientDetailsQuery.data.active,
-			activationDate: toDateInputValue(clientDetailsQuery.data.activationDate),
+			emailAddress: "",
+			externalId: "",
+			active: false,
+			activationDate: "",
 			dateOfBirth: "",
 			addressLine1: "",
 			city: "",
 			countryId: undefined,
-			identityType: passportIdentifier?.documentKey
-				? "passport"
-				: nationalIdIdentifier?.documentKey
-					? "nationalId"
-					: undefined,
-			identityNumber:
-				passportIdentifier?.documentKey ||
-				nationalIdIdentifier?.documentKey ||
-				"",
-			taxId: taxIdIdentifier?.documentKey || "",
-			businessLicenseNo: licenseIdentifier?.documentKey || "",
-			registrationNo: registrationIdentifier?.documentKey || "",
+			nationalId: "",
+			passportNo: "",
+			taxId: "",
+			businessLicenseNo: "",
+			registrationNo: "",
 		});
-	}, [
-		businessLegalFormId,
-		clientDetailsQuery.data,
-		clientIdentifiersQuery.data,
-		drawerMode,
-		individualLegalFormId,
-		isDrawerOpen,
-		reset,
-	]);
+	}, [isDrawerOpen, reset]);
 
 	useEffect(() => {
 		if (!genderOptions.length) return;
@@ -871,6 +517,15 @@ export default function ClientsPage() {
 			setValue("genderId", defaultId, { shouldDirty: false });
 		}
 	}, [genderOptions, getValues, setValue]);
+
+	useEffect(() => {
+		if (!clientTypeOptions.length) return;
+		const currentValue = getValues("clientTypeId");
+		const defaultId = getDefaultOptionId(clientTypeOptions);
+		if (!currentValue && defaultId) {
+			setValue("clientTypeId", defaultId, { shouldDirty: false });
+		}
+	}, [clientTypeOptions, getValues, setValue]);
 
 	useEffect(() => {
 		if (!clientClassificationOptions.length) return;
@@ -930,14 +585,6 @@ export default function ClientsPage() {
 		await templateQuery.refetch();
 	};
 
-	const handleDrawerClose = (open: boolean) => {
-		setIsDrawerOpen(open);
-		if (!open) {
-			setSelectedClientId(null);
-			setDrawerMode("create");
-		}
-	};
-
 	const onSubmit = (data: ClientFormData) => {
 		clearErrors();
 		let hasError = false;
@@ -947,19 +594,26 @@ export default function ClientsPage() {
 			hasError = true;
 		}
 
-		if (legalFormOptions.length && !data.legalFormId) {
-			setError("legalFormId", { message: "Client type is required" });
-			hasError = true;
-		}
-
 		if (isBusiness) {
 			if (!data.fullname.trim()) {
 				setError("fullname", { message: "Business name is required" });
 				hasError = true;
 			}
-			if (businessLineOptions.length && !data.businessTypeId) {
+			if (!data.legalFormId) {
+				setError("legalFormId", {
+					message: "Legal form is required for businesses",
+				});
+				hasError = true;
+			}
+			if (!data.businessTypeId) {
 				setError("businessTypeId", {
 					message: "Business type is required",
+				});
+				hasError = true;
+			}
+			if (!data.businessLicenseNo?.trim()) {
+				setError("businessLicenseNo", {
+					message: "Business license number is required",
 				});
 				hasError = true;
 			}
@@ -972,31 +626,12 @@ export default function ClientsPage() {
 				setError("lastname", { message: "Last name is required" });
 				hasError = true;
 			}
-			if (data.dateOfBirth?.trim()) {
-				const age = getAgeFromDate(data.dateOfBirth);
-				if (age === null) {
-					setError("dateOfBirth", {
-						message: "Enter a valid date of birth",
-					});
-					hasError = true;
-				} else if (age < 18) {
-					setError("dateOfBirth", {
-						message: "Client must be at least 18 years old",
-					});
-					hasError = true;
-				}
-			}
-			const hasIdentityType = Boolean(data.identityType);
-			const hasIdentityNumber = Boolean(data.identityNumber?.trim());
-			if (hasIdentityType && !hasIdentityNumber) {
-				setError("identityNumber", {
-					message: "Identity number is required",
+			if (!data.nationalId?.trim() && !data.passportNo?.trim()) {
+				setError("nationalId", {
+					message: "National ID or Passport number is required",
 				});
-				hasError = true;
-			}
-			if (!hasIdentityType && hasIdentityNumber) {
-				setError("identityType", {
-					message: "Identity type is required",
+				setError("passportNo", {
+					message: "National ID or Passport number is required",
 				});
 				hasError = true;
 			}
@@ -1025,11 +660,11 @@ export default function ClientsPage() {
 		const payload: ClientCreatePayload = {
 			officeId: data.officeId,
 			active: Boolean(data.active),
-			legalFormId: data.legalFormId,
 		};
 
 		if (isBusiness) {
 			payload.fullname = data.fullname.trim();
+			if (data.legalFormId) payload.legalFormId = data.legalFormId;
 			if (data.businessTypeId) {
 				payload.clientNonPersonDetails = {
 					mainBusinessLineId: data.businessTypeId,
@@ -1045,6 +680,7 @@ export default function ClientsPage() {
 		if (data.mobileNo) payload.mobileNo = data.mobileNo;
 		if (data.emailAddress) payload.emailAddress = data.emailAddress;
 		if (data.externalId) payload.externalId = data.externalId;
+		if (data.clientTypeId) payload.clientTypeId = data.clientTypeId;
 		if (data.clientClassificationId)
 			payload.clientClassificationId = data.clientClassificationId;
 
@@ -1068,15 +704,21 @@ export default function ClientsPage() {
 
 		const identifiers: IdentifierInput[] = [];
 
-		if (!isBusiness && data.identityType && data.identityNumber?.trim()) {
-			const isPassport = data.identityType === "passport";
-			identifiers.push({
-				label: isPassport ? "Passport" : "National ID",
-				value: data.identityNumber.trim(),
-				matches: isPassport
-					? DOCUMENT_TYPE_MATCHES.passport
-					: DOCUMENT_TYPE_MATCHES.nationalId,
-			});
+		if (!isBusiness) {
+			if (data.nationalId?.trim()) {
+				identifiers.push({
+					label: "National ID",
+					value: data.nationalId.trim(),
+					matches: DOCUMENT_TYPE_MATCHES.nationalId,
+				});
+			}
+			if (data.passportNo?.trim()) {
+				identifiers.push({
+					label: "Passport",
+					value: data.passportNo.trim(),
+					matches: DOCUMENT_TYPE_MATCHES.passport,
+				});
+			}
 		}
 
 		if (data.taxId?.trim()) {
@@ -1103,11 +745,7 @@ export default function ClientsPage() {
 			});
 		}
 
-		if (drawerMode === "edit") {
-			updateMutation.mutate({ payload, identifiers });
-		} else {
-			createMutation.mutate({ payload, identifiers });
-		}
+		createMutation.mutate({ payload, identifiers });
 	};
 
 	return (
@@ -1116,16 +754,7 @@ export default function ClientsPage() {
 				title="Clients"
 				subtitle="Onboard clients with preloaded system lookups"
 				actions={
-					<Button
-						onClick={() => {
-							setDrawerMode("create");
-							setSelectedClientId(null);
-							setIsDrawerOpen(true);
-						}}
-					>
-						<Plus className="mr-2 h-4 w-4" />
-						New Client
-					</Button>
+					<Button onClick={() => setIsDrawerOpen(true)}>New Client</Button>
 				}
 			>
 				<Card>
@@ -1158,19 +787,15 @@ export default function ClientsPage() {
 				</Card>
 			</PageShell>
 
-			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerClose}>
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
+					className="w-full sm:max-w-lg overflow-y-auto"
 				>
 					<SheetHeader>
-						<SheetTitle>
-							{drawerMode === "edit" ? "Edit Client" : "Client Onboarding"}
-						</SheetTitle>
+						<SheetTitle>Client Onboarding</SheetTitle>
 						<SheetDescription>
-							{drawerMode === "edit"
-								? "Review and update client profile information."
-								: "Load system lookups before capturing new client details."}
+							Load system lookups before capturing new client details.
 						</SheetDescription>
 					</SheetHeader>
 					<div className="flex justify-end mt-2 mb-4">
@@ -1248,56 +873,38 @@ export default function ClientsPage() {
 								</div>
 
 								<div className="space-y-2">
-									<Label htmlFor="legalFormId">
-										Client type (Individual or Entity){" "}
-										<span className="text-destructive">*</span>
+									<Label htmlFor="clientKind">
+										Client kind <span className="text-destructive">*</span>
 									</Label>
 									<Controller
 										control={control}
-										name="legalFormId"
+										name="clientKind"
+										rules={{ required: "Client kind is required" }}
 										render={({ field }) => (
 											<Select
-												value={
-													field.value !== undefined && field.value !== null
-														? String(field.value)
-														: undefined
-												}
-												onValueChange={(value) => field.onChange(Number(value))}
-												disabled={!legalFormOptions.length}
+												value={field.value}
+												onValueChange={field.onChange}
 											>
-												<SelectTrigger id="legalFormId">
-													<SelectValue placeholder="Select legal form" />
+												<SelectTrigger id="clientKind">
+													<SelectValue placeholder="Select client kind" />
 												</SelectTrigger>
 												<SelectContent>
-													{legalFormOptions
-														.filter((option) => option.id)
-														.map((option) => (
-															<SelectItem
-																key={option.id}
-																value={String(option.id)}
-															>
-																{option.name || option.value || "Unnamed"}
-															</SelectItem>
-														))}
+													<SelectItem value="individual">Individual</SelectItem>
+													<SelectItem value="business">Business</SelectItem>
 												</SelectContent>
 											</Select>
 										)}
 									/>
-									{errors.legalFormId && (
+									{errors.clientKind && (
 										<p className="text-sm text-destructive">
-											{errors.legalFormId.message}
-										</p>
-									)}
-									{!legalFormOptions.length && (
-										<p className="text-xs text-muted-foreground">
-											No client type options configured.
+											{errors.clientKind.message}
 										</p>
 									)}
 								</div>
 
 								{!isBusiness && (
 									<>
-										<div className="space-y-2">
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 											<div className="space-y-2">
 												<Label htmlFor="firstname">
 													First name <span className="text-destructive">*</span>
@@ -1394,63 +1001,40 @@ export default function ClientsPage() {
 											</div>
 										</div>
 
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="identityType">Identity type</Label>
-												<Controller
-													control={control}
-													name="identityType"
-													render={({ field }) => (
-														<Select
-															value={field.value}
-															onValueChange={field.onChange}
-														>
-															<SelectTrigger id="identityType">
-																<SelectValue placeholder="Select ID type" />
-															</SelectTrigger>
-															<SelectContent>
-																<SelectItem value="nationalId">
-																	National ID
-																</SelectItem>
-																<SelectItem value="passport">
-																	Passport
-																</SelectItem>
-															</SelectContent>
-														</Select>
-													)}
-												/>
-												{errors.identityType && (
-													<p className="text-sm text-destructive">
-														{errors.identityType.message}
-													</p>
-												)}
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="identityNumber">
-													{identityType === "passport"
-														? "Passport number"
-														: "National ID number"}
-													<span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id="identityNumber"
-													{...register("identityNumber")}
-													placeholder={
-														identityType === "passport"
-															? "Enter passport number"
-															: "Enter national ID number"
-													}
-												/>
-												{errors.identityNumber && (
-													<p className="text-sm text-destructive">
-														{errors.identityNumber.message}
-													</p>
-												)}
-												<p className="text-xs text-muted-foreground">
-													Choose the ID type you are submitting.
+										<div className="space-y-2">
+											<Label htmlFor="nationalId">
+												National ID <span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="nationalId"
+												{...register("nationalId")}
+												placeholder="Enter national ID number"
+											/>
+											{errors.nationalId && (
+												<p className="text-sm text-destructive">
+													{errors.nationalId.message}
 												</p>
-											</div>
+											)}
+										</div>
+
+										<div className="space-y-2">
+											<Label htmlFor="passportNo">
+												Passport number{" "}
+												<span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="passportNo"
+												{...register("passportNo")}
+												placeholder="Enter passport number"
+											/>
+											{errors.passportNo && (
+												<p className="text-sm text-destructive">
+													{errors.passportNo.message}
+												</p>
+											)}
+											<p className="text-xs text-muted-foreground">
+												Provide national ID or passport to proceed.
+											</p>
 										</div>
 
 										<div className="space-y-2">
@@ -1485,11 +1069,59 @@ export default function ClientsPage() {
 
 										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 											<div className="space-y-2">
+												<Label htmlFor="legalFormId">
+													Legal form <span className="text-destructive">*</span>
+												</Label>
+												<Controller
+													control={control}
+													name="legalFormId"
+													render={({ field }) => (
+														<Select
+															value={
+																field.value !== undefined &&
+																field.value !== null
+																	? String(field.value)
+																	: undefined
+															}
+															onValueChange={(value) =>
+																field.onChange(Number(value))
+															}
+															disabled={!legalFormOptions.length}
+														>
+															<SelectTrigger id="legalFormId">
+																<SelectValue placeholder="Select legal form" />
+															</SelectTrigger>
+															<SelectContent>
+																{legalFormOptions
+																	.filter((option) => option.id)
+																	.map((option) => (
+																		<SelectItem
+																			key={option.id}
+																			value={String(option.id)}
+																		>
+																			{option.name || option.value || "Unnamed"}
+																		</SelectItem>
+																	))}
+															</SelectContent>
+														</Select>
+													)}
+												/>
+												{errors.legalFormId && (
+													<p className="text-sm text-destructive">
+														{errors.legalFormId.message}
+													</p>
+												)}
+												{!legalFormOptions.length && (
+													<p className="text-xs text-muted-foreground">
+														No legal form options configured.
+													</p>
+												)}
+											</div>
+
+											<div className="space-y-2">
 												<Label htmlFor="businessTypeId">
-													Business type
-													{businessLineOptions.length ? (
-														<span className="text-destructive"> *</span>
-													) : null}
+													Business type{" "}
+													<span className="text-destructive">*</span>
 												</Label>
 												<Controller
 													control={control}
@@ -1541,7 +1173,8 @@ export default function ClientsPage() {
 										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 											<div className="space-y-2">
 												<Label htmlFor="businessLicenseNo">
-													Business license
+													Business license{" "}
+													<span className="text-destructive">*</span>
 												</Label>
 												<Input
 													id="businessLicenseNo"
@@ -1607,6 +1240,48 @@ export default function ClientsPage() {
 											{...register("externalId")}
 											placeholder="Enter external reference"
 										/>
+									</div>
+
+									<div className="space-y-2">
+										<Label htmlFor="clientTypeId">Client type</Label>
+										<Controller
+											control={control}
+											name="clientTypeId"
+											render={({ field }) => (
+												<Select
+													value={
+														field.value !== undefined && field.value !== null
+															? String(field.value)
+															: undefined
+													}
+													onValueChange={(value) =>
+														field.onChange(Number(value))
+													}
+													disabled={!clientTypeOptions.length}
+												>
+													<SelectTrigger id="clientTypeId">
+														<SelectValue placeholder="Select client type" />
+													</SelectTrigger>
+													<SelectContent>
+														{clientTypeOptions
+															.filter((option) => option.id)
+															.map((option) => (
+																<SelectItem
+																	key={option.id}
+																	value={String(option.id)}
+																>
+																	{option.name || option.value || "Unnamed"}
+																</SelectItem>
+															))}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{!clientTypeOptions.length && (
+											<p className="text-xs text-muted-foreground">
+												No client type options configured.
+											</p>
+										)}
 									</div>
 								</div>
 
@@ -1769,7 +1444,7 @@ export default function ClientsPage() {
 									)}
 								</div>
 
-								{createMutation.isError && drawerMode === "create" && (
+								{createMutation.isError && (
 									<Alert variant="destructive">
 										<AlertTitle>Submission failed</AlertTitle>
 										<AlertDescription>
@@ -1778,22 +1453,13 @@ export default function ClientsPage() {
 										</AlertDescription>
 									</Alert>
 								)}
-								{updateMutation.isError && drawerMode === "edit" && (
-									<Alert variant="destructive">
-										<AlertTitle>Update failed</AlertTitle>
-										<AlertDescription>
-											{(updateMutation.error as Error)?.message ||
-												"Failed to update client. Please try again."}
-										</AlertDescription>
-									</Alert>
-								)}
 
-								{(hasMissingBusinessTypeOptions || hasMissingCountry) && (
+								{(hasMissingBusinessType || hasMissingCountry) && (
 									<Alert variant="warning">
 										<AlertTitle>Missing system configuration</AlertTitle>
 										<AlertDescription>
-											Configure lookup values for business types or countries
-											before onboarding clients.
+											Configure required lookup values (business types or
+											countries) before onboarding clients.
 										</AlertDescription>
 									</Alert>
 								)}
@@ -1802,31 +1468,12 @@ export default function ClientsPage() {
 									<Button
 										type="button"
 										variant="outline"
-										onClick={() => {
-											setIsDrawerOpen(false);
-											reset();
-										}}
+										onClick={() => setIsDrawerOpen(false)}
 									>
 										Cancel
 									</Button>
 									<Button type="submit" disabled={disableSubmit}>
-										{drawerMode === "edit" ? (
-											updateMutation.isPending ? (
-												"Saving..."
-											) : (
-												<>
-													<PenLine className="mr-2 h-4 w-4" />
-													Update Client
-												</>
-											)
-										) : createMutation.isPending ? (
-											"Submitting..."
-										) : (
-											<>
-												<Plus className="mr-2 h-4 w-4" />
-												Submit
-											</>
-										)}
+										{createMutation.isPending ? "Submitting..." : "Submit"}
 									</Button>
 								</div>
 							</form>

@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PenLine, Plus } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -161,23 +160,13 @@ export function OfficeForm({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting ? (
-						isEditing ? (
-							"Updating..."
-						) : (
-							"Creating..."
-						)
-					) : isEditing ? (
-						<>
-							<PenLine className="mr-2 h-4 w-4" />
-							Update Office
-						</>
-					) : (
-						<>
-							<Plus className="mr-2 h-4 w-4" />
-							Create Office
-						</>
-					)}
+					{isSubmitting
+						? isEditing
+							? "Updating..."
+							: "Creating..."
+						: isEditing
+							? "Update Office"
+							: "Create Office"}
 				</Button>
 			</div>
 		</form>

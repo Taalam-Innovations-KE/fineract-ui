@@ -41,13 +41,6 @@ const FINERACT_ERROR_CODE_MAP: Record<string, string> = {
 	"error.msg.user.duplicate.email": "A user with this email already exists.",
 	"error.msg.user.staff.required":
 		"A staff member must exist before creating a user.",
-	// Maker-checker related errors
-	"error.msg.maker.checker.unauthorized":
-		"You do not have permission to approve or reject this maker-checker entry.",
-	"error.msg.maker.checker.entry.not.found":
-		"The maker-checker entry was not found or has already been processed.",
-	"error.msg.maker.checker.already.processed":
-		"This maker-checker entry has already been approved or rejected.",
 };
 
 export function mapFineractMessage(code?: string, fallback?: string): string {

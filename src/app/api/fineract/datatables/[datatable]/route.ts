@@ -8,9 +8,9 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type { GetDataTablesResponse } from "@/lib/fineract/generated/types.gen";
 
 interface RouteContext {
-	params: Promise<{
+	params: {
 		datatable: string;
-	}>;
+	};
 }
 
 /**
@@ -20,7 +20,7 @@ interface RouteContext {
 export async function GET(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const { datatable } = await context.params;
+		const { datatable } = context.params;
 
 		const result = await fineractFetch<GetDataTablesResponse>(
 			`${FINERACT_ENDPOINTS.datatables}/${datatable}`,

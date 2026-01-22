@@ -4,13 +4,13 @@
     <!-- Main gradient background -->
     <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0b7285;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#14b8a6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#f59e0b;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#e6fffb;stop-opacity:1" />
     </linearGradient>
 
     <!-- Accent gradient -->
     <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#14b8a6;stop-opacity:0.3" />
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:0.3" />
       <stop offset="100%" style="stop-color:#e6fffb;stop-opacity:0.1" />
     </linearGradient>
 

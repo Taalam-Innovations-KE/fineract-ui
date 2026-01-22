@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Eye, PenLine, Plus } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { OfficeForm } from "@/components/config/forms/office-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -158,7 +159,7 @@ export default function OfficesPage() {
 		},
 	});
 
-	const handleRowClick = (row: { office: OfficeNode; level: number }) => {
+	const handleEditOffice = (row: { office: OfficeNode; level: number }) => {
 		setSelectedOffice(row.office);
 		setIsDialogOpen(true);
 	};
@@ -208,7 +209,7 @@ export default function OfficesPage() {
 			header: "External ID",
 			cell: ({ office }: { office: OfficeNode; level: number }) => (
 				<span className={office.externalId ? "" : "text-muted-foreground"}>
-					{office.externalId || "—"}
+					{office.externalId ? String(office.externalId) : "—"}
 				</span>
 			),
 		},
@@ -224,6 +225,33 @@ export default function OfficesPage() {
 						Head
 					</Badge>
 				),
+		},
+		{
+			header: "Actions",
+			cell: ({ office }: { office: OfficeNode; level: number }) => {
+				const officeId = office.id;
+				return (
+					<div className="flex items-center justify-end gap-2">
+						<Button asChild variant="outline" size="sm" disabled={!officeId}>
+							<Link href={`/config/organisation/offices/${officeId ?? ""}`}>
+								<Eye className="mr-2 h-4 w-4" />
+								View
+							</Link>
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							onClick={() => handleEditOffice({ office, level: 0 })}
+							disabled={!officeId}
+						>
+							<PenLine className="mr-2 h-4 w-4" />
+							Edit
+						</Button>
+					</div>
+				);
+			},
+			className: "text-right",
+			headerClassName: "text-right",
 		},
 	];
 
@@ -306,7 +334,6 @@ export default function OfficesPage() {
 								getRowId={(row) =>
 									row.office.id ?? row.office.name ?? "office-row"
 								}
-								onRowClick={handleRowClick}
 							/>
 						)}
 					</CardContent>
@@ -316,7 +343,7 @@ export default function OfficesPage() {
 			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-lg overflow-y-auto"
+					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>

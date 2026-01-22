@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Shield, UserCog } from "lucide-react";
+import { Building2, Eye, PenLine, Plus, Shield, UserCog } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { TeamMemberForm } from "@/components/config/forms/team-member-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -168,7 +169,7 @@ export default function UsersPage() {
 		},
 	});
 
-	const handleRowClick = (user: GetUsersResponse) => {
+	const handleEditUser = (user: GetUsersResponse) => {
 		setSelectedUser(user);
 		setIsDrawerOpen(true);
 	};
@@ -233,6 +234,34 @@ export default function UsersPage() {
 					{user.email || "—"}
 				</span>
 			),
+		},
+		{
+			header: "Actions",
+			cell: (user: GetUsersResponse) => {
+				const userId = user.id;
+				return (
+					<div className="flex items-center justify-end gap-2">
+						<Button asChild variant="outline" size="sm" disabled={!userId}>
+							<Link href={`/config/organisation/users/${userId ?? ""}`}>
+								<Eye className="mr-2 h-4 w-4" />
+								View
+							</Link>
+						</Button>
+						<Button
+							type="button"
+							variant="default"
+							size="sm"
+							onClick={() => handleEditUser(user)}
+							disabled={!userId}
+						>
+							<PenLine className="mr-2 h-4 w-4" />
+							Edit
+						</Button>
+					</div>
+				);
+			},
+			className: "text-right",
+			headerClassName: "text-right",
 		},
 	];
 
@@ -323,7 +352,6 @@ export default function UsersPage() {
 								data={users}
 								columns={userColumns}
 								getRowId={(user) => user.id ?? user.username ?? "user-row"}
-								onRowClick={handleRowClick}
 							/>
 						)}
 					</CardContent>
@@ -334,7 +362,7 @@ export default function UsersPage() {
 			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerClose}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-lg overflow-y-auto"
+					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>

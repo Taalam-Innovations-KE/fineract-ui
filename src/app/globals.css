@@ -97,10 +97,10 @@
 
 :root {
 	/* ============================================
-     FINERACT UI - MODERN LIGHT THEME
-     Inspired by contemporary dashboard aesthetics
-     Clean, spacious, with vibrant orange accents
-     ============================================ */
+      FINERACT UI - MODERN LIGHT THEME
+      Inspired by contemporary dashboard aesthetics
+      Clean, spacious, with Taalam teal + spark highlights
+      ============================================ */
 
 	/* Border Radius - Softer, more modern */
 	--radius: 0.75rem;
@@ -209,9 +209,9 @@
 
 .dark {
 	/* ============================================
-     FINERACT UI - MODERN DARK THEME
-     Deep backgrounds with vibrant orange accents
-     ============================================ */
+      FINERACT UI - MODERN DARK THEME
+      Deep backgrounds with Taalam teal + spark highlights
+      ============================================ */
 
 	/* ============================================
       BASE COLORS - Dark Backgrounds

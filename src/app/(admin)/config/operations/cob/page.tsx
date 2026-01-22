@@ -315,7 +315,7 @@ export default function COBPage() {
 			<Sheet open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-lg overflow-y-auto"
+					className="w-full sm:max-w-2xl lg:max-w-3xl overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>Confirm COB Catch-up</SheetTitle>

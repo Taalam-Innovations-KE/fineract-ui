@@ -10,16 +10,26 @@ import { Separator } from "@/components/ui/separator";
 export default async function SignInPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+	searchParams: Promise<{
+		callbackUrl?: string;
+		error?: string;
+		code?: string;
+	}>;
 }) {
 	const resolvedSearchParams = await searchParams;
 	const callbackUrl = resolvedSearchParams?.callbackUrl || "/config";
+	const errorCode = resolvedSearchParams?.code;
+	const errorMessage = resolvedSearchParams?.error
+		? errorCode === "fineract_unavailable"
+			? "Fineract is unreachable right now. Check the URL and try again."
+			: "Authentication failed. Please check your credentials."
+		: null;
 
 	return (
 		<div className="flex h-screen overflow-hidden">
 			{/* Left Side - Sign In Form */}
 			<div className="flex h-full w-full flex-col justify-center overflow-y-auto px-8 lg:w-1/2 lg:px-16">
-				<div className="mx-auto w-full max-w-md space-y-8">
+				<div className="mx-auto w-full max-w-md space-y-4">
 					{/* Logo/Brand */}
 					<div className="space-y-2">
 						<div className="flex items-center gap-2">
@@ -42,14 +52,14 @@ export default async function SignInPage({
 								Taalam FinCore
 							</h1>
 						</div>
-						<h2 className="text-3xl font-bold text-foreground">
+						<h2 className="text-2xl font-bold text-foreground">
 							Sign Into Your Account
 						</h2>
 					</div>
 
-					{resolvedSearchParams?.error && (
+					{errorMessage && (
 						<div className="rounded-sm bg-destructive/10 p-3 text-sm text-destructive">
-							Authentication failed. Please check your credentials.
+							{errorMessage}
 						</div>
 					)}
 
@@ -68,7 +78,7 @@ export default async function SignInPage({
 								redirectTo: callbackUrl,
 							});
 						}}
-						className="space-y-6"
+						className="space-y-4"
 					>
 						<div className="space-y-4">
 							{/* Username */}
@@ -166,7 +176,7 @@ export default async function SignInPage({
 						</div>
 
 						{/* Login Button */}
-						<Button type="submit" className="w-full" size="lg">
+						<Button type="submit" className="w-full">
 							Sign in with Credentials
 						</Button>
 					</form>
@@ -191,12 +201,7 @@ export default async function SignInPage({
 							});
 						}}
 					>
-						<Button
-							type="submit"
-							variant="outline"
-							className="w-full"
-							size="lg"
-						>
+						<Button type="submit" variant="outline" className="w-full">
 							Sign in with Keycloak
 						</Button>
 					</form>

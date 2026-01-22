@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { PenLine, Plus } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -479,13 +480,23 @@ export function TeamMemberForm({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting
-						? isEditing
-							? "Updating..."
-							: "Creating..."
-						: isEditing
-							? "Update Team Member"
-							: "Create Team Member"}
+					{isSubmitting ? (
+						isEditing ? (
+							"Updating..."
+						) : (
+							"Creating..."
+						)
+					) : isEditing ? (
+						<>
+							<PenLine className="mr-2 h-4 w-4" />
+							Update Team Member
+						</>
+					) : (
+						<>
+							<Plus className="mr-2 h-4 w-4" />
+							Create Team Member
+						</>
+					)}
 				</Button>
 			</div>
 		</form>

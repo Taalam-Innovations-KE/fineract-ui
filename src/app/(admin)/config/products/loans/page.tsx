@@ -2,9 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Plus, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
+import { LoanProductEditForm } from "@/components/config/forms/loan-product-edit-form";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,25 +28,14 @@ import {
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	CurrencyConfigurationData,
+	GetLoanProductsResponse,
 	PostLoanProductsRequest,
+	PutLoanProductsProductIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { loanProductsApi } from "@/lib/fineract/loan-products";
 import { useTenantStore } from "@/store/tenant";
 
-type LoanProductDisplay = {
-	id?: number | string;
-	name?: string;
-	shortName?: string;
-	principal?: number;
-	interestRatePerPeriod?: number;
-	currency?: {
-		code?: string;
-		displaySymbol?: string;
-	};
-	accountingRule?: {
-		value?: string;
-	};
-};
+type LoanProductDisplay = GetLoanProductsResponse;
 
 async function fetchCurrencies(
 	tenantId: string,
@@ -64,7 +56,18 @@ async function fetchCurrencies(
 export default function LoanProductsPage() {
 	const { tenantId } = useTenantStore();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+	const [selectedProductId, setSelectedProductId] = useState<number | null>(
+		null,
+	);
 	const queryClient = useQueryClient();
+
+	const handleEditDrawerClose = (open: boolean) => {
+		setIsEditDrawerOpen(open);
+		if (!open) {
+			setSelectedProductId(null);
+		}
+	};
 
 	const {
 		data: products = [],
@@ -90,6 +93,40 @@ export default function LoanProductsPage() {
 			queryClient.invalidateQueries({ queryKey: ["loanProducts", tenantId] });
 			setIsDrawerOpen(false);
 		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (data: PutLoanProductsProductIdRequest) =>
+			loanProductsApi.update(tenantId, selectedProductId!, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["loanProducts", tenantId] });
+			setIsEditDrawerOpen(false);
+			setSelectedProductId(null);
+		},
+	});
+
+	const productDetailQuery = useQuery({
+		queryKey: ["loanProduct", tenantId, selectedProductId],
+		queryFn: () => loanProductsApi.getById(tenantId, selectedProductId ?? 0),
+		enabled: Boolean(selectedProductId) && isEditDrawerOpen,
+		staleTime: 1000 * 60 * 5,
+		refetchOnWindowFocus: false,
+	});
+
+	const productTemplateQuery = useQuery({
+		queryKey: ["loanProductTemplate", tenantId],
+		queryFn: () => loanProductsApi.getTemplate(tenantId),
+		enabled: isEditDrawerOpen,
+		staleTime: 1000 * 60 * 5,
+		refetchOnWindowFocus: false,
+	});
+
+	const templateQuery = useQuery({
+		queryKey: ["loanProductTemplate", tenantId],
+		queryFn: () => loanProductsApi.getTemplate(tenantId),
+		enabled: isDrawerOpen || isEditDrawerOpen,
+		staleTime: 1000 * 60 * 5,
+		refetchOnWindowFocus: false,
 	});
 
 	const productColumns = [
@@ -139,9 +176,37 @@ export default function LoanProductsPage() {
 			header: "Accounting",
 			cell: (product: LoanProductDisplay) => (
 				<span className={product.accountingRule ? "" : "text-muted-foreground"}>
-					{product.accountingRule?.value || "—"}
+					{product.accountingRule?.description ||
+						product.accountingRule?.code ||
+						"—"}
 				</span>
 			),
+		},
+		{
+			header: "Actions",
+			cell: (product: LoanProductDisplay) => (
+				<div className="flex items-center justify-end gap-2">
+					<Button asChild variant="outline" size="sm" disabled={!product.id}>
+						<Link href={`/config/products/loans/${product.id ?? ""}`}>
+							View
+						</Link>
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						onClick={() => {
+							if (!product.id) return;
+							setSelectedProductId(Number(product.id));
+							setIsEditDrawerOpen(true);
+						}}
+						disabled={!product.id}
+					>
+						Edit
+					</Button>
+				</div>
+			),
+			className: "text-right",
+			headerClassName: "text-right",
 		},
 	];
 
@@ -150,10 +215,7 @@ export default function LoanProductsPage() {
 			title="Loan Products"
 			subtitle="Configure and manage loan product offerings"
 			actions={
-				<Button
-					onClick={() => setIsDrawerOpen(true)}
-					disabled={enabledCurrencies.length === 0}
-				>
+				<Button onClick={() => setIsDrawerOpen(true)} disabled={false}>
 					<Plus className="h-4 w-4 mr-2" />
 					Create Loan Product
 				</Button>
@@ -254,7 +316,7 @@ export default function LoanProductsPage() {
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl overflow-y-auto"
+					className="!w-[80vw] !max-w-7xl overflow-y-auto max-h-[90vh]"
 				>
 					<SheetHeader>
 						<SheetTitle>Create Loan Product</SheetTitle>
@@ -264,12 +326,33 @@ export default function LoanProductsPage() {
 					</SheetHeader>
 					<div className="mt-6">
 						<LoanProductWizard
-							currencies={enabledCurrencies}
+							currencies={
+								templateQuery.data?.currencyOptions?.map((c) => c.code!) || []
+							}
 							isOpen={isDrawerOpen}
-							onSubmit={(data) => createMutation.mutateAsync(data)}
+							onSubmit={async (data) => {
+								await createMutation.mutateAsync(data);
+							}}
 							onCancel={() => setIsDrawerOpen(false)}
 						/>
 					</div>
+				</SheetContent>
+			</Sheet>
+
+			<Sheet open={isEditDrawerOpen} onOpenChange={handleEditDrawerClose}>
+				<SheetContent side="right" className="!w-[65vw] !max-w-5xl">
+					<LoanProductWizard
+						currencies={enabledCurrencies}
+						isOpen={isEditDrawerOpen}
+						onSubmit={async (data) => {
+							await updateMutation.mutateAsync(
+								data as PutLoanProductsProductIdRequest,
+							);
+						}}
+						onCancel={() => setIsEditDrawerOpen(false)}
+						isEdit={true}
+						productId={selectedProductId ?? undefined}
+					/>
 				</SheetContent>
 			</Sheet>
 		</PageShell>

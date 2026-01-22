@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Keycloak from "next-auth/providers/keycloak";
 
@@ -16,6 +16,42 @@ type ExtendedUser = {
 	roles?: string[];
 	tenantId?: string;
 	credentials?: string;
+};
+
+class FineractUnavailableError extends CredentialsSignin {
+	code = "fineract_unavailable";
+}
+
+const FINERACT_AUTH_TIMEOUT_MS = 8000;
+const FINERACT_AUTH_RETRIES = 2;
+
+const wait = (durationMs: number) =>
+	new Promise((resolve) => setTimeout(resolve, durationMs));
+
+const isRetryableError = (error: unknown) => {
+	if (error instanceof Error) {
+		return error.name === "AbortError" || error.message === "fetch failed";
+	}
+
+	return false;
+};
+
+const fetchWithTimeout = async (
+	url: string,
+	options: RequestInit,
+	timeoutMs: number,
+) => {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		return await fetch(url, {
+			...options,
+			signal: controller.signal,
+		});
+	} finally {
+		clearTimeout(timeout);
+	}
 };
 
 /**
@@ -35,41 +71,60 @@ async function authenticateWithFineract(
 			"base64",
 		);
 
-		// Use POST /v1/authentication endpoint
-		const response = await fetch(
-			`${FINERACT_BASE_URL}/v1/authentication?returnClientList=false`,
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Basic ${authHeader}`,
-					"fineract-platform-tenantid": tenantId,
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
-				body: JSON.stringify({ username, password }),
-				cache: "no-store",
-			},
-		);
+		for (let attempt = 0; attempt <= FINERACT_AUTH_RETRIES; attempt += 1) {
+			try {
+				// Use POST /v1/authentication endpoint
+				const response = await fetchWithTimeout(
+					`${FINERACT_BASE_URL}/v1/authentication?returnClientList=false`,
+					{
+						method: "POST",
+						headers: {
+							Authorization: `Basic ${authHeader}`,
+							"fineract-platform-tenantid": tenantId,
+							"Content-Type": "application/json",
+							Accept: "application/json",
+						},
+						body: JSON.stringify({ username, password }),
+						cache: "no-store",
+					},
+					FINERACT_AUTH_TIMEOUT_MS,
+				);
 
-		if (!response.ok) {
-			return null;
+				if (!response.ok) {
+					return null;
+				}
+
+				const userData = await response.json();
+
+				if (!userData.authenticated) {
+					return null;
+				}
+
+				return {
+					id: userData.userId?.toString() || username,
+					username: userData.username || username,
+					email: `${username}@fineract.local`,
+					name: userData.officeName || username,
+					roles: userData.roles || [],
+					tenantId,
+				};
+			} catch (error) {
+				if (attempt < FINERACT_AUTH_RETRIES && isRetryableError(error)) {
+					await wait(400 * 2 ** attempt);
+					continue;
+				}
+
+				console.error("Fineract authentication error:", error);
+				throw new FineractUnavailableError();
+			}
 		}
 
-		const userData = await response.json();
-
-		if (!userData.authenticated) {
-			return null;
-		}
-
-		return {
-			id: userData.userId?.toString() || username,
-			username: userData.username || username,
-			email: `${username}@fineract.local`,
-			name: userData.officeName || username,
-			roles: userData.roles || [],
-			tenantId,
-		};
+		return null;
 	} catch (error) {
+		if (error instanceof FineractUnavailableError) {
+			throw error;
+		}
+
 		console.error("Fineract authentication error:", error);
 		return null;
 	}

@@ -58,7 +58,7 @@ export async function getGlobalConfig(): Promise<GlobalConfig> {
 export async function updateGlobalConfig(enabled: boolean): Promise<void> {
 	await fineractFetch(`/v1/configurations/name/maker-checker`, {
 		method: "PUT",
-		body: { value: enabled },
+		body: { enabled },
 	});
 }
 

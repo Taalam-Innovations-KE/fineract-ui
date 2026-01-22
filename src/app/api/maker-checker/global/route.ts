@@ -20,6 +20,12 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
 	try {
 		const { enabled } = await request.json();
+		if (typeof enabled !== "boolean") {
+			return NextResponse.json(
+				{ error: "enabled must be a boolean" },
+				{ status: 400 },
+			);
+		}
 		await updateGlobalConfig(enabled);
 		return NextResponse.json({ success: true });
 	} catch (error) {

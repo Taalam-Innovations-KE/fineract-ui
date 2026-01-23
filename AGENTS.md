@@ -233,6 +233,16 @@ Skeletons are not optional polish — they are required UX.
 
 ❌ No direct edits to src/components/ui/*
 
+### 7️⃣ Navigation Patterns
+
+✅ Back buttons always positioned on the right side
+
+✅ Use PageShell `actions` prop for header-level navigation
+
+✅ Use `←` arrow symbol or `ArrowLeft` icon consistently
+
+✅ Follow "Back to [Section]" naming pattern
+
 Failure to follow these rules is considered a blocking issue.
 
 ## Loading States & Skeleton Patterns
@@ -448,6 +458,61 @@ When refactoring large forms into modular components:
 - Ensure full compliance with API templates by including all options/fields from the backend response.
 - Move fetch logic to client-safe modules (e.g., `src/lib/fineract/client.ts`) to avoid "server-only" import errors in client components.
 - Test end-to-end after refactoring to verify submission, validation, and dynamic field population.
+
+## Code Registry and Code Values Management
+
+The code registry system provides comprehensive management of Fineract codes and their associated values with side drawer forms:
+
+### **Code Registry Features**
+- **List View** (`src/app/(admin)/config/system/codes/page.tsx`): Browse all codes with search functionality
+- **Individual Code View** (`src/app/(admin)/config/system/codes/[id]/page.tsx`): Detailed code management with go back navigation
+- **Side Drawer Forms**: All CRUD operations use right-side drawers for consistent UX
+
+### **Code Values Management**
+- **Add Values**: Create new code values with name, description, and active status
+- **Edit Values**: Modify existing values (name, description, active status)
+- **Delete Values**: Deactivate values (system-defined values cannot be deleted)
+- **Search & Filter**: Find values by name
+- **Status Management**: Active/inactive toggles with visual indicators
+
+### **Metadata Management**
+- **Datatable Integration**: Extend code values with custom metadata fields
+- **Dynamic Forms**: Support for various field types (string, number, date, boolean)
+- **Multiple Datatables**: Associate different metadata schemas per code
+- **CRUD Operations**: Create, read, update metadata entries
+
+### **API Integration**
+- **Code Values API**: `GET|POST|PUT|DELETE /api/fineract/codes/{codeId}/codevalues`
+- **Individual Code API**: `GET /api/fineract/codes/{codeId}`
+- **Metadata API**: Uses datatable endpoints for extended fields
+- **Optimistic Updates**: Immediate UI feedback with error rollback
+
+### **UI Patterns**
+- **DataTable Component**: Consistent table display with actions
+- **Sheet Drawers**: Right-side forms for add/edit/metadata operations
+- **Badge System**: Visual status indicators (Active/Inactive, System/Custom)
+- **Search & Pagination**: Built-in filtering and navigation
+- **Loading States**: Skeleton loading for better UX
+
+### **State Management**
+- **React Query**: Server state management with caching and invalidation
+- **Optimistic Updates**: Immediate UI feedback with error handling
+- **Form State**: Local state for add/edit operations
+- **Metadata State**: Dynamic form state for custom fields
+
+### **Navigation**
+- **Go Back Button**: Always positioned on the right side using PageShell `actions` prop
+- **Button Style**: `variant="outline"` with `←` arrow or `ArrowLeft` icon
+- **Consistent Labeling**: "Back to [Section Name]" format
+- **Deep Linking**: Direct links to specific codes and values
+- **Consistent Routing**: RESTful URL patterns
+
+### **Best Practices**
+- **Type Safety**: Full TypeScript coverage with generated types
+- **Error Handling**: User-friendly error messages and validation
+- **Accessibility**: Proper labels, keyboard navigation, screen readers
+- **Performance**: Efficient queries, optimistic updates, proper caching
+- **Consistency**: Match existing codebase patterns and UI components
 
 ## Generated and Third-Party Files
 - Do not edit generated files in `src/lib/fineract/generated`

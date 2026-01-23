@@ -127,22 +127,25 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		);
 	}
 
+	const backButton = (
+		<Button variant="outline" onClick={() => router.back()}>
+			<ArrowLeft className="w-4 h-4 mr-2" />
+			Back to Loans
+		</Button>
+	);
+
 	if (loanQuery.error || !loan) {
 		return (
-			<PageShell title="Loan Details" subtitle="Error loading loan">
+			<PageShell
+				title="Loan Details"
+				subtitle="Error loading loan"
+				actions={backButton}
+			>
 				<Card>
 					<CardContent className="pt-6">
 						<p className="text-red-600">
 							{loanQuery.error?.message || "Loan not found"}
 						</p>
-						<Button
-							variant="outline"
-							onClick={() => router.back()}
-							className="mt-4 ml-auto"
-						>
-							<ArrowLeft className="w-4 h-4 mr-2" />
-							Back to Loans
-						</Button>
 					</CardContent>
 				</Card>
 			</PageShell>
@@ -153,16 +156,9 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		<PageShell
 			title={`Loan ${loan.accountNo || loanId}`}
 			subtitle={`Client: ${loan.clientName || "Unknown"}`}
+			actions={backButton}
 		>
 			<div className="space-y-6">
-				{/* Back Button */}
-				<div className="flex justify-end mb-4">
-					<Button variant="outline" onClick={() => router.back()}>
-						<ArrowLeft className="w-4 h-4 mr-2" />
-						Back to Loans
-					</Button>
-				</div>
-
 				{/* Loan Summary */}
 				<Card>
 					<CardHeader>

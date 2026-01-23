@@ -11,6 +11,35 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 
 /**
+ * GET /api/fineract/roles/[roleId]
+ * Fetches a single role by ID
+ */
+export async function GET(
+	request: NextRequest,
+	{ params }: { params: Promise<{ roleId: string }> },
+) {
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const { roleId } = await params;
+
+		const role = await fineractFetch<GetRolesResponse>(
+			`${FINERACT_ENDPOINTS.roles}/${roleId}`,
+			{
+				method: "GET",
+				tenantId,
+			},
+		);
+
+		return NextResponse.json(role);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+/**
  * PUT /api/fineract/roles/[roleId]
  * Updates an existing role
  */

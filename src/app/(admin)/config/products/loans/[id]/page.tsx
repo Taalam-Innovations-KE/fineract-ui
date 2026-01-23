@@ -215,69 +215,6 @@ export default function LoanProductDetailPage({
 					<>
 						<Card>
 							<CardHeader>
-								<CardTitle>Additional Settings</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Over Applied Calculation Type
-										</label>
-										<p>{product.overAppliedCalculationType || "—"}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Supported Interest Refund Types
-										</label>
-										<p>
-											{product.supportedInterestRefundTypes
-												?.map((t) => t.value)
-												.join(", ") || "—"}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle>Version Information</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Current Version
-										</label>
-										<p className="font-mono">v1</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Created</label>
-										<p className="font-mono">
-											{new Date().toLocaleDateString()}{" "}
-											{new Date().toLocaleTimeString()}
-										</p>
-									</div>
-									<div className="md:col-span-2">
-										<label className="text-sm font-medium">
-											Version History
-										</label>
-										<div className="mt-2 space-y-2">
-											<div className="flex justify-between items-center p-2 bg-muted rounded">
-												<span className="font-mono">v1</span>
-												<span className="text-sm text-muted-foreground">
-													{new Date().toLocaleDateString()}{" "}
-													{new Date().toLocaleTimeString()}
-												</span>
-											</div>
-										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
 								<CardTitle>Currency & Principal Amounts</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -347,6 +284,69 @@ export default function LoanProductDetailPage({
 												product.disbursedAmountPercentageForDownPayment,
 											)}
 										</p>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Additional Settings</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid gap-4 md:grid-cols-2">
+									<div>
+										<label className="text-sm font-medium">
+											Over Applied Calculation Type
+										</label>
+										<p>{product.overAppliedCalculationType || "—"}</p>
+									</div>
+									<div>
+										<label className="text-sm font-medium">
+											Supported Interest Refund Types
+										</label>
+										<p>
+											{product.supportedInterestRefundTypes
+												?.map((t) => t.value)
+												.join(", ") || "—"}
+										</p>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Version Information</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid gap-4 md:grid-cols-2">
+									<div>
+										<label className="text-sm font-medium">
+											Current Version
+										</label>
+										<p className="font-mono">v1</p>
+									</div>
+									<div>
+										<label className="text-sm font-medium">Created</label>
+										<p className="font-mono">
+											{new Date().toLocaleDateString()}{" "}
+											{new Date().toLocaleTimeString()}
+										</p>
+									</div>
+									<div className="md:col-span-2">
+										<label className="text-sm font-medium">
+											Version History
+										</label>
+										<div className="mt-2 space-y-2">
+											<div className="flex justify-between items-center p-2 bg-muted rounded">
+												<span className="font-mono">v1</span>
+												<span className="text-sm text-muted-foreground">
+													{new Date().toLocaleDateString()}{" "}
+													{new Date().toLocaleTimeString()}
+												</span>
+											</div>
+										</div>
 									</div>
 								</div>
 							</CardContent>

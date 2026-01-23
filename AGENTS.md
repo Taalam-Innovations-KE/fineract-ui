@@ -44,7 +44,6 @@ All scripts are in `package.json`; use pnpm.
 - Run `pnpm lint` after any code changes to catch issues early
 - Run `pnpm check:spacing` whenever you modify Tailwind classes with spacing values
 - Run `pnpm generate:api` if you modify OpenAPI schemas or need updated types
-- Run `pnpm build` before creating pull requests to ensure everything compiles
 
 ## Tests
 - No test runner is currently configured.

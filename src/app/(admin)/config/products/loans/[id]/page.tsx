@@ -99,7 +99,6 @@ function formatBoolean(value: boolean | undefined) {
 
 function formatChargeAmount(
 	charge: GetChargesResponse,
-	loanAmount?: number,
 	currencySymbol = "KES",
 ) {
 	if (!charge.amount) return "—";
@@ -110,11 +109,7 @@ function formatChargeAmount(
 		case 1: // Flat
 			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
 		case 2: // Percentage
-			if (loanAmount) {
-				const calculatedAmount = (loanAmount * charge.amount) / 100;
-				return `${charge.amount}% (${currencySymbol} ${calculatedAmount.toLocaleString()})`;
-			}
-			return `${charge.amount}% per ${currencySymbol} 100`;
+			return `${charge.amount}%`;
 		case 3: // Percent of Interest
 			return `${charge.amount}% of Interest`;
 		case 4: // Percent of Principal
@@ -157,6 +152,26 @@ function calculateChargeTotal(
 				return total + charge.amount;
 		}
 	}, 0);
+}
+
+function getChargeTimingLabel(charge: GetChargesResponse) {
+	const timeTypeId = charge.chargeTimeType?.id;
+
+	switch (timeTypeId) {
+		case 1:
+			return "Disbursement";
+		case 2:
+		case 3:
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+		case 8:
+		case 9:
+			return "Repayment";
+		default:
+			return charge.chargeTimeType?.description || "Unknown";
+	}
 }
 
 export default function LoanProductDetailPage({
@@ -653,149 +668,97 @@ export default function LoanProductDetailPage({
 									product.currency?.displaySymbol,
 								);
 
+								const allCharges = [
+									...disbursementCharges,
+									...repaymentCharges,
+								];
+
 								return (
 									<div className="space-y-6">
-										{/* Charges at Disbursement */}
-										{disbursementCharges.length > 0 && (
-											<Card>
-												<CardHeader>
-													<div className="flex justify-between items-start">
-														<div>
-															<CardTitle className="flex items-center gap-2">
-																Charges at Disbursement
-																<Badge variant="outline">
-																	{disbursementCharges.length} charge
-																	{disbursementCharges.length !== 1 ? "s" : ""}
-																</Badge>
-															</CardTitle>
-															<CardDescription>
-																Fees applied when the loan is disbursed
-															</CardDescription>
-														</div>
-														<div className="text-right">
-															<div className="text-sm text-muted-foreground">
-																Total
-															</div>
-															<div className="text-lg font-semibold">
-																{formatCurrency(
-																	disbursementTotal,
-																	product.currency?.displaySymbol,
-																)}
-															</div>
-														</div>
-													</div>
-												</CardHeader>
-												<CardContent>
-													<div className="space-y-3">
-														{disbursementCharges.map((charge) => (
-															<div
-																key={charge.id}
-																className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
-															>
-																<div className="flex-1">
-																	<div className="font-medium">
-																		{charge.name}
-																	</div>
-																	{charge.chargeTimeType?.description && (
-																		<div className="text-sm text-muted-foreground">
-																			{charge.chargeTimeType.description}
+										{/* Charges Table */}
+										<Card>
+											<CardHeader>
+												<CardTitle className="flex items-center justify-between">
+													<span>Fees & Penalties</span>
+													<Badge variant="outline">
+														{allCharges.length} charge
+														{allCharges.length !== 1 ? "s" : ""}
+													</Badge>
+												</CardTitle>
+												<CardDescription>
+													Complete list of charges applied to this loan product
+												</CardDescription>
+											</CardHeader>
+											<CardContent>
+												<div className="overflow-x-auto">
+													<table className="w-full border-collapse border border-border">
+														<thead>
+															<tr className="bg-muted">
+																<th className="border border-border p-2 text-left text-sm font-medium">
+																	Charge Name
+																</th>
+																<th className="border border-border p-2 text-left text-sm font-medium">
+																	Amount
+																</th>
+																<th className="border border-border p-2 text-left text-sm font-medium">
+																	When Charged
+																</th>
+																<th className="border border-border p-2 text-left text-sm font-medium">
+																	Type
+																</th>
+															</tr>
+														</thead>
+														<tbody>
+															{allCharges.map((charge) => (
+																<tr
+																	key={charge.id}
+																	className="hover:bg-muted/50"
+																>
+																	<td className="border border-border p-2 text-sm">
+																		<div>
+																			<div className="font-medium">
+																				{charge.name}
+																			</div>
+																			{charge.chargeTimeType?.description && (
+																				<div className="text-xs text-muted-foreground">
+																					{charge.chargeTimeType.description}
+																				</div>
+																			)}
 																		</div>
-																	)}
-																</div>
-																<div className="text-right">
-																	<div className="font-mono">
+																	</td>
+																	<td className="border border-border p-2 text-sm font-mono">
 																		{formatChargeAmount(
 																			charge,
-																			product.principal,
 																			product.currency?.displaySymbol,
 																		)}
-																	</div>
-																	{charge.penalty && (
-																		<Badge
-																			variant="destructive"
-																			className="text-xs mt-1"
-																		>
-																			Penalty
-																		</Badge>
-																	)}
-																</div>
-															</div>
-														))}
-													</div>
-												</CardContent>
-											</Card>
-										)}
-
-										{/* Charges at Repayment */}
-										{repaymentCharges.length > 0 && (
-											<Card>
-												<CardHeader>
-													<div className="flex justify-between items-start">
-														<div>
-															<CardTitle className="flex items-center gap-2">
-																Charges at Repayment
-																<Badge variant="outline">
-																	{repaymentCharges.length} charge
-																	{repaymentCharges.length !== 1 ? "s" : ""}
-																</Badge>
-															</CardTitle>
-															<CardDescription>
-																Fees applied during loan repayment
-															</CardDescription>
-														</div>
-														<div className="text-right">
-															<div className="text-sm text-muted-foreground">
-																Total
-															</div>
-															<div className="text-lg font-semibold">
-																{formatCurrency(
-																	repaymentTotal,
-																	product.currency?.displaySymbol,
-																)}
-															</div>
-														</div>
-													</div>
-												</CardHeader>
-												<CardContent>
-													<div className="space-y-3">
-														{repaymentCharges.map((charge) => (
-															<div
-																key={charge.id}
-																className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
-															>
-																<div className="flex-1">
-																	<div className="font-medium">
-																		{charge.name}
-																	</div>
-																	{charge.chargeTimeType?.description && (
-																		<div className="text-sm text-muted-foreground">
-																			{charge.chargeTimeType.description}
-																		</div>
-																	)}
-																</div>
-																<div className="text-right">
-																	<div className="font-mono">
-																		{formatChargeAmount(
-																			charge,
-																			product.principal,
-																			product.currency?.displaySymbol,
+																	</td>
+																	<td className="border border-border p-2 text-sm">
+																		{getChargeTimingLabel(charge)}
+																	</td>
+																	<td className="border border-border p-2 text-sm">
+																		{charge.penalty ? (
+																			<Badge
+																				variant="destructive"
+																				className="text-xs"
+																			>
+																				Penalty
+																			</Badge>
+																		) : (
+																			<Badge
+																				variant="secondary"
+																				className="text-xs"
+																			>
+																				Fee
+																			</Badge>
 																		)}
-																	</div>
-																	{charge.penalty && (
-																		<Badge
-																			variant="destructive"
-																			className="text-xs mt-1"
-																		>
-																			Penalty
-																		</Badge>
-																	)}
-																</div>
-															</div>
-														))}
-													</div>
-												</CardContent>
-											</Card>
-										)}
+																	</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											</CardContent>
+										</Card>
 
 										{/* Summary Card */}
 										<Card>

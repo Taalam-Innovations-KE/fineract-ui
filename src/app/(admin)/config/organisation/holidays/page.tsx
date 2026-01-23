@@ -397,7 +397,7 @@ export default function HolidaysPage() {
 					</CardHeader>
 					<CardContent>
 						<DataTable
-							columns={columns as any}
+							columns={columns}
 							data={holidays || []}
 							getRowId={(row: GetHolidaysResponse) =>
 								row.id || row.name || "holiday"

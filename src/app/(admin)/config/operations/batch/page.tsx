@@ -397,7 +397,7 @@ export default function BatchOperationsPage() {
 						</CardHeader>
 						<CardContent>
 							<DataTable
-								columns={resultsColumns as any}
+								columns={resultsColumns}
 								data={batchResults}
 								getRowId={(result: BatchResponse) =>
 									result.requestId?.toString() || "result"

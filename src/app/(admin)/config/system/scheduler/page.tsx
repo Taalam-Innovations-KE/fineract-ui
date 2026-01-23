@@ -35,7 +35,7 @@ async function fetchJobs(tenantId: string): Promise<GetJobsResponse[]> {
 	return response.json();
 }
 
-async function runJob(tenantId: string, jobId: number): Promise<any> {
+async function runJob(tenantId: string, jobId: number): Promise<unknown> {
 	const response = await fetch(
 		`${BFF_ROUTES.jobs}/${jobId}?command=executeJob`,
 		{
@@ -275,7 +275,7 @@ export default function SchedulerJobsPage() {
 					</CardHeader>
 					<CardContent>
 						<DataTable
-							columns={columns as any}
+							columns={columns}
 							data={jobs || []}
 							getRowId={(job: GetJobsResponse) =>
 								job.jobId || job.displayName || "job"

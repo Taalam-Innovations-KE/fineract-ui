@@ -664,7 +664,7 @@ export default function ClientsPage() {
 
 		if (isBusiness) {
 			payload.fullname = data.fullname.trim();
-			if (data.legalFormId) payload.legalFormId = data.legalFormId;
+			payload.legalFormId = data.legalFormId;
 			if (data.businessTypeId) {
 				payload.clientNonPersonDetails = {
 					mainBusinessLineId: data.businessTypeId,
@@ -783,7 +783,7 @@ export default function ClientsPage() {
 								emptyMessage="No clients found."
 								enableActions={true}
 								getViewUrl={(client) =>
-									`/admin/config/operations/clients/${client.id}`
+									`/config/operations/clients/${client.id}`
 								}
 							/>
 						)}

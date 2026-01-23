@@ -4,6 +4,10 @@
 		"shadcn": {
 			"type": "local",
 			"command": ["npx", "-y", "shadcn@latest", "mcp"]
+		},
+		"playwright": {
+			"type": "local",
+			"command": ["npx", "@playwright/mcp@latest"]
 		}
 	}
 }

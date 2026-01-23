@@ -2,8 +2,7 @@ import { Control, Controller } from "react-hook-form";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
-
-type ClientFormData = Record<string, any>;
+import type { ClientFormData } from "../../lib/schemas/client";
 
 interface ClientContactStepProps {
 	control: Control<ClientFormData>;

@@ -249,7 +249,7 @@ export default function CurrenciesPage() {
 								emptyMessage="No active currencies configured."
 								enableActions={true}
 								getViewUrl={(currency) =>
-									`/admin/config/financial/currencies/${currency.code}`
+									`/config/financial/currencies/${currency.code}`
 								}
 							/>
 						)}

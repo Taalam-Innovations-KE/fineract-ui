@@ -301,7 +301,7 @@ export default function LoansPage() {
 			header: "Loan",
 			cell: (loan: LoanListItem) => (
 				<Link
-					href={`/operations/loans/${loan.id || loan.accountNo}`}
+					href={`/config/operations/loans/${loan.id || loan.accountNo}`}
 					className="block hover:underline"
 				>
 					<div>

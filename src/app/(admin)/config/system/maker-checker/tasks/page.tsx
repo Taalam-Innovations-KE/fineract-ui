@@ -27,7 +27,7 @@ export default function TasksPage() {
 			try {
 				const response = await fetch("/api/maker-checker/permissions");
 				const perms = await response.json();
-				setPermissions(perms);
+				setPermissions(Array.isArray(perms) ? perms : []);
 			} catch (error) {
 				console.error("Failed to load permissions:", error);
 			} finally {

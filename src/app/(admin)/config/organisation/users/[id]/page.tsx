@@ -111,7 +111,7 @@ export default function UserDetailPage({
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteUser(tenantId, Number(id)),
 		onSuccess: () => {
-			window.location.href = "/admin/config/organisation/users";
+			window.location.href = "/config/organisation/users";
 		},
 	});
 

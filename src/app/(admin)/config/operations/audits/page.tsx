@@ -14,7 +14,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable, DataTableColumn } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -145,7 +145,7 @@ export default function AuditLogsPage() {
 	const audits = auditsData?.pageItems || [];
 	const totalRecords = auditsData?.totalFilteredRecords || 0;
 
-	const columns = [
+	const columns: DataTableColumn<AuditEntry>[] = [
 		{
 			header: "Date & Time",
 			cell: (audit: AuditEntry) => (
@@ -403,7 +403,7 @@ export default function AuditLogsPage() {
 					</CardHeader>
 					<CardContent>
 						<DataTable
-							columns={columns as any}
+							columns={columns}
 							data={audits}
 							getRowId={(audit: AuditEntry) =>
 								audit.id?.toString() || `audit-${Math.random()}`

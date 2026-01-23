@@ -324,9 +324,7 @@ export default function RolesPage() {
 								columns={roleColumns}
 								getRowId={(role) => role.id ?? role.name ?? "role-row"}
 								enableActions={true}
-								getViewUrl={(role) =>
-									`/admin/config/organisation/roles/${role.id}`
-								}
+								getViewUrl={(role) => `/config/organisation/roles/${role.id}`}
 							/>
 						)}
 					</CardContent>

@@ -245,9 +245,7 @@ export default function LoanProductsPage() {
 									String(product.id ?? product.name ?? "product-row")
 								}
 								enableActions={true}
-								getViewUrl={(product) =>
-									`/admin/config/products/loans/${product.id}`
-								}
+								getViewUrl={(product) => `/config/products/loans/${product.id}`}
 							/>
 						)}
 					</CardContent>

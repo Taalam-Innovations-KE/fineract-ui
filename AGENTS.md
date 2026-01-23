@@ -125,14 +125,248 @@ export async function GET(request: NextRequest) {
 - Functions: camelCase (e.g., `createUser`, `validatePassword`)
 - Constants: SCREAMING_SNAKE_CASE (e.g., `DEFAULT_TIMEOUT`)
 
-## Styling and UI Rules
-- Tailwind utility classes are the primary styling approach.
-- `src/components/ui/*` are shadcn/ui components; avoid editing directly.
-- Reuse `cn` helper from `src/lib/utils.ts` for class merging.
-- Use the enforced spacing scale (see below) and run `pnpm check:spacing`.
-- Prefer `next/image` when adding new images (Biome warns on `<img>`).
-- shadcn/ui Select.Item components must have non-empty string value prop (use "all" for "select all" options, not "").
-- Use browser `confirm()` for action confirmations instead of AlertDialog if not available.
+## UI Component Rules – STRICTLY ENFORCED
+
+You are working in the Taalam FinCore (Fineract UI) codebase.
+The following UI rules are non-negotiable and must be followed at all times.
+
+### 1️⃣ Always Use shadcn/ui Components
+
+ALWAYS prefer shadcn/ui components for all UI elements:
+
+Buttons, Inputs, Forms, Dialogs / Sheets, Tables, Tabs, Dropdowns / Selects, Alerts / Toasts, Cards, Pagination, Skeletons
+
+DO NOT build custom UI primitives if an equivalent shadcn component exists.
+
+DO NOT re-implement styling that shadcn already provides.
+
+If a shadcn component exists → use it.
+
+### 2️⃣ If a Component Is Missing → Use shadcn CLI
+
+If you need a UI component that does not yet exist in the codebase:
+
+Use the shadcn CLI to add it:
+
+```bash
+npx shadcn@latest add <component-name> --yes
+```
+
+Common components to add: `skeleton`, `pagination`, `tabs`, `toast`, etc.
+
+Use the newly added component exactly as generated.
+
+DO NOT:
+
+Copy components manually
+Paste components from random sources
+Modify base components in src/components/ui/* unless explicitly instructed
+
+shadcn CLI is the single source of truth for missing components.
+
+### 3️⃣ Never Edit Base shadcn Components Directly
+
+Files under:
+
+src/components/ui/*
+
+
+are base components.
+
+Rules:
+
+❌ DO NOT edit them directly
+
+✅ Extend or wrap them in feature components instead
+
+✅ Apply variants, composition, and layout outside the base component
+
+### 4️⃣ Loading States: Skeletons Only (NO Spinners)
+
+For all loading states, follow this rule:
+
+❌ DO NOT use spinners
+❌ DO NOT use loading indicators that block layout
+
+✅ ALWAYS use Skeleton views with shimmer
+
+Mandatory Pattern
+
+Use Skeleton components from shadcn/ui
+
+Skeletons must:
+
+Match the final layout shape
+Preserve page structure
+Use shimmer animation
+Avoid layout shifts
+
+Examples of Where Skeletons Are Required
+
+Page-level loading, Tables and lists, Forms waiting for templates/data, Cards and dashboards, Tabs with async content
+
+If the real UI is rectangular → skeleton is rectangular
+If the real UI is a table → skeleton looks like a table
+
+### 5️⃣ UX Expectations for Skeletons
+
+Skeleton loading states must:
+
+Appear immediately
+Visually communicate structure
+Be replaced seamlessly when data arrives
+Never flash or jump layouts
+
+Skeletons are not optional polish — they are required UX.
+
+### 6️⃣ Summary (Non-Optional Rules)
+
+✅ Use shadcn components always
+
+✅ Use shadcn CLI to add missing components
+
+❌ No custom primitives
+
+❌ No spinners for loading
+
+✅ Skeleton shimmer loading views only
+
+❌ No direct edits to src/components/ui/*
+
+Failure to follow these rules is considered a blocking issue.
+
+## Loading States & Skeleton Patterns
+
+### DataTable Skeleton
+For tables using the existing `DataTable` component, use this skeleton pattern:
+
+```typescript
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
+
+export function DataTableSkeleton() {
+  return (
+    <div className="space-y-2">
+      <Card className="rounded-sm border border-border/60">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-border/60 bg-muted/40">
+            <tr>
+              {/* Match the number of columns in your actual table */}
+              <th className="px-3 py-2">
+                <Skeleton className="h-4 w-24" />
+              </th>
+              <th className="px-3 py-2">
+                <Skeleton className="h-4 w-20" />
+              </th>
+              <th className="px-3 py-2">
+                <Skeleton className="h-4 w-16" />
+              </th>
+              <th className="px-3 py-2 text-right">
+                <Skeleton className="h-4 w-12" />
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {/* Render 8 skeleton rows to match default pageSize */}
+            {Array.from({ length: 8 }).map((_, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2">
+                  <Skeleton className="h-4 w-32" />
+                </td>
+                <td className="px-3 py-2">
+                  <Skeleton className="h-4 w-24" />
+                </td>
+                <td className="px-3 py-2">
+                  <Skeleton className="h-4 w-20" />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <Skeleton className="h-8 w-16" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+```
+
+### Form Skeleton
+For forms using `FormField` components, use this pattern:
+
+```typescript
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export function FormSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <Skeleton className="h-6 w-48" />
+        </CardTitle>
+        <Skeleton className="h-4 w-64" />
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Match the structure of your actual form */}
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-18" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <div className="flex justify-end space-x-2">
+          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-10 w-24" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+### Dashboard Card Skeleton
+For card-based dashboards, use this pattern:
+
+```typescript
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+export function DashboardSkeleton() {
+  return (
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {/* Match the number of cards in your dashboard */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              <Skeleton className="h-4 w-32" />
+            </CardTitle>
+            <Skeleton className="h-4 w-4" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-16 mb-1" />
+            <Skeleton className="h-3 w-24" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+```
 
 ### Class Merging Pattern
 ```typescript
@@ -239,6 +473,7 @@ When refactoring large forms into modular components:
 - No `.cursorrules`, `.cursor/rules/`, or GitHub Copilot instructions were found.
 
 ## Quick Checklist Before Hand-off
+- Verify all loading states use skeleton components (no spinners)
 - Run `pnpm lint` or `pnpm lint:check`
 - Run `pnpm check:spacing` after layout work
 - Run `pnpm build` to ensure no TypeScript/compilation errors

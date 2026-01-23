@@ -319,9 +319,7 @@ export default function UsersPage() {
 								columns={userColumns}
 								getRowId={(user) => user.id ?? user.username ?? "user-row"}
 								enableActions={true}
-								getViewUrl={(user) =>
-									`/admin/config/organisation/users/${user.id}`
-								}
+								getViewUrl={(user) => `/config/organisation/users/${user.id}`}
 							/>
 						)}
 					</CardContent>

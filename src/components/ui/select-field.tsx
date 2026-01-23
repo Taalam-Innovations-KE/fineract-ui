@@ -8,14 +8,14 @@ import {
 } from "@/components/ui/select";
 import { FormField } from "./form-field";
 
-interface SelectFieldProps {
+interface SelectFieldProps<TFieldValues extends FieldValues = FieldValues> {
 	label: string;
 	required?: boolean;
 	error?: string;
 	placeholder?: string;
 	disabled?: boolean;
 	options: Array<{ id?: number; name?: string; value?: string }>;
-	field: ControllerRenderProps<FieldValues, string>;
+	field: ControllerRenderProps<TFieldValues, string>;
 }
 
 export function SelectField({

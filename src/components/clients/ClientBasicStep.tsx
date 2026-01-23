@@ -1,11 +1,9 @@
-import type { Control, FieldErrors, FieldValues } from "react-hook-form";
+import type { Control, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
-
-// Temporary local type - will move to shared schema later
-type ClientFormData = FieldValues;
+import type { ClientFormData } from "../../lib/schemas/client";
 
 interface ClientBasicStepProps {
 	control: Control<ClientFormData>;

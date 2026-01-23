@@ -3,8 +3,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
-
-type ClientFormData = Record<string, any>;
+import type { ClientFormData } from "../../lib/schemas/client";
 
 interface ClientAddressStepProps {
 	control: Control<ClientFormData>;
@@ -84,7 +83,7 @@ export function ClientAddressStep({
 					control={control}
 					name="active"
 					render={({ field }) =>
-						field.value && (
+						field.value ? (
 							<FormField
 								label="Activation Date"
 								required
@@ -98,6 +97,8 @@ export function ClientAddressStep({
 									)}
 								/>
 							</FormField>
+						) : (
+							<></>
 						)
 					}
 				/>

@@ -1,18 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { Control, UseFormWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
+import type { ClientFormData } from "../../lib/schemas/client";
 import { ClientAddressStep } from "./ClientAddressStep";
 import { ClientBasicStep } from "./ClientBasicStep";
 import { ClientContactStep } from "./ClientContactStep";
 import { ClientDetailsStep } from "./ClientDetailsStep";
 
-type ClientFormData = Record<string, any>;
-
 interface ClientRegistrationWizardProps {
-	control: any;
+	control: Control<ClientFormData>;
 	errors: Record<string, { message?: string }>;
-	watch: any;
+	watch: UseFormWatch<ClientFormData>;
 	officeOptions: Array<{ id?: number; name?: string; nameDecorated?: string }>;
 	genderOptions: Array<{ id?: number; name?: string }>;
 	legalFormOptions: Array<{ id?: number; name?: string }>;

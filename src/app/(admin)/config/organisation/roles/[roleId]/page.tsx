@@ -111,7 +111,7 @@ export default function RoleDetailPage({
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteRole(tenantId, Number(roleId)),
 		onSuccess: () => {
-			window.location.href = "/admin/config/organisation/roles";
+			window.location.href = "/config/organisation/roles";
 		},
 	});
 
@@ -169,9 +169,7 @@ export default function RoleDetailPage({
 							Edit
 						</Button>
 						<Button variant="outline" asChild>
-							<a
-								href={`/admin/config/organisation/roles/${role.id}/permissions`}
-							>
+							<a href={`/config/organisation/roles/${role.id}/permissions`}>
 								<Settings className="mr-1 h-4 w-4" />
 								Manage Permissions
 							</a>

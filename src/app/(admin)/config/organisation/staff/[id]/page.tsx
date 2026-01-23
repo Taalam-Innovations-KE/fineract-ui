@@ -75,7 +75,7 @@ export default function StaffDetailPage({
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteStaffMember(tenantId, Number(id)),
 		onSuccess: () => {
-			window.location.href = "/admin/config/organisation/staff";
+			window.location.href = "/config/organisation/staff";
 		},
 	});
 

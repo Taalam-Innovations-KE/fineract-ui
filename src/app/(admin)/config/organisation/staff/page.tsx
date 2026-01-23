@@ -407,7 +407,7 @@ export default function StaffPage() {
 								}
 								enableActions={true}
 								getViewUrl={(member) =>
-									`/admin/config/organisation/staff/${member.id}`
+									`/config/organisation/staff/${member.id}`
 								}
 							/>
 						)}

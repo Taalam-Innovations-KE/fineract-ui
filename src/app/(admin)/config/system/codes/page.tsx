@@ -851,7 +851,7 @@ export default function CodesPage() {
 							getRowId={(code) => code.id || code.name || "code-row"}
 							emptyMessage="No codes found."
 							enableActions={true}
-							getViewUrl={(code) => `/admin/config/system/codes/${code.id}`}
+							getViewUrl={(code) => `/config/system/codes/${code.id}`}
 						/>
 					)}
 				</CardContent>

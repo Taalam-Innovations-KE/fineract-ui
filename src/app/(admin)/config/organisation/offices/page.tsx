@@ -309,7 +309,7 @@ export default function OfficesPage() {
 								onRowClick={handleRowClick}
 								enableActions={true}
 								getViewUrl={(row) =>
-									`/admin/config/organisation/offices/${row.office.id}`
+									`/config/organisation/offices/${row.office.id}`
 								}
 							/>
 						)}

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { ClientRegistrationWizard } from "@/components/clients/ClientRegistrationWizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,13 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import {
+	createClient,
+	createClientIdentifier,
+	fetchClientIdentifierTemplate,
+	fetchClients,
+	fetchClientTemplate,
+} from "@/lib/fineract/client";
 import type {
 	ClientAddressRequest,
 	GetClientsPageItemsResponse,
@@ -74,28 +81,6 @@ type ClientNonPersonDetails = {
 	mainBusinessLineId?: number;
 };
 
-type AddressOptions = {
-	addressTypeIdOptions?: LookupOption[];
-	countryIdOptions?: LookupOption[];
-	stateProvinceIdOptions?: LookupOption[];
-};
-
-type ClientTemplateResponse = {
-	isAddressEnabled?: boolean;
-	address?: AddressOptions;
-	addressOptions?: AddressOptions;
-	clientClassificationOptions?: LookupOption[];
-	clientLegalFormOptions?: LookupOption[];
-	clientNonPersonMainBusinessLineOptions?: LookupOption[];
-	clientTypeOptions?: LookupOption[];
-	genderOptions?: LookupOption[];
-	officeOptions?: OfficeData[];
-};
-
-type ClientIdentifierTemplate = {
-	allowedDocumentTypes?: LookupOption[];
-};
-
 type ClientFormData = {
 	clientKind: ClientKind;
 	firstname: string;
@@ -122,6 +107,10 @@ type ClientFormData = {
 	taxId?: string;
 	businessLicenseNo?: string;
 	registrationNo?: string;
+	groupId?: number;
+	savingsProductId?: number;
+	staffId?: number;
+	datatables?: Array<Record<string, unknown>>;
 };
 
 type ClientCreatePayload = PostClientsRequest & {
@@ -197,100 +186,6 @@ function LookupSkeleton() {
 	);
 }
 
-async function fetchClients(tenantId: string): Promise<GetClientsResponse> {
-	const response = await fetch(BFF_ROUTES.clients, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch clients");
-	}
-
-	return response.json();
-}
-
-async function fetchClientTemplate(
-	tenantId: string,
-): Promise<ClientTemplateResponse> {
-	const response = await fetch(BFF_ROUTES.clientsTemplate, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch client template");
-	}
-
-	return response.json();
-}
-
-async function fetchClientIdentifierTemplate(
-	tenantId: string,
-	clientId: number,
-): Promise<ClientIdentifierTemplate> {
-	const response = await fetch(
-		`/api/fineract/clients/${clientId}/identifiers/template`,
-		{
-			headers: {
-				"x-tenant-id": tenantId,
-			},
-		},
-	);
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch identifier template");
-	}
-
-	return response.json();
-}
-
-async function createClientIdentifier(
-	tenantId: string,
-	clientId: number,
-	payload: { documentTypeId: number; documentKey: string },
-) {
-	const response = await fetch(
-		`/api/fineract/clients/${clientId}/identifiers`,
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify(payload),
-		},
-	);
-
-	if (!response.ok) {
-		const data = await response.json();
-		throw new Error(data.message || "Failed to create client identifier");
-	}
-
-	return response.json();
-}
-
-async function createClient(tenantId: string, payload: ClientCreatePayload) {
-	const response = await fetch(BFF_ROUTES.clients, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"x-tenant-id": tenantId,
-		},
-		body: JSON.stringify(payload),
-	});
-
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to create client");
-	}
-
-	return data;
-}
-
 export default function ClientsPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
@@ -360,7 +255,6 @@ export default function ClientsPage() {
 	});
 
 	const {
-		register,
 		handleSubmit,
 		control,
 		reset,
@@ -420,6 +314,18 @@ export default function ClientsPage() {
 		() => (clientTemplate?.officeOptions || []) as OfficeData[],
 		[clientTemplate?.officeOptions],
 	);
+	const staffOptions = useMemo(
+		() =>
+			(clientTemplate?.staffOptions || []) as Array<{
+				id: number;
+				displayName: string;
+			}>,
+		[clientTemplate?.staffOptions],
+	);
+	const savingProductOptions = useMemo(
+		() => (clientTemplate?.savingProductOptions || []) as LookupOption[],
+		[clientTemplate?.savingProductOptions],
+	);
 	const countryOptions = useMemo(
 		() => (addressOptions.countryIdOptions || []) as LookupOption[],
 		[addressOptions.countryIdOptions],
@@ -429,20 +335,12 @@ export default function ClientsPage() {
 
 	const lookupErrors = [templateQuery.error].filter(Boolean) as Error[];
 
-	const hasMissingOffice = !officeOptions.length;
 	const isAddressEnabled = Boolean(clientTemplate?.isAddressEnabled);
 	const clientKind = watch("clientKind");
 	const isBusiness = clientKind === "business";
 	const isActive = Boolean(watch("active"));
 	const hasMissingCountry = isAddressEnabled && !countryOptions.length;
 	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
-
-	const disableSubmit =
-		isLookupsLoading ||
-		hasMissingOffice ||
-		hasMissingCountry ||
-		hasMissingBusinessType ||
-		createMutation.isPending;
 
 	const clients = clientsQuery.data?.pageItems || [];
 
@@ -826,661 +724,44 @@ export default function ClientsPage() {
 						)}
 
 						{!isLookupsLoading && lookupErrors.length === 0 && (
-							<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="officeId">
-										Office <span className="text-destructive">*</span>
-									</Label>
-									<Controller
-										control={control}
-										name="officeId"
-										rules={{ required: "Office is required" }}
-										render={({ field }) => (
-											<Select
-												value={
-													field.value !== undefined && field.value !== null
-														? String(field.value)
-														: undefined
-												}
-												onValueChange={(value) => field.onChange(Number(value))}
-												disabled={hasMissingOffice}
-											>
-												<SelectTrigger id="officeId">
-													<SelectValue placeholder="Select office" />
-												</SelectTrigger>
-												<SelectContent>
-													{officeOptions.map((office) => (
-														<SelectItem
-															key={office.id}
-															value={String(office.id)}
-														>
-															{office.nameDecorated || office.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									{errors.officeId && (
-										<p className="text-sm text-destructive">
-											{errors.officeId.message}
-										</p>
-									)}
-									{hasMissingOffice && (
-										<Alert variant="warning">
-											<AlertTitle>No offices available</AlertTitle>
-											<AlertDescription>
-												Configure at least one office before onboarding clients.
-											</AlertDescription>
-										</Alert>
-									)}
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="clientKind">
-										Client kind <span className="text-destructive">*</span>
-									</Label>
-									<Controller
-										control={control}
-										name="clientKind"
-										rules={{ required: "Client kind is required" }}
-										render={({ field }) => (
-											<Select
-												value={field.value}
-												onValueChange={field.onChange}
-											>
-												<SelectTrigger id="clientKind">
-													<SelectValue placeholder="Select client kind" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="individual">Individual</SelectItem>
-													<SelectItem value="business">Business</SelectItem>
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									{errors.clientKind && (
-										<p className="text-sm text-destructive">
-											{errors.clientKind.message}
-										</p>
-									)}
-								</div>
-
-								{!isBusiness && (
-									<>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="firstname">
-													First name <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id="firstname"
-													{...register("firstname")}
-													placeholder="Enter first name"
-												/>
-												{errors.firstname && (
-													<p className="text-sm text-destructive">
-														{errors.firstname.message}
-													</p>
-												)}
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="lastname">
-													Last name <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id="lastname"
-													{...register("lastname")}
-													placeholder="Enter last name"
-												/>
-												{errors.lastname && (
-													<p className="text-sm text-destructive">
-														{errors.lastname.message}
-													</p>
-												)}
-											</div>
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="middlename">Middle name</Label>
-											<Input
-												id="middlename"
-												{...register("middlename")}
-												placeholder="Enter middle name"
-											/>
-										</div>
-
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="dateOfBirth">Date of birth</Label>
-												<Input
-													id="dateOfBirth"
-													type="date"
-													{...register("dateOfBirth")}
-												/>
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="genderId">Gender</Label>
-												<Controller
-													control={control}
-													name="genderId"
-													render={({ field }) => (
-														<Select
-															value={
-																field.value !== undefined &&
-																field.value !== null
-																	? String(field.value)
-																	: undefined
-															}
-															onValueChange={(value) =>
-																field.onChange(Number(value))
-															}
-															disabled={!genderOptions.length}
-														>
-															<SelectTrigger id="genderId">
-																<SelectValue placeholder="Select gender" />
-															</SelectTrigger>
-															<SelectContent>
-																{genderOptions
-																	.filter((option) => option.id)
-																	.map((option) => (
-																		<SelectItem
-																			key={option.id}
-																			value={String(option.id)}
-																		>
-																			{option.name || option.value || "Unnamed"}
-																		</SelectItem>
-																	))}
-															</SelectContent>
-														</Select>
-													)}
-												/>
-												{!genderOptions.length && (
-													<p className="text-xs text-muted-foreground">
-														No gender options configured.
-													</p>
-												)}
-											</div>
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="nationalId">
-												National ID <span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="nationalId"
-												{...register("nationalId")}
-												placeholder="Enter national ID number"
-											/>
-											{errors.nationalId && (
-												<p className="text-sm text-destructive">
-													{errors.nationalId.message}
-												</p>
-											)}
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="passportNo">
-												Passport number{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="passportNo"
-												{...register("passportNo")}
-												placeholder="Enter passport number"
-											/>
-											{errors.passportNo && (
-												<p className="text-sm text-destructive">
-													{errors.passportNo.message}
-												</p>
-											)}
-											<p className="text-xs text-muted-foreground">
-												Provide national ID or passport to proceed.
-											</p>
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="taxId">Tax ID</Label>
-											<Input
-												id="taxId"
-												{...register("taxId")}
-												placeholder="Enter tax ID (optional)"
-											/>
-										</div>
-									</>
+							<ClientRegistrationWizard
+								control={control}
+								errors={errors}
+								watch={watch}
+								officeOptions={officeOptions.filter((o) => o.id)}
+								genderOptions={genderOptions.filter((o) => o.id)}
+								legalFormOptions={legalFormOptions.filter((o) => o.id)}
+								businessLineOptions={businessLineOptions.filter((o) => o.id)}
+								staffOptions={staffOptions.filter((o) => o.id)}
+								savingProductOptions={savingProductOptions.filter((o) => o.id)}
+								clientTypeOptions={clientTypeOptions.filter((o) => o.id)}
+								clientClassificationOptions={clientClassificationOptions.filter(
+									(o) => o.id,
 								)}
+								countryOptions={countryOptions.filter((o) => o.id)}
+								isAddressEnabled={isAddressEnabled}
+								onSubmit={handleSubmit(onSubmit)}
+							/>
+						)}
 
-								{isBusiness && (
-									<>
-										<div className="space-y-2">
-											<Label htmlFor="fullname">
-												Business name{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="fullname"
-												{...register("fullname")}
-												placeholder="Enter business name"
-											/>
-											{errors.fullname && (
-												<p className="text-sm text-destructive">
-													{errors.fullname.message}
-												</p>
-											)}
-										</div>
+						{createMutation.isError && (
+							<Alert variant="destructive">
+								<AlertTitle>Submission failed</AlertTitle>
+								<AlertDescription>
+									{(createMutation.error as Error)?.message ||
+										"Failed to create client. Please try again."}
+								</AlertDescription>
+							</Alert>
+						)}
 
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="legalFormId">
-													Legal form <span className="text-destructive">*</span>
-												</Label>
-												<Controller
-													control={control}
-													name="legalFormId"
-													render={({ field }) => (
-														<Select
-															value={
-																field.value !== undefined &&
-																field.value !== null
-																	? String(field.value)
-																	: undefined
-															}
-															onValueChange={(value) =>
-																field.onChange(Number(value))
-															}
-															disabled={!legalFormOptions.length}
-														>
-															<SelectTrigger id="legalFormId">
-																<SelectValue placeholder="Select legal form" />
-															</SelectTrigger>
-															<SelectContent>
-																{legalFormOptions
-																	.filter((option) => option.id)
-																	.map((option) => (
-																		<SelectItem
-																			key={option.id}
-																			value={String(option.id)}
-																		>
-																			{option.name || option.value || "Unnamed"}
-																		</SelectItem>
-																	))}
-															</SelectContent>
-														</Select>
-													)}
-												/>
-												{errors.legalFormId && (
-													<p className="text-sm text-destructive">
-														{errors.legalFormId.message}
-													</p>
-												)}
-												{!legalFormOptions.length && (
-													<p className="text-xs text-muted-foreground">
-														No legal form options configured.
-													</p>
-												)}
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="businessTypeId">
-													Business type{" "}
-													<span className="text-destructive">*</span>
-												</Label>
-												<Controller
-													control={control}
-													name="businessTypeId"
-													render={({ field }) => (
-														<Select
-															value={
-																field.value !== undefined &&
-																field.value !== null
-																	? String(field.value)
-																	: undefined
-															}
-															onValueChange={(value) =>
-																field.onChange(Number(value))
-															}
-															disabled={!businessLineOptions.length}
-														>
-															<SelectTrigger id="businessTypeId">
-																<SelectValue placeholder="Select business type" />
-															</SelectTrigger>
-															<SelectContent>
-																{businessLineOptions
-																	.filter((option) => option.id)
-																	.map((option) => (
-																		<SelectItem
-																			key={option.id}
-																			value={String(option.id)}
-																		>
-																			{option.name || option.value || "Unnamed"}
-																		</SelectItem>
-																	))}
-															</SelectContent>
-														</Select>
-													)}
-												/>
-												{errors.businessTypeId && (
-													<p className="text-sm text-destructive">
-														{errors.businessTypeId.message}
-													</p>
-												)}
-												{!businessLineOptions.length && (
-													<p className="text-xs text-muted-foreground">
-														No business types configured.
-													</p>
-												)}
-											</div>
-										</div>
-
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="businessLicenseNo">
-													Business license{" "}
-													<span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id="businessLicenseNo"
-													{...register("businessLicenseNo")}
-													placeholder="Enter business license number"
-												/>
-												{errors.businessLicenseNo && (
-													<p className="text-sm text-destructive">
-														{errors.businessLicenseNo.message}
-													</p>
-												)}
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="registrationNo">
-													Registration number
-												</Label>
-												<Input
-													id="registrationNo"
-													{...register("registrationNo")}
-													placeholder="Enter registration number (optional)"
-												/>
-											</div>
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="taxId">Tax ID</Label>
-											<Input
-												id="taxId"
-												{...register("taxId")}
-												placeholder="Enter tax ID (optional)"
-											/>
-										</div>
-									</>
-								)}
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<Label htmlFor="mobileNo">Mobile number</Label>
-										<Input
-											id="mobileNo"
-											{...register("mobileNo")}
-											placeholder="Enter mobile number"
-										/>
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="emailAddress">Email address</Label>
-										<Input
-											id="emailAddress"
-											type="email"
-											{...register("emailAddress")}
-											placeholder="Enter email address"
-										/>
-									</div>
-								</div>
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<Label htmlFor="externalId">External ID</Label>
-										<Input
-											id="externalId"
-											{...register("externalId")}
-											placeholder="Enter external reference"
-										/>
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="clientTypeId">Client type</Label>
-										<Controller
-											control={control}
-											name="clientTypeId"
-											render={({ field }) => (
-												<Select
-													value={
-														field.value !== undefined && field.value !== null
-															? String(field.value)
-															: undefined
-													}
-													onValueChange={(value) =>
-														field.onChange(Number(value))
-													}
-													disabled={!clientTypeOptions.length}
-												>
-													<SelectTrigger id="clientTypeId">
-														<SelectValue placeholder="Select client type" />
-													</SelectTrigger>
-													<SelectContent>
-														{clientTypeOptions
-															.filter((option) => option.id)
-															.map((option) => (
-																<SelectItem
-																	key={option.id}
-																	value={String(option.id)}
-																>
-																	{option.name || option.value || "Unnamed"}
-																</SelectItem>
-															))}
-													</SelectContent>
-												</Select>
-											)}
-										/>
-										{!clientTypeOptions.length && (
-											<p className="text-xs text-muted-foreground">
-												No client type options configured.
-											</p>
-										)}
-									</div>
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="clientClassificationId">
-										Client classification
-									</Label>
-									<Controller
-										control={control}
-										name="clientClassificationId"
-										render={({ field }) => (
-											<Select
-												value={
-													field.value !== undefined && field.value !== null
-														? String(field.value)
-														: undefined
-												}
-												onValueChange={(value) => field.onChange(Number(value))}
-												disabled={!clientClassificationOptions.length}
-											>
-												<SelectTrigger id="clientClassificationId">
-													<SelectValue placeholder="Select classification" />
-												</SelectTrigger>
-												<SelectContent>
-													{clientClassificationOptions
-														.filter((option) => option.id)
-														.map((option) => (
-															<SelectItem
-																key={option.id}
-																value={String(option.id)}
-															>
-																{option.name || option.value || "Unnamed"}
-															</SelectItem>
-														))}
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									{!clientClassificationOptions.length && (
-										<p className="text-xs text-muted-foreground">
-											No classification options configured.
-										</p>
-									)}
-								</div>
-
-								{isAddressEnabled && (
-									<>
-										<div className="space-y-2">
-											<Label htmlFor="addressLine1">Address line 1</Label>
-											<Input
-												id="addressLine1"
-												{...register("addressLine1")}
-												placeholder="Enter street address"
-											/>
-										</div>
-
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											<div className="space-y-2">
-												<Label htmlFor="city">
-													City <span className="text-destructive">*</span>
-												</Label>
-												<Input
-													id="city"
-													{...register("city")}
-													placeholder="Enter city"
-												/>
-												{errors.city && (
-													<p className="text-sm text-destructive">
-														{errors.city.message}
-													</p>
-												)}
-											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="countryId">
-													Country <span className="text-destructive">*</span>
-												</Label>
-												<Controller
-													control={control}
-													name="countryId"
-													render={({ field }) => (
-														<Select
-															value={
-																field.value !== undefined &&
-																field.value !== null
-																	? String(field.value)
-																	: undefined
-															}
-															onValueChange={(value) =>
-																field.onChange(Number(value))
-															}
-															disabled={!countryOptions.length}
-														>
-															<SelectTrigger id="countryId">
-																<SelectValue placeholder="Select country" />
-															</SelectTrigger>
-															<SelectContent>
-																{countryOptions
-																	.filter((option) => option.id)
-																	.map((option) => (
-																		<SelectItem
-																			key={option.id}
-																			value={String(option.id)}
-																		>
-																			{option.name || option.value || "Unnamed"}
-																		</SelectItem>
-																	))}
-															</SelectContent>
-														</Select>
-													)}
-												/>
-												{errors.countryId && (
-													<p className="text-sm text-destructive">
-														{errors.countryId.message}
-													</p>
-												)}
-												{!countryOptions.length && (
-													<p className="text-xs text-muted-foreground">
-														No country options configured.
-													</p>
-												)}
-											</div>
-										</div>
-									</>
-								)}
-
-								<div className="space-y-2">
-									<div className="flex items-center gap-2">
-										<Controller
-											control={control}
-											name="active"
-											render={({ field }) => (
-												<Checkbox
-													checked={Boolean(field.value)}
-													onCheckedChange={(checked) =>
-														field.onChange(Boolean(checked))
-													}
-												/>
-											)}
-										/>
-										<Label htmlFor="active">Activate client now</Label>
-									</div>
-									{isActive && (
-										<div className="space-y-2">
-											<Label htmlFor="activationDate">
-												Activation date{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="activationDate"
-												type="date"
-												{...register("activationDate")}
-											/>
-											{errors.activationDate && (
-												<p className="text-sm text-destructive">
-													{errors.activationDate.message}
-												</p>
-											)}
-										</div>
-									)}
-								</div>
-
-								{createMutation.isError && (
-									<Alert variant="destructive">
-										<AlertTitle>Submission failed</AlertTitle>
-										<AlertDescription>
-											{(createMutation.error as Error)?.message ||
-												"Failed to create client. Please try again."}
-										</AlertDescription>
-									</Alert>
-								)}
-
-								{(hasMissingBusinessType || hasMissingCountry) && (
-									<Alert variant="warning">
-										<AlertTitle>Missing system configuration</AlertTitle>
-										<AlertDescription>
-											Configure required lookup values (business types or
-											countries) before onboarding clients.
-										</AlertDescription>
-									</Alert>
-								)}
-
-								<div className="flex items-center justify-end gap-2">
-									<Button
-										type="button"
-										variant="outline"
-										onClick={() => setIsDrawerOpen(false)}
-									>
-										Cancel
-									</Button>
-									<Button type="submit" disabled={disableSubmit}>
-										{createMutation.isPending ? "Submitting..." : "Submit"}
-									</Button>
-								</div>
-							</form>
+						{(hasMissingBusinessType || hasMissingCountry) && (
+							<Alert variant="warning">
+								<AlertTitle>Missing system configuration</AlertTitle>
+								<AlertDescription>
+									Configure required lookup values (business types or countries)
+									before onboarding clients.
+								</AlertDescription>
+							</Alert>
 						)}
 					</div>
 				</SheetContent>

@@ -109,7 +109,12 @@ function formatChargeAmount(
 		case 1: // Flat
 			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
 		case 2: // Percentage
-			return `${charge.amount}%`;
+			const equivalentAmount = (100 * charge.amount) / 100;
+			const formattedEquivalent =
+				equivalentAmount % 1 === 0
+					? equivalentAmount.toString()
+					: equivalentAmount.toFixed(2);
+			return `${charge.amount}% (${currencySymbol} ${formattedEquivalent} for every ${currencySymbol} 100)`;
 		case 3: // Percent of Interest
 			return `${charge.amount}% of Interest`;
 		case 4: // Percent of Principal
@@ -117,6 +122,20 @@ function formatChargeAmount(
 		default:
 			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
 	}
+}
+
+function summarizeChargesByType(charges: GetChargesResponse[]) {
+	const flatCharges = charges.filter((c) => c.chargeCalculationType?.id === 1);
+	const percentageCharges = charges.filter(
+		(c) => c.chargeCalculationType?.id === 2,
+	);
+
+	return {
+		flatCount: flatCharges.length,
+		flatAmounts: flatCharges.map((c) => c.amount || 0),
+		percentageCount: percentageCharges.length,
+		percentageRates: percentageCharges.map((c) => c.amount || 0),
+	};
 }
 
 function categorizeCharges(charges: GetChargesResponse[]) {
@@ -128,30 +147,6 @@ function categorizeCharges(charges: GetChargesResponse[]) {
 	);
 
 	return { disbursementCharges, repaymentCharges };
-}
-
-function calculateChargeTotal(
-	charges: GetChargesResponse[],
-	loanAmount?: number,
-	currencySymbol = "KES",
-) {
-	return charges.reduce((total, charge) => {
-		if (!charge.amount) return total;
-
-		const calculationType = charge.chargeCalculationType?.id;
-
-		switch (calculationType) {
-			case 1: // Flat
-				return total + charge.amount;
-			case 2: // Percentage
-				if (loanAmount) {
-					return total + (loanAmount * charge.amount) / 100;
-				}
-				return total;
-			default:
-				return total + charge.amount;
-		}
-	}, 0);
 }
 
 function getChargeTimingLabel(charge: GetChargesResponse) {
@@ -657,16 +652,10 @@ export default function LoanProductDetailPage({
 							(() => {
 								const { disbursementCharges, repaymentCharges } =
 									categorizeCharges(detailedCharges);
-								const disbursementTotal = calculateChargeTotal(
-									disbursementCharges,
-									product.principal,
-									product.currency?.displaySymbol,
-								);
-								const repaymentTotal = calculateChargeTotal(
-									repaymentCharges,
-									product.principal,
-									product.currency?.displaySymbol,
-								);
+								const disbursementSummary =
+									summarizeChargesByType(disbursementCharges);
+								const repaymentSummary =
+									summarizeChargesByType(repaymentCharges);
 
 								const allCharges = [
 									...disbursementCharges,
@@ -766,47 +755,124 @@ export default function LoanProductDetailPage({
 												<CardTitle>Charges Summary</CardTitle>
 											</CardHeader>
 											<CardContent>
-												<div className="grid grid-cols-2 gap-4">
-													<div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-														<div className="text-sm text-muted-foreground">
-															At Disbursement
+												<div className="space-y-4">
+													{/* Disbursement Charges */}
+													{disbursementCharges.length > 0 && (
+														<div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+															<h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+																At Disbursement ({disbursementCharges.length}{" "}
+																charge
+																{disbursementCharges.length !== 1 ? "s" : ""})
+															</h4>
+															<div className="space-y-1 text-sm">
+																{disbursementSummary.flatCount > 0 && (
+																	<div>
+																		{disbursementSummary.flatCount} flat charge
+																		{disbursementSummary.flatCount !== 1
+																			? "s"
+																			: ""}
+																		: {product.currency?.displaySymbol}{" "}
+																		{Math.max(
+																			...disbursementSummary.flatAmounts,
+																		).toLocaleString()}{" "}
+																		each
+																	</div>
+																)}
+																{disbursementSummary.percentageCount > 0 && (
+																	<div>
+																		{disbursementSummary.percentageCount}{" "}
+																		percentage charge
+																		{disbursementSummary.percentageCount !== 1
+																			? "s"
+																			: ""}
+																		{disbursementSummary.percentageRates.map(
+																			(rate, index) => (
+																				<div
+																					key={index}
+																					className="ml-4 text-xs text-muted-foreground"
+																				>
+																					{rate}% (
+																					{product.currency?.displaySymbol}{" "}
+																					{((100 * rate) / 100)
+																						.toFixed(2)
+																						.replace(".00", "")}{" "}
+																					for every{" "}
+																					{product.currency?.displaySymbol} 100
+																					borrowed)
+																				</div>
+																			),
+																		)}
+																	</div>
+																)}
+															</div>
 														</div>
-														<div className="text-xl font-semibold text-blue-700 dark:text-blue-300">
-															{formatCurrency(
-																disbursementTotal,
-																product.currency?.displaySymbol,
-															)}
+													)}
+
+													{/* Repayment Charges */}
+													{repaymentCharges.length > 0 && (
+														<div className="p-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+															<h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">
+																At Repayment ({repaymentCharges.length} charge
+																{repaymentCharges.length !== 1 ? "s" : ""})
+															</h4>
+															<div className="space-y-1 text-sm">
+																{repaymentSummary.flatCount > 0 && (
+																	<div>
+																		{repaymentSummary.flatCount} flat charge
+																		{repaymentSummary.flatCount !== 1
+																			? "s"
+																			: ""}
+																		: {product.currency?.displaySymbol}{" "}
+																		{Math.max(
+																			...repaymentSummary.flatAmounts,
+																		).toLocaleString()}{" "}
+																		each
+																	</div>
+																)}
+																{repaymentSummary.percentageCount > 0 && (
+																	<div>
+																		{repaymentSummary.percentageCount}{" "}
+																		percentage charge
+																		{repaymentSummary.percentageCount !== 1
+																			? "s"
+																			: ""}
+																		{repaymentSummary.percentageRates.map(
+																			(rate, index) => (
+																				<div
+																					key={index}
+																					className="ml-4 text-xs text-muted-foreground"
+																				>
+																					{rate}% (
+																					{product.currency?.displaySymbol}{" "}
+																					{((100 * rate) / 100)
+																						.toFixed(2)
+																						.replace(".00", "")}{" "}
+																					for every{" "}
+																					{product.currency?.displaySymbol} 100
+																					borrowed)
+																				</div>
+																			),
+																		)}
+																	</div>
+																)}
+															</div>
 														</div>
-														<div className="text-xs text-muted-foreground">
-															{disbursementCharges.length} charge
-															{disbursementCharges.length !== 1 ? "s" : ""}
+													)}
+
+													{/* Grand Total */}
+													<div className="pt-4 border-t">
+														<div className="font-medium">
+															Grand Total:{" "}
+															{disbursementCharges.length +
+																repaymentCharges.length}{" "}
+															charges (
+															{disbursementSummary.flatCount +
+																repaymentSummary.flatCount}{" "}
+															flat +{" "}
+															{disbursementSummary.percentageCount +
+																repaymentSummary.percentageCount}{" "}
+															percentage-based)
 														</div>
-													</div>
-													<div className="text-center p-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
-														<div className="text-sm text-muted-foreground">
-															At Repayment
-														</div>
-														<div className="text-xl font-semibold text-orange-700 dark:text-orange-300">
-															{formatCurrency(
-																repaymentTotal,
-																product.currency?.displaySymbol,
-															)}
-														</div>
-														<div className="text-xs text-muted-foreground">
-															{repaymentCharges.length} charge
-															{repaymentCharges.length !== 1 ? "s" : ""}
-														</div>
-													</div>
-												</div>
-												<div className="mt-4 pt-4 border-t">
-													<div className="flex justify-between items-center">
-														<span className="font-medium">Grand Total</span>
-														<span className="text-lg font-semibold">
-															{formatCurrency(
-																disbursementTotal + repaymentTotal,
-																product.currency?.displaySymbol,
-															)}
-														</span>
 													</div>
 												</div>
 											</CardContent>

@@ -193,6 +193,26 @@ function getChargeTimingLabel(charge: GetChargesResponse) {
 	}
 }
 
+function getChargeApplicationLabel(charge: GetChargesResponse) {
+	const calculationType = charge.chargeCalculationType?.id;
+	const isPenalty = charge.penalty;
+
+	switch (calculationType) {
+		case 1: // Flat
+			return "Fixed Amount";
+		case 2: // Percent (total)
+			return isPenalty
+				? "Principal + Interest (Overdue)"
+				: "Principal + Interest";
+		case 3: // Percent of Interest
+			return isPenalty ? "Interest (Overdue)" : "Interest";
+		case 4: // Percent of Principal
+			return isPenalty ? "Principal (Overdue)" : "Principal";
+		default:
+			return "Unknown";
+	}
+}
+
 export default function LoanProductDetailPage({
 	params,
 }: {
@@ -721,6 +741,9 @@ export default function LoanProductDetailPage({
 																	When Charged
 																</th>
 																<th className="border border-border p-2 text-left text-sm font-medium">
+																	Applied To
+																</th>
+																<th className="border border-border p-2 text-left text-sm font-medium">
 																	Type
 																</th>
 															</tr>
@@ -751,6 +774,17 @@ export default function LoanProductDetailPage({
 																	</td>
 																	<td className="border border-border p-2 text-sm">
 																		{getChargeTimingLabel(charge)}
+																	</td>
+																	<td className="border border-border p-2 text-sm">
+																		<span
+																			className={
+																				charge.penalty
+																					? "font-medium text-orange-700 dark:text-orange-300"
+																					: ""
+																			}
+																		>
+																			{getChargeApplicationLabel(charge)}
+																		</span>
 																	</td>
 																	<td className="border border-border p-2 text-sm">
 																		{charge.penalty ? (

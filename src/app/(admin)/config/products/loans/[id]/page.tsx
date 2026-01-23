@@ -138,6 +138,30 @@ function summarizeChargesByType(charges: GetChargesResponse[]) {
 	};
 }
 
+function calculateTotalCostPer100(
+	charges: GetChargesResponse[],
+	currencySymbol = "KES",
+) {
+	// Only include percentage-based charges in the per-100 calculation
+	const percentageCharges = charges.filter(
+		(c) => c.chargeCalculationType?.id === 2,
+	);
+
+	const totalPercentage = percentageCharges.reduce((total, charge) => {
+		return total + (charge.amount || 0);
+	}, 0);
+
+	// Calculate equivalent amount for every KES 100
+	const equivalentPer100 = (100 * totalPercentage) / 100;
+
+	return {
+		totalPercentage,
+		equivalentPer100,
+		percentageChargeCount: percentageCharges.length,
+		hasFlatCharges: charges.some((c) => c.chargeCalculationType?.id === 1),
+	};
+}
+
 function categorizeCharges(charges: GetChargesResponse[]) {
 	const disbursementCharges = charges.filter(
 		(charge) => charge.chargeTimeType?.id === 1,
@@ -661,6 +685,10 @@ export default function LoanProductDetailPage({
 									...disbursementCharges,
 									...repaymentCharges,
 								];
+								const totalCostSummary = calculateTotalCostPer100(
+									allCharges,
+									product.currency?.displaySymbol,
+								);
 
 								return (
 									<div className="space-y-6">
@@ -755,6 +783,39 @@ export default function LoanProductDetailPage({
 												<CardTitle>Charges Summary</CardTitle>
 											</CardHeader>
 											<CardContent>
+												{/* Total Cost Highlight */}
+												{totalCostSummary.percentageChargeCount > 0 && (
+													<div className="p-6 bg-gradient-to-r from-blue-50 to-orange-50 dark:from-blue-950/20 dark:to-orange-950/20 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 mb-6">
+														<div className="text-center">
+															<div className="text-sm text-muted-foreground mb-1">
+																Total Cost of All Percentage Charges
+															</div>
+															<div className="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-1">
+																{product.currency?.displaySymbol}{" "}
+																{totalCostSummary.equivalentPer100.toFixed(2)}
+																<span className="text-lg font-normal ml-2">
+																	for every {product.currency?.displaySymbol}{" "}
+																	100 borrowed
+																</span>
+															</div>
+															<div className="text-xs text-muted-foreground">
+																From {totalCostSummary.percentageChargeCount}{" "}
+																percentage charge
+																{totalCostSummary.percentageChargeCount !== 1
+																	? "s"
+																	: ""}{" "}
+																({totalCostSummary.totalPercentage.toFixed(2)}%
+																total)
+																{totalCostSummary.hasFlatCharges && (
+																	<div className="mt-1 text-orange-600 dark:text-orange-400">
+																		* Plus additional flat fees
+																	</div>
+																)}
+															</div>
+														</div>
+													</div>
+												)}
+
 												<div className="space-y-4">
 													{/* Disbursement Charges */}
 													{disbursementCharges.length > 0 && (

@@ -53,7 +53,7 @@ export default function NotFound() {
 					</h1>
 
 					{/* Overlaid content */}
-					<div className="relative -mt-32 space-y-6">
+					<div className="relative -mt-8 space-y-6">
 						{/* Icon/Illustration */}
 						<div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-2xl bg-primary/10 backdrop-blur-sm">
 							<svg
@@ -94,7 +94,7 @@ export default function NotFound() {
 								placeholder="Search Taalam FinCore..."
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
-								className="h-12 pl-10"
+								className="h-12 pl-8"
 							/>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -138,7 +138,7 @@ export default function NotFound() {
 				</div>
 
 				{/* Helpful links */}
-				<div className="mt-12 border-t border-border pt-8">
+				<div className="mt-8 border-t border-border pt-8">
 					<p className="mb-4 text-sm text-muted-foreground">
 						Here are some helpful links instead:
 					</p>

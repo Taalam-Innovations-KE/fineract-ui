@@ -51,6 +51,7 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
+	PostChargesResponse,
 	PostLoanProductsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import {
@@ -189,7 +190,7 @@ const steps = [
 	},
 ];
 
-function optionLabel(option?: {
+function _optionLabel(option?: {
 	code?: string;
 	description?: string;
 	value?: string;
@@ -222,7 +223,7 @@ function toAmountLabel(
 	return `${currencyCode} ${amount}`;
 }
 
-function formatFeeSummary(fee: FeeItem, currencyCode?: string) {
+function _formatFeeSummary(fee: FeeItem, currencyCode?: string) {
 	if (fee.summary) return fee.summary;
 
 	const amountLabel = toAmountLabel(
@@ -244,7 +245,7 @@ function formatFeeSummary(fee: FeeItem, currencyCode?: string) {
 	return `${fee.name} - ${amountLabel} - ${chargeTimeLabel}, ${paymentModeLabel}`;
 }
 
-function formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
+function _formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
 	if (penalty.summary) return penalty.summary;
 
 	const amountLabel = toAmountLabel(
@@ -266,7 +267,7 @@ function formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
 	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}`;
 }
 
-function waterfallLabel(option?: { code?: string; name?: string }) {
+function _waterfallLabel(option?: { code?: string; name?: string }) {
 	if (!option?.code) return option?.name || "Strategy";
 
 	const mapping: Record<string, string> = {
@@ -504,7 +505,10 @@ export function LoanProductWizard({
 		}
 	}, [isPenaltyDrawerOpen]);
 
-	const handleStepDataValid = (stepId: number, data: any) => {
+	const handleStepDataValid = (
+		stepId: number,
+		data: Record<string, unknown>,
+	) => {
 		setWizardData((prev) => ({ ...prev, ...data }));
 		setStepValidities((prev) => ({ ...prev, [stepId]: true }));
 	};
@@ -555,7 +559,7 @@ export function LoanProductWizard({
 		}
 	};
 
-	const handleCopyPayload = async () => {
+	const _handleCopyPayload = async () => {
 		try {
 			const payload = buildLoanProductRequest(
 				getValues() as CreateLoanProductFormData,
@@ -610,7 +614,10 @@ export function LoanProductWizard({
 		setIsCreatingFee(true);
 		try {
 			const payload = mapFeeUiToChargeRequest(values);
-			const response = (await chargesApi.create(tenantId, payload)) as any;
+			const response = (await chargesApi.create(
+				tenantId,
+				payload,
+			)) as PostChargesResponse;
 			const chargeId = response.resourceId;
 
 			if (!chargeId) {
@@ -652,7 +659,10 @@ export function LoanProductWizard({
 		setIsCreatingPenalty(true);
 		try {
 			const payload = mapPenaltyUiToChargeRequest(values);
-			const response = (await chargesApi.create(tenantId, payload)) as any;
+			const response = (await chargesApi.create(
+				tenantId,
+				payload,
+			)) as PostChargesResponse;
 			const chargeId = response.resourceId;
 
 			if (!chargeId) {
@@ -689,7 +699,7 @@ export function LoanProductWizard({
 		}
 	});
 
-	const payloadPreview = buildLoanProductRequest(
+	const _payloadPreview = buildLoanProductRequest(
 		watchedValues as CreateLoanProductFormData,
 	);
 
@@ -701,13 +711,13 @@ export function LoanProductWizard({
 		(option) => option.penalty === true && option.active !== false,
 	);
 
-	const assetOptions =
+	const _assetOptions =
 		template?.accountingMappingOptions?.assetAccountOptions || [];
-	const incomeOptions =
+	const _incomeOptions =
 		template?.accountingMappingOptions?.incomeAccountOptions || [];
-	const expenseOptions =
+	const _expenseOptions =
 		template?.accountingMappingOptions?.expenseAccountOptions || [];
-	const liabilityOptions =
+	const _liabilityOptions =
 		template?.accountingMappingOptions?.liabilityAccountOptions || [];
 
 	return (

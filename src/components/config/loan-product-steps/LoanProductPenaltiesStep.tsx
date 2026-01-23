@@ -42,6 +42,7 @@ import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
+	PostChargesResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
 import {
@@ -198,7 +199,10 @@ export function LoanProductPenaltiesStep({
 							: 0,
 			};
 
-			const response = (await chargesApi.create(tenantId, payload)) as any;
+			const response = (await chargesApi.create(
+				tenantId,
+				payload,
+			)) as PostChargesResponse;
 			const chargeId = response.resourceId;
 
 			if (!chargeId) {

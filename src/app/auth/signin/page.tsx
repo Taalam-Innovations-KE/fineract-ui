@@ -19,8 +19,8 @@ export default async function SignInPage({
 	return (
 		<div className="flex h-screen overflow-hidden">
 			{/* Left Side - Sign In Form */}
-			<div className="flex h-full w-full flex-col justify-center overflow-y-auto px-8 lg:w-1/2 lg:px-16">
-				<div className="mx-auto w-full max-w-md space-y-8">
+			<div className="flex h-full w-full flex-col justify-center overflow-y-auto px-8 lg:w-1/2 lg:px-8">
+				<div className="mx-auto w-full max-w-md space-y-6">
 					{/* Logo/Brand */}
 					<div className="space-y-2">
 						<div className="flex items-center gap-2">
@@ -84,7 +84,7 @@ export default async function SignInPage({
 										type="text"
 										placeholder="Enter your username"
 										required
-										className="pl-10"
+										className="pl-8"
 									/>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -114,7 +114,7 @@ export default async function SignInPage({
 										type="password"
 										placeholder="Enter your password"
 										required
-										className="pl-10"
+										className="pl-8"
 									/>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

@@ -35,6 +35,7 @@ export const FINERACT_ENDPOINTS = {
 	// Loans
 	loans: "/v1/loans",
 	loansTemplate: "/v1/loans/template",
+	paymentTypes: "/v1/paymenttypes",
 
 	// Operations - COB
 	loansCatchUp: "/v1/loans/catch-up",

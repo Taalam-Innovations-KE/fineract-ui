@@ -1,16 +1,30 @@
 import { z } from "zod";
 
-export const loanApprovalSchema = z.object({
-	approvedOnDate: z.string().min(1, "Approval date is required"),
-	approvedLoanAmount: z
-		.number()
-		.positive("Approved amount must be positive")
-		.optional(),
-	expectedDisbursementDate: z.string().optional(),
-	dateFormat: z.string().default("dd MMMM yyyy"),
-	locale: z.string().default("en"),
-	note: z.string().optional(),
-});
+export const loanApprovalSchema = z
+	.object({
+		approvedOnDate: z.string().min(1, "Approval date is required"),
+		approvedLoanAmount: z
+			.number()
+			.positive("Approved amount must be positive")
+			.optional(),
+		expectedDisbursementDate: z.string().optional(),
+		dateFormat: z.string().default("dd MMMM yyyy"),
+		locale: z.string().default("en"),
+		note: z.string().optional(),
+	})
+	.refine(
+		(data) => {
+			if (data.expectedDisbursementDate && data.approvedOnDate) {
+				return data.expectedDisbursementDate >= data.approvedOnDate;
+			}
+			return true;
+		},
+		{
+			message:
+				"Expected disbursement date must be on or after the approval date",
+			path: ["expectedDisbursementDate"],
+		},
+	);
 
 export const loanDisbursementSchema = z.object({
 	actualDisbursementDate: z.string().min(1, "Disbursement date is required"),

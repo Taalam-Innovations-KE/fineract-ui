@@ -6,14 +6,6 @@ import { Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
 	Form,
 	FormControl,
 	FormField,
@@ -29,6 +21,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
@@ -253,6 +253,23 @@ export function LoanCommandDialog({
 						/>
 						<FormField
 							control={form.control}
+							name="expectedDisbursementDate"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>Expected Disbursement Date (Optional)</FormLabel>
+									<FormControl>
+										<Input
+											type="date"
+											min={form.watch("approvedOnDate")}
+											{...field}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+						<FormField
+							control={form.control}
 							name="note"
 							render={({ field }) => (
 								<FormItem>
@@ -437,18 +454,18 @@ export function LoanCommandDialog({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[425px]">
-				<DialogHeader>
-					<DialogTitle>{getCommandTitle(commandType)}</DialogTitle>
-					<DialogDescription>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent side="right" className="sm:max-w-[425px]">
+				<SheetHeader>
+					<SheetTitle>{getCommandTitle(commandType)}</SheetTitle>
+					<SheetDescription>
 						{getCommandDescription(commandType)}
-					</DialogDescription>
-				</DialogHeader>
+					</SheetDescription>
+				</SheetHeader>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
 						{renderFormFields()}
-						<DialogFooter>
+						<SheetFooter>
 							<Button
 								type="button"
 								variant="outline"
@@ -458,18 +475,14 @@ export function LoanCommandDialog({
 								Cancel
 							</Button>
 							<Button type="submit" disabled={commandMutation.isPending}>
-								<Check className="w-4 h-4 mr-2" />
-								{commandMutation.isPending ? "Processing..." : "Confirm"}
+								{commandMutation.isPending
+									? "Processing..."
+									: getCommandTitle(commandType)}
 							</Button>
-						</DialogFooter>
+						</SheetFooter>
 					</form>
 				</Form>
-				{commandMutation.error && (
-					<div className="text-sm text-red-600 mt-2">
-						Error: {commandMutation.error.message}
-					</div>
-				)}
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

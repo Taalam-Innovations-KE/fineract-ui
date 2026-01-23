@@ -403,6 +403,7 @@ Use only these sizes to keep layouts consistent:
 - Generated OpenAPI types are in `src/lib/fineract/generated/` (do not edit).
 - If you touch OpenAPI schema, run `pnpm generate:api` and commit outputs.
 - Mandatory date fields (e.g., `approvedOnDate`) in Fineract API requests must be formatted as `dd MMMM yyyy` with locale `en`. Use `formatDateForFineract()` from `src/lib/date-utils.ts` to ensure correct formatting.
+- Optional date fields (e.g., `expectedDisbursementDate`) must also be formatted as `dd MMMM yyyy` if provided, using `formatDateStringToFormat()` from `src/lib/date-utils.ts` before submission to avoid Fineract validation errors.
 - Include all fields marked as mandatory in `fineract.json` (OpenAPI spec) to avoid validation errors.
 
 ## Authentication and Tenancy

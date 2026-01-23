@@ -185,6 +185,24 @@ export function LoanCommandDialog({
 			);
 		}
 		if (
+			"expectedDisbursementDate" in formattedData &&
+			formattedData.expectedDisbursementDate
+		) {
+			formattedData.expectedDisbursementDate = formatDateStringToFormat(
+				formattedData.expectedDisbursementDate,
+				dateFormat,
+			);
+		}
+		if (
+			"actualDisbursementDate" in formattedData &&
+			formattedData.actualDisbursementDate
+		) {
+			formattedData.actualDisbursementDate = formatDateStringToFormat(
+				formattedData.actualDisbursementDate,
+				dateFormat,
+			);
+		}
+		if (
 			"actualDisbursementDate" in formattedData &&
 			formattedData.actualDisbursementDate
 		) {

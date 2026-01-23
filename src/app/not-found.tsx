@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, Home, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -110,6 +111,7 @@ export default function NotFound() {
 							</svg>
 						</div>
 						<Button type="submit" size="lg" className="h-12">
+							<Search className="w-4 h-4 mr-2" />
 							Search
 						</Button>
 					</form>
@@ -123,37 +125,13 @@ export default function NotFound() {
 						variant="outline"
 						className="min-w-[160px]"
 					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							strokeWidth="2"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							className="mr-2 h-4 w-4"
-						>
-							<path d="m12 19-7-7 7-7" />
-							<path d="M19 12H5" />
-						</svg>
+						<ArrowLeft className="w-4 h-4 mr-2" />
 						Go Back
 					</Button>
 
 					<Link href="/config">
 						<Button size="lg" className="min-w-[160px]">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								className="mr-2 h-4 w-4"
-							>
-								<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-								<polyline points="9 22 9 12 15 12 15 22" />
-							</svg>
+							<Home className="w-4 h-4 mr-2" />
 							Go Home
 						</Button>
 					</Link>

@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +34,10 @@ export default function SignOutPage() {
 							Sign out
 						</Button>
 						<Button type="button" variant="outline" className="w-full" asChild>
-							<a href="/config">Cancel</a>
+							<a href="/config">
+								<X className="w-4 h-4 mr-2" />
+								Cancel
+							</a>
 						</Button>
 					</form>
 				</CardContent>

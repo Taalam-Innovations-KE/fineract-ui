@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -136,6 +136,7 @@ export function DataTable<T>({
 						onClick={() => setPageIndex((prev) => Math.max(prev - 1, 0))}
 						disabled={clampedPageIndex === 0}
 					>
+						<ChevronLeft className="w-4 h-4 mr-2" />
 						Previous
 					</Button>
 					<span>
@@ -150,6 +151,7 @@ export function DataTable<T>({
 						}
 						disabled={clampedPageIndex >= pageCount - 1}
 					>
+						<ChevronRight className="w-4 h-4 mr-2" />
 						Next
 					</Button>
 				</div>

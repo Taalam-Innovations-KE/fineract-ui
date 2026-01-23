@@ -1,3 +1,4 @@
+import { Home, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,10 +48,16 @@ export default function AuthErrorPage({
 					</Alert>
 					<div className="flex flex-col gap-2">
 						<Button asChild>
-							<Link href="/auth/signin">Try again</Link>
+							<Link href="/auth/signin">
+								<RefreshCw className="w-4 h-4 mr-2" />
+								Try again
+							</Link>
 						</Button>
 						<Button variant="outline" asChild>
-							<Link href="/">Go home</Link>
+							<Link href="/">
+								<Home className="w-4 h-4 mr-2" />
+								Go home
+							</Link>
 						</Button>
 					</div>
 				</CardContent>

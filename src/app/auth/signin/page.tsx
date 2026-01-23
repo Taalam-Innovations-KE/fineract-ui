@@ -1,3 +1,4 @@
+import { LogIn } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "@/auth";
@@ -167,6 +168,7 @@ export default async function SignInPage({
 
 						{/* Login Button */}
 						<Button type="submit" className="w-full" size="lg">
+							<LogIn className="w-4 h-4 mr-2" />
 							Sign in with Credentials
 						</Button>
 					</form>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Settings, Trash } from "lucide-react";
+import { Edit, Save, Settings, Trash } from "lucide-react";
 import { use, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -256,6 +256,7 @@ export default function RoleDetailPage({
 								Cancel
 							</Button>
 							<Button type="submit" disabled={updateMutation.isPending}>
+								<Save className="w-4 h-4 mr-2" />
 								{updateMutation.isPending ? "Updating..." : "Update"}
 							</Button>
 						</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Save } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -352,6 +353,7 @@ export function UserForm({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
+					<Save className="w-4 h-4 mr-2" />
 					{isSubmitting ? "Creating..." : "Create User"}
 				</Button>
 			</div>

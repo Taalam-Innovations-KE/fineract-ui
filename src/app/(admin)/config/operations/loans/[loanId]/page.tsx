@@ -138,7 +138,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						<Button
 							variant="outline"
 							onClick={() => router.back()}
-							className="mt-4"
+							className="mt-4 ml-auto"
 						>
 							<ArrowLeft className="w-4 h-4 mr-2" />
 							Back to Loans
@@ -156,14 +156,12 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		>
 			<div className="space-y-6">
 				{/* Back Button */}
-				<Button
-					variant="outline"
-					onClick={() => router.back()}
-					className="mb-4"
-				>
-					<ArrowLeft className="w-4 h-4 mr-2" />
-					Back to Loans
-				</Button>
+				<div className="flex justify-end mb-4">
+					<Button variant="outline" onClick={() => router.back()}>
+						<ArrowLeft className="w-4 h-4 mr-2" />
+						Back to Loans
+					</Button>
+				</div>
 
 				{/* Loan Summary */}
 				<Card>

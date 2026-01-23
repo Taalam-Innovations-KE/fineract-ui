@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -265,6 +266,7 @@ function GlobalConfigItem({
 			{hasChanges && (
 				<div className="flex justify-end">
 					<Button onClick={handleSave} disabled={isUpdating}>
+						<Save className="w-4 h-4 mr-2" />
 						{isUpdating ? "Updating..." : "Save Changes"}
 					</Button>
 				</div>

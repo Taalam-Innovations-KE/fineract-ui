@@ -24,10 +24,11 @@ import {
 } from "@/components/ui/select";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
+	GetChargesResponse,
 	GetLoanProductsProductIdResponse,
 	PostLoanProductsRequest,
 } from "@/lib/fineract/generated/types.gen";
-import { loanProductsApi } from "@/lib/fineract/loan-products";
+import { chargesApi, loanProductsApi } from "@/lib/fineract/loan-products";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
 
@@ -55,6 +56,25 @@ async function fetchLoanProduct(
 	return response.json();
 }
 
+async function fetchDetailedCharges(
+	tenantId: string,
+	chargeIds: number[],
+): Promise<GetChargesResponse[]> {
+	if (chargeIds.length === 0) return [];
+
+	try {
+		const allCharges = (await chargesApi.list(
+			tenantId,
+		)) as GetChargesResponse[];
+		return allCharges.filter((charge: GetChargesResponse) =>
+			chargeIds.includes(charge.id || 0),
+		);
+	} catch (error) {
+		console.error("Failed to fetch detailed charges:", error);
+		return [];
+	}
+}
+
 function formatCurrency(amount: number | undefined, symbol = "KES") {
 	if (amount === undefined || amount === null) return "—";
 	return `${symbol} ${amount.toLocaleString()}`;
@@ -77,6 +97,68 @@ function formatBoolean(value: boolean | undefined) {
 	return value ? "Yes" : "No";
 }
 
+function formatChargeAmount(
+	charge: GetChargesResponse,
+	loanAmount?: number,
+	currencySymbol = "KES",
+) {
+	if (!charge.amount) return "—";
+
+	const calculationType = charge.chargeCalculationType?.id;
+
+	switch (calculationType) {
+		case 1: // Flat
+			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
+		case 2: // Percentage
+			if (loanAmount) {
+				const calculatedAmount = (loanAmount * charge.amount) / 100;
+				return `${charge.amount}% (${currencySymbol} ${calculatedAmount.toLocaleString()})`;
+			}
+			return `${charge.amount}% per ${currencySymbol} 100`;
+		case 3: // Percent of Interest
+			return `${charge.amount}% of Interest`;
+		case 4: // Percent of Principal
+			return `${charge.amount}% of Principal`;
+		default:
+			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
+	}
+}
+
+function categorizeCharges(charges: GetChargesResponse[]) {
+	const disbursementCharges = charges.filter(
+		(charge) => charge.chargeTimeType?.id === 1,
+	);
+	const repaymentCharges = charges.filter(
+		(charge) => charge.chargeTimeType?.id !== 1,
+	);
+
+	return { disbursementCharges, repaymentCharges };
+}
+
+function calculateChargeTotal(
+	charges: GetChargesResponse[],
+	loanAmount?: number,
+	currencySymbol = "KES",
+) {
+	return charges.reduce((total, charge) => {
+		if (!charge.amount) return total;
+
+		const calculationType = charge.chargeCalculationType?.id;
+
+		switch (calculationType) {
+			case 1: // Flat
+				return total + charge.amount;
+			case 2: // Percentage
+				if (loanAmount) {
+					return total + (loanAmount * charge.amount) / 100;
+				}
+				return total;
+			default:
+				return total + charge.amount;
+		}
+	}, 0);
+}
+
 export default function LoanProductDetailPage({
 	params,
 }: {
@@ -95,6 +177,17 @@ export default function LoanProductDetailPage({
 	} = useQuery({
 		queryKey: ["loanProduct", tenantId, id],
 		queryFn: () => fetchLoanProduct(tenantId, id),
+	});
+
+	const chargeIds =
+		(product?.charges
+			?.map((charge) => charge.id)
+			.filter(Boolean) as number[]) || [];
+
+	const { data: detailedCharges = [] } = useQuery({
+		queryKey: ["charges", tenantId, chargeIds],
+		queryFn: () => fetchDetailedCharges(tenantId, chargeIds),
+		enabled: !!product && chargeIds.length > 0,
 	});
 
 	if (isLoading) {
@@ -544,48 +637,233 @@ export default function LoanProductDetailPage({
 
 				{/* Fees Tab */}
 				{activeTab === "fees" && (
-					<Card>
-						<CardHeader>
-							<CardTitle>Fees & Penalties</CardTitle>
-						</CardHeader>
-						<CardContent>
-							{product.charges && product.charges.length > 0 ? (
-								<div className="overflow-x-auto">
-									<table className="w-full border-collapse border border-border">
-										<thead>
-											<tr className="bg-muted">
-												<th className="border border-border p-2 text-left">
-													Charge ID
-												</th>
-												<th className="border border-border p-2 text-left">
-													Amount
-												</th>
-											</tr>
-										</thead>
-										<tbody>
-											{product.charges.map((charge, index) => (
-												<tr key={index} className="hover:bg-muted/50">
-													<td className="border border-border p-2">
-														{charge.id || "—"}
-													</td>
-													<td className="border border-border p-2 font-mono">
-														{formatCurrency(
-															charge.amount,
-															product.currency?.displaySymbol,
-														)}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							) : (
-								<p className="text-muted-foreground">
-									No fees or penalties configured
-								</p>
-							)}
-						</CardContent>
-					</Card>
+					<>
+						{detailedCharges.length > 0 ? (
+							(() => {
+								const { disbursementCharges, repaymentCharges } =
+									categorizeCharges(detailedCharges);
+								const disbursementTotal = calculateChargeTotal(
+									disbursementCharges,
+									product.principal,
+									product.currency?.displaySymbol,
+								);
+								const repaymentTotal = calculateChargeTotal(
+									repaymentCharges,
+									product.principal,
+									product.currency?.displaySymbol,
+								);
+
+								return (
+									<div className="space-y-6">
+										{/* Charges at Disbursement */}
+										{disbursementCharges.length > 0 && (
+											<Card>
+												<CardHeader>
+													<div className="flex justify-between items-start">
+														<div>
+															<CardTitle className="flex items-center gap-2">
+																Charges at Disbursement
+																<Badge variant="outline">
+																	{disbursementCharges.length} charge
+																	{disbursementCharges.length !== 1 ? "s" : ""}
+																</Badge>
+															</CardTitle>
+															<CardDescription>
+																Fees applied when the loan is disbursed
+															</CardDescription>
+														</div>
+														<div className="text-right">
+															<div className="text-sm text-muted-foreground">
+																Total
+															</div>
+															<div className="text-lg font-semibold">
+																{formatCurrency(
+																	disbursementTotal,
+																	product.currency?.displaySymbol,
+																)}
+															</div>
+														</div>
+													</div>
+												</CardHeader>
+												<CardContent>
+													<div className="space-y-3">
+														{disbursementCharges.map((charge) => (
+															<div
+																key={charge.id}
+																className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
+															>
+																<div className="flex-1">
+																	<div className="font-medium">
+																		{charge.name}
+																	</div>
+																	{charge.chargeTimeType?.description && (
+																		<div className="text-sm text-muted-foreground">
+																			{charge.chargeTimeType.description}
+																		</div>
+																	)}
+																</div>
+																<div className="text-right">
+																	<div className="font-mono">
+																		{formatChargeAmount(
+																			charge,
+																			product.principal,
+																			product.currency?.displaySymbol,
+																		)}
+																	</div>
+																	{charge.penalty && (
+																		<Badge
+																			variant="destructive"
+																			className="text-xs mt-1"
+																		>
+																			Penalty
+																		</Badge>
+																	)}
+																</div>
+															</div>
+														))}
+													</div>
+												</CardContent>
+											</Card>
+										)}
+
+										{/* Charges at Repayment */}
+										{repaymentCharges.length > 0 && (
+											<Card>
+												<CardHeader>
+													<div className="flex justify-between items-start">
+														<div>
+															<CardTitle className="flex items-center gap-2">
+																Charges at Repayment
+																<Badge variant="outline">
+																	{repaymentCharges.length} charge
+																	{repaymentCharges.length !== 1 ? "s" : ""}
+																</Badge>
+															</CardTitle>
+															<CardDescription>
+																Fees applied during loan repayment
+															</CardDescription>
+														</div>
+														<div className="text-right">
+															<div className="text-sm text-muted-foreground">
+																Total
+															</div>
+															<div className="text-lg font-semibold">
+																{formatCurrency(
+																	repaymentTotal,
+																	product.currency?.displaySymbol,
+																)}
+															</div>
+														</div>
+													</div>
+												</CardHeader>
+												<CardContent>
+													<div className="space-y-3">
+														{repaymentCharges.map((charge) => (
+															<div
+																key={charge.id}
+																className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
+															>
+																<div className="flex-1">
+																	<div className="font-medium">
+																		{charge.name}
+																	</div>
+																	{charge.chargeTimeType?.description && (
+																		<div className="text-sm text-muted-foreground">
+																			{charge.chargeTimeType.description}
+																		</div>
+																	)}
+																</div>
+																<div className="text-right">
+																	<div className="font-mono">
+																		{formatChargeAmount(
+																			charge,
+																			product.principal,
+																			product.currency?.displaySymbol,
+																		)}
+																	</div>
+																	{charge.penalty && (
+																		<Badge
+																			variant="destructive"
+																			className="text-xs mt-1"
+																		>
+																			Penalty
+																		</Badge>
+																	)}
+																</div>
+															</div>
+														))}
+													</div>
+												</CardContent>
+											</Card>
+										)}
+
+										{/* Summary Card */}
+										<Card>
+											<CardHeader>
+												<CardTitle>Charges Summary</CardTitle>
+											</CardHeader>
+											<CardContent>
+												<div className="grid grid-cols-2 gap-4">
+													<div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+														<div className="text-sm text-muted-foreground">
+															At Disbursement
+														</div>
+														<div className="text-xl font-semibold text-blue-700 dark:text-blue-300">
+															{formatCurrency(
+																disbursementTotal,
+																product.currency?.displaySymbol,
+															)}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{disbursementCharges.length} charge
+															{disbursementCharges.length !== 1 ? "s" : ""}
+														</div>
+													</div>
+													<div className="text-center p-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
+														<div className="text-sm text-muted-foreground">
+															At Repayment
+														</div>
+														<div className="text-xl font-semibold text-orange-700 dark:text-orange-300">
+															{formatCurrency(
+																repaymentTotal,
+																product.currency?.displaySymbol,
+															)}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{repaymentCharges.length} charge
+															{repaymentCharges.length !== 1 ? "s" : ""}
+														</div>
+													</div>
+												</div>
+												<div className="mt-4 pt-4 border-t">
+													<div className="flex justify-between items-center">
+														<span className="font-medium">Grand Total</span>
+														<span className="text-lg font-semibold">
+															{formatCurrency(
+																disbursementTotal + repaymentTotal,
+																product.currency?.displaySymbol,
+															)}
+														</span>
+													</div>
+												</div>
+											</CardContent>
+										</Card>
+									</div>
+								);
+							})()
+						) : (
+							<Card>
+								<CardHeader>
+									<CardTitle>Fees & Penalties</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<p className="text-muted-foreground">
+										No fees or penalties configured
+									</p>
+								</CardContent>
+							</Card>
+						)}
+					</>
 				)}
 
 				{/* Accounting Tab */}

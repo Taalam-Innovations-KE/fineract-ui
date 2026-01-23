@@ -169,6 +169,8 @@ Use only these sizes to keep layouts consistent:
 - Server components and API routes should use `src/lib/fineract/client.server.ts` (`fineractFetch`).
 - Generated OpenAPI types are in `src/lib/fineract/generated/` (do not edit).
 - If you touch OpenAPI schema, run `pnpm generate:api` and commit outputs.
+- Mandatory date fields (e.g., `approvedOnDate`) in Fineract API requests must be formatted as `dd MMMM yyyy` with locale `en`. Use `formatDateForFineract()` from `src/lib/date-utils.ts` to ensure correct formatting.
+- Include all fields marked as mandatory in `fineract.json` (OpenAPI spec) to avoid validation errors.
 
 ## Authentication and Tenancy
 - NextAuth config is in `src/auth.ts`.
@@ -203,6 +205,15 @@ export const loginSchema = z.object({
 
 export type LoginFormData = z.infer<typeof loginSchema>;
 ```
+
+## Form Refactoring Patterns
+When refactoring large forms into modular components:
+- Use multi-step wizards for complex forms (>10 fields) to improve UX by breaking down into manageable sections.
+- Create reusable `FormField` and `SelectField` components for consistency and to reduce repetition.
+- Segment fields by business logic (e.g., legal form: Person vs. Entity) using conditional rendering.
+- Ensure full compliance with API templates by including all options/fields from the backend response.
+- Move fetch logic to client-safe modules (e.g., `src/lib/fineract/client.ts`) to avoid "server-only" import errors in client components.
+- Test end-to-end after refactoring to verify submission, validation, and dynamic field population.
 
 ## Generated and Third-Party Files
 - Do not edit generated files in `src/lib/fineract/generated`

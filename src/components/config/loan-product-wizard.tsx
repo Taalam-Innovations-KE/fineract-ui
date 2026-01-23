@@ -9,6 +9,7 @@ import {
 	Copy,
 	Info,
 	Plus,
+	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, type FieldPath, useForm } from "react-hook-form";
@@ -78,6 +79,13 @@ import {
 } from "@/lib/schemas/loan-product";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
+import { LoanProductAccountingStep } from "./loan-product-steps/LoanProductAccountingStep";
+import { LoanProductAmountStep } from "./loan-product-steps/LoanProductAmountStep";
+import { LoanProductFeesStep } from "./loan-product-steps/LoanProductFeesStep";
+import { LoanProductIdentityStep } from "./loan-product-steps/LoanProductIdentityStep";
+import { LoanProductInterestStep } from "./loan-product-steps/LoanProductInterestStep";
+import { LoanProductPenaltiesStep } from "./loan-product-steps/LoanProductPenaltiesStep";
+import { LoanProductScheduleStep } from "./loan-product-steps/LoanProductScheduleStep";
 
 interface LoanProductWizardProps {
 	currencies: string[];
@@ -309,6 +317,12 @@ export function LoanProductWizard({
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [copyMessage, setCopyMessage] = useState<string | null>(null);
 	const [draftMessage, setDraftMessage] = useState<string | null>(null);
+	const [wizardData, setWizardData] = useState<
+		Partial<CreateLoanProductFormData>
+	>({});
+	const [stepValidities, setStepValidities] = useState<Record<number, boolean>>(
+		{},
+	);
 
 	const templateQuery = useQuery({
 		queryKey: ["loanProductTemplate", tenantId],
@@ -337,17 +351,7 @@ export function LoanProductWizard({
 		},
 	});
 
-	const {
-		register,
-		handleSubmit,
-		control,
-		trigger,
-		setValue,
-		watch,
-		getValues,
-		setError,
-		formState: { errors },
-	} = form;
+	const { setValue, watch, getValues } = form;
 
 	const feeForm = useForm<FeeFormData>({
 		resolver: zodResolver(feeChargeFormSchema),
@@ -370,9 +374,7 @@ export function LoanProductWizard({
 		},
 	});
 
-	const shortNameValue = watch("shortName");
 	const currencyCode = watch("currencyCode");
-	const accountingRule = watch("accountingRule");
 	const watchedValues = watch();
 
 	useEffect(() => {
@@ -502,15 +504,20 @@ export function LoanProductWizard({
 		}
 	}, [isPenaltyDrawerOpen]);
 
-	const handleNext = async (_data: CreateLoanProductFormData) => {
-		const step = steps[currentStep - 1];
-		const fields = step.fields as FieldPath<CreateLoanProductFormData>[];
+	const handleStepDataValid = (stepId: number, data: any) => {
+		setWizardData((prev) => ({ ...prev, ...data }));
+		setStepValidities((prev) => ({ ...prev, [stepId]: true }));
+	};
 
-		const isValid = await trigger(fields);
-		if (!isValid) return;
+	const handleStepDataInvalid = (stepId: number) => {
+		setStepValidities((prev) => ({ ...prev, [stepId]: false }));
+	};
 
-		if (currentStep < steps.length) {
-			setCurrentStep(currentStep + 1);
+	const handleNext = () => {
+		if (stepValidities[currentStep]) {
+			if (currentStep < steps.length) {
+				setCurrentStep(currentStep + 1);
+			}
 		}
 	};
 
@@ -530,39 +537,19 @@ export function LoanProductWizard({
 		}
 	};
 
-	const handleFinalSubmit = async (data: CreateLoanProductFormData) => {
+	const handleFinalSubmit = async () => {
 		setSubmitError(null);
 		setIsSubmitting(true);
 
 		try {
-			const payload = buildLoanProductRequest(data);
+			const payload = buildLoanProductRequest(
+				wizardData as CreateLoanProductFormData,
+			);
 			await onSubmit(payload);
 			localStorage.removeItem("loanProductDraft");
 		} catch (error) {
-			const err = error as {
-				message?: string;
-				details?: Record<string, string[]>;
-			};
-			if (err?.details) {
-				Object.entries(err.details).forEach(([field, messages]) => {
-					setError(field as FieldPath<CreateLoanProductFormData>, {
-						type: "server",
-						message: messages[0],
-					});
-				});
-				setSubmitError(err.message || "Validation failed");
-			} else {
-				const mapped = mapFineractError(error);
-				if (mapped.details) {
-					Object.entries(mapped.details).forEach(([field, messages]) => {
-						setError(field as FieldPath<CreateLoanProductFormData>, {
-							type: "server",
-							message: messages[0],
-						});
-					});
-				}
-				setSubmitError(mapped.message);
-			}
+			const mapped = mapFineractError(error);
+			setSubmitError(mapped.message);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -581,7 +568,7 @@ export function LoanProductWizard({
 	};
 
 	const handleAddExistingFee = (option: GetLoanProductsChargeOptions) => {
-		if (!option?.id) return;
+		if (!option?.id || typeof option.id !== "number") return;
 		if (fees.some((fee) => fee.id === option.id)) return;
 
 		const summary =
@@ -600,7 +587,7 @@ export function LoanProductWizard({
 	};
 
 	const handleAddExistingPenalty = (option: GetLoanProductsChargeOptions) => {
-		if (!option?.id) return;
+		if (!option?.id || typeof option.id !== "number") return;
 		if (penalties.some((penalty) => penalty.id === option.id)) return;
 
 		const summary =
@@ -623,7 +610,7 @@ export function LoanProductWizard({
 		setIsCreatingFee(true);
 		try {
 			const payload = mapFeeUiToChargeRequest(values);
-			const response = await chargesApi.create(tenantId, payload);
+			const response = (await chargesApi.create(tenantId, payload)) as any;
 			const chargeId = response.resourceId;
 
 			if (!chargeId) {
@@ -665,7 +652,7 @@ export function LoanProductWizard({
 		setIsCreatingPenalty(true);
 		try {
 			const payload = mapPenaltyUiToChargeRequest(values);
-			const response = await chargesApi.create(tenantId, payload);
+			const response = (await chargesApi.create(tenantId, payload)) as any;
 			const chargeId = response.resourceId;
 
 			if (!chargeId) {
@@ -785,1561 +772,69 @@ export function LoanProductWizard({
 				)}
 
 				{!templateQuery.isLoading && !templateQuery.error && (
-					<form
-						onSubmit={handleSubmit(
-							currentStep === steps.length ? handleFinalSubmit : handleNext,
-						)}
-					>
+					<div>
 						{currentStep === 1 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Identity & Currency</CardTitle>
-									<CardDescription>
-										Set the core product identity and currency defaults.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="name">
-											Product Name <span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="name"
-											{...register("name")}
-											placeholder="e.g. Working Capital Loan"
-										/>
-										{errors.name && (
-											<p className="text-sm text-destructive">
-												{String(errors.name.message)}
-											</p>
-										)}
-									</div>
-
-									<div className="space-y-2">
-										<div className="flex items-center justify-between">
-											<Label htmlFor="shortName">
-												Short Name <span className="text-destructive">*</span>
-											</Label>
-											<span className="text-xs text-muted-foreground">
-												{shortNameValue?.length || 0}/4
-											</span>
-										</div>
-										<Input
-											id="shortName"
-											{...register("shortName")}
-											placeholder="e.g. SWCL"
-											maxLength={4}
-										/>
-										<p className="text-xs text-muted-foreground">
-											Short code appears in reports and account references. Max
-											4 characters (e.g. SWCL).
-										</p>
-										{errors.shortName && (
-											<p className="text-sm text-destructive">
-												{String(errors.shortName.message)}
-											</p>
-										)}
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="description">Description</Label>
-										<Input
-											id="description"
-											{...register("description")}
-											placeholder="Describe the product purpose"
-										/>
-									</div>
-
-									<div className="grid gap-4 md:grid-cols-2">
-										<div className="space-y-2">
-											<Label htmlFor="currencyCode">
-												Currency <span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="currencyCode"
-												render={({ field }) => (
-													<Select
-														value={field.value || undefined}
-														onValueChange={field.onChange}
-													>
-														<SelectTrigger id="currencyCode">
-															<SelectValue placeholder="Select currency" />
-														</SelectTrigger>
-														<SelectContent>
-															{currencyOptions
-																.filter((option) => option.code)
-																.map((option) => (
-																	<SelectItem
-																		key={option.code}
-																		value={option.code!}
-																	>
-																		{option.code} - {option.name}
-																	</SelectItem>
-																))}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.currencyCode && (
-												<p className="text-sm text-destructive">
-													{String(errors.currencyCode.message)}
-												</p>
-											)}
-										</div>
-										<div className="space-y-2">
-											<Label
-												htmlFor="digitsAfterDecimal"
-												className="flex items-center gap-2"
-											>
-												Decimal Places{" "}
-												<span className="text-destructive">*</span>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<button
-															type="button"
-															className="inline-flex items-center"
-															aria-label="Decimal place info"
-														>
-															<Info className="h-4 w-4 text-muted-foreground" />
-														</button>
-													</TooltipTrigger>
-													<TooltipContent>
-														Default decimal places for the selected currency.
-													</TooltipContent>
-												</Tooltip>
-											</Label>
-											<Input
-												id="digitsAfterDecimal"
-												type="number"
-												min={0}
-												max={6}
-												{...register("digitsAfterDecimal", {
-													valueAsNumber: true,
-												})}
-											/>
-											<p className="text-xs text-muted-foreground">
-												Controls decimal precision for currency amounts.
-												Example: 2 for KES.
-											</p>
-											{errors.digitsAfterDecimal && (
-												<p className="text-sm text-destructive">
-													{String(errors.digitsAfterDecimal.message)}
-												</p>
-											)}
-										</div>
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductIdentityStep
+								template={template}
+								currencies={currencies}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(1, data)}
+								onDataInvalid={() => handleStepDataInvalid(1)}
+							/>
 						)}
-
 						{currentStep === 2 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Loan Amount Rules</CardTitle>
-									<CardDescription>
-										Define the minimum, typical, and maximum loan sizes.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<p className="text-xs text-muted-foreground">
-										Typical loan size is the default amount shown when creating
-										a loan; borrowers can still request any amount within
-										min/max.
-									</p>
-									<div className="grid gap-4 md:grid-cols-3">
-										<div className="space-y-2">
-											<Label htmlFor="minPrincipal">
-												Minimum Principal{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="minPrincipal"
-												type="number"
-												{...register("minPrincipal", { valueAsNumber: true })}
-												placeholder="1000"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Lowest amount allowed. Example: 1,000.
-											</p>
-											{errors.minPrincipal && (
-												<p className="text-sm text-destructive">
-													{String(errors.minPrincipal.message)}
-												</p>
-											)}
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="principal">
-												Default Principal{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="principal"
-												type="number"
-												{...register("principal", { valueAsNumber: true })}
-												placeholder="10000"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Default amount shown. Example: 10,000.
-											</p>
-											{errors.principal && (
-												<p className="text-sm text-destructive">
-													{String(errors.principal.message)}
-												</p>
-											)}
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="maxPrincipal">
-												Maximum Principal{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="maxPrincipal"
-												type="number"
-												{...register("maxPrincipal", { valueAsNumber: true })}
-												placeholder="100000"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Highest amount allowed. Example: 100,000.
-											</p>
-											{errors.maxPrincipal && (
-												<p className="text-sm text-destructive">
-													{String(errors.maxPrincipal.message)}
-												</p>
-											)}
-										</div>
-									</div>
-									<div className="space-y-2">
-										<Label
-											htmlFor="inMultiplesOf"
-											className="flex items-center gap-2"
-										>
-											In Multiples Of
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<button
-														type="button"
-														className="inline-flex items-center"
-														aria-label="In multiples info"
-													>
-														<Info className="h-4 w-4 text-muted-foreground" />
-													</button>
-												</TooltipTrigger>
-												<TooltipContent>
-													Restrict approved amounts to this multiple (e.g.
-													1,000).
-												</TooltipContent>
-											</Tooltip>
-										</Label>
-										<Input
-											id="inMultiplesOf"
-											type="number"
-											{...register("inMultiplesOf", { valueAsNumber: true })}
-											placeholder="1"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Approved amounts must be in this multiple. Example: 500.
-										</p>
-										{errors.inMultiplesOf && (
-											<p className="text-sm text-destructive">
-												{String(errors.inMultiplesOf.message)}
-											</p>
-										)}
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductAmountStep
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(2, data)}
+								onDataInvalid={() => handleStepDataInvalid(2)}
+							/>
 						)}
-
 						{currentStep === 3 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Tenure & Repayment Schedule</CardTitle>
-									<CardDescription>
-										Define repayment counts and frequency.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<p className="text-xs text-muted-foreground">
-										6 repayments + monthly = a 6-month loan.
-									</p>
-									<div className="grid gap-4 md:grid-cols-3">
-										<div className="space-y-2">
-											<Label htmlFor="minNumberOfRepayments">
-												Min Repayments{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="minNumberOfRepayments"
-												type="number"
-												{...register("minNumberOfRepayments", {
-													valueAsNumber: true,
-												})}
-												placeholder="6"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Minimum installments allowed. Example: 6 months if
-												monthly.
-											</p>
-											{errors.minNumberOfRepayments && (
-												<p className="text-sm text-destructive">
-													{String(errors.minNumberOfRepayments.message)}
-												</p>
-											)}
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="numberOfRepayments">
-												Default Repayments{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="numberOfRepayments"
-												type="number"
-												{...register("numberOfRepayments", {
-													valueAsNumber: true,
-												})}
-												placeholder="12"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Default schedule length. Example: 12 monthly repayments.
-											</p>
-											{errors.numberOfRepayments && (
-												<p className="text-sm text-destructive">
-													{String(errors.numberOfRepayments.message)}
-												</p>
-											)}
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="maxNumberOfRepayments">
-												Max Repayments{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="maxNumberOfRepayments"
-												type="number"
-												{...register("maxNumberOfRepayments", {
-													valueAsNumber: true,
-												})}
-												placeholder="24"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Maximum installments allowed. Example: 24 monthly
-												repayments.
-											</p>
-											{errors.maxNumberOfRepayments && (
-												<p className="text-sm text-destructive">
-													{String(errors.maxNumberOfRepayments.message)}
-												</p>
-											)}
-										</div>
-									</div>
-
-									<div className="grid gap-4 md:grid-cols-2">
-										<div className="space-y-2">
-											<Label htmlFor="repaymentEvery">
-												Repayment Every{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="repaymentEvery"
-												type="number"
-												{...register("repaymentEvery", { valueAsNumber: true })}
-												placeholder="1"
-											/>
-											{errors.repaymentEvery && (
-												<p className="text-sm text-destructive">
-													{String(errors.repaymentEvery.message)}
-												</p>
-											)}
-											<p className="text-xs text-muted-foreground">
-												How often the borrower pays. Example: 1 with Months =
-												monthly.
-											</p>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="repaymentFrequencyType">
-												Frequency <span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="repaymentFrequencyType"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="repaymentFrequencyType">
-															<SelectValue placeholder="Select frequency" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.repaymentFrequencyTypeOptions?.map(
-																(option) => (
-																	<SelectItem
-																		key={option.id}
-																		value={String(option.id)}
-																	>
-																		{optionLabel(option)}
-																	</SelectItem>
-																),
-															)}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.repaymentFrequencyType && (
-												<p className="text-sm text-destructive">
-													{String(errors.repaymentFrequencyType.message)}
-												</p>
-											)}
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="minimumDaysBetweenDisbursalAndFirstRepayment">
-											Minimum Days Before First Repayment
-										</Label>
-										<Input
-											id="minimumDaysBetweenDisbursalAndFirstRepayment"
-											type="number"
-											{...register(
-												"minimumDaysBetweenDisbursalAndFirstRepayment",
-												{ valueAsNumber: true },
-											)}
-											placeholder="0"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Buffer before first due date. Example: 7 days after
-											disbursement.
-										</p>
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductScheduleStep
+								template={template}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(3, data)}
+								onDataInvalid={() => handleStepDataInvalid(3)}
+							/>
 						)}
-
 						{currentStep === 4 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Interest & Calculation Rules</CardTitle>
-									<CardDescription>
-										Control how interest is calculated and amortized.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<div className="grid gap-4 md:grid-cols-2">
-										<div className="space-y-2">
-											<Label htmlFor="interestType">
-												Interest Type{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="interestType"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="interestType">
-															<SelectValue placeholder="Select type" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.interestTypeOptions?.map((option) => (
-																<SelectItem
-																	key={option.id}
-																	value={String(option.id)}
-																>
-																	{optionLabel(option)}
-																</SelectItem>
-															))}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.interestType && (
-												<p className="text-sm text-destructive">
-													{String(errors.interestType.message)}
-												</p>
-											)}
-										</div>
-
-										<div className="space-y-2">
-											<Label htmlFor="amortizationType">
-												Amortization <span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="amortizationType"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="amortizationType">
-															<SelectValue placeholder="Select amortization" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.amortizationTypeOptions?.map(
-																(option) => (
-																	<SelectItem
-																		key={option.id}
-																		value={String(option.id)}
-																	>
-																		{optionLabel(option)}
-																	</SelectItem>
-																),
-															)}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.amortizationType && (
-												<p className="text-sm text-destructive">
-													{String(errors.amortizationType.message)}
-												</p>
-											)}
-										</div>
-									</div>
-
-									<div className="grid gap-4 md:grid-cols-3">
-										<div className="space-y-2">
-											<Label htmlFor="interestRatePerPeriod">
-												Interest Rate{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Input
-												id="interestRatePerPeriod"
-												type="number"
-												step="0.01"
-												{...register("interestRatePerPeriod", {
-													valueAsNumber: true,
-												})}
-												placeholder="15"
-											/>
-											{errors.interestRatePerPeriod && (
-												<p className="text-sm text-destructive">
-													{String(errors.interestRatePerPeriod.message)}
-												</p>
-											)}
-											<p className="text-xs text-muted-foreground">
-												Rate applied per selected frequency. Example: 15% per
-												year.
-											</p>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="interestRateFrequencyType">
-												Rate Frequency{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="interestRateFrequencyType"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="interestRateFrequencyType">
-															<SelectValue placeholder="Select frequency" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.interestRateFrequencyTypeOptions?.map(
-																(option) => (
-																	<SelectItem
-																		key={option.id}
-																		value={String(option.id)}
-																	>
-																		{optionLabel(option)}
-																	</SelectItem>
-																),
-															)}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.interestRateFrequencyType && (
-												<p className="text-sm text-destructive">
-													{String(errors.interestRateFrequencyType.message)}
-												</p>
-											)}
-											<p className="text-xs text-muted-foreground">
-												15% per year ~ 1.25% per month (approx).
-											</p>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="interestCalculationPeriodType">
-												Calculation Period{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="interestCalculationPeriodType"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="interestCalculationPeriodType">
-															<SelectValue placeholder="Select period" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.interestCalculationPeriodTypeOptions?.map(
-																(option) => (
-																	<SelectItem
-																		key={option.id}
-																		value={String(option.id)}
-																	>
-																		{optionLabel(option)}
-																	</SelectItem>
-																),
-															)}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.interestCalculationPeriodType && (
-												<p className="text-sm text-destructive">
-													{String(errors.interestCalculationPeriodType.message)}
-												</p>
-											)}
-											<p className="text-xs text-muted-foreground">
-												Controls whether interest is computed daily or per
-												installment.
-											</p>
-										</div>
-									</div>
-
-									<div className="flex items-center gap-2">
-										<Controller
-											control={control}
-											name="allowPartialPeriodInterestCalculation"
-											render={({ field }) => (
-												<Checkbox
-													id="allowPartialPeriodInterestCalculation"
-													checked={field.value ?? false}
-													onCheckedChange={(value) =>
-														field.onChange(Boolean(value))
-													}
-												/>
-											)}
-										/>
-										<Label
-											htmlFor="allowPartialPeriodInterestCalculation"
-											className="cursor-pointer"
-										>
-											Allow partial period interest calculation
-										</Label>
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductInterestStep
+								template={template}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(4, data)}
+								onDataInvalid={() => handleStepDataInvalid(4)}
+							/>
 						)}
-
 						{currentStep === 5 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Fees</CardTitle>
-									<CardDescription>
-										Fees charged before or at disbursement.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<p className="text-xs text-muted-foreground">
-										Fees can be deducted immediately when the loan is disbursed
-										or billed separately depending on configuration.
-									</p>
-
-									<div className="flex flex-wrap gap-2">
-										{fees.length === 0 && (
-											<span className="text-xs text-muted-foreground">
-												No fees selected yet.
-											</span>
-										)}
-										{fees.map((fee) => (
-											<Badge
-												key={fee.id}
-												variant="outline"
-												className="flex items-center gap-2"
-											>
-												<span>{formatFeeSummary(fee, currencyCode)}</span>
-												<button
-													type="button"
-													onClick={() =>
-														setFees((prev) =>
-															prev.filter((item) => item.id !== fee.id),
-														)
-													}
-												>
-													<X className="h-3 w-3" />
-												</button>
-											</Badge>
-										))}
-									</div>
-
-									<div className="flex flex-wrap gap-2">
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setIsFeeDrawerOpen(true)}
-										>
-											<Plus className="h-4 w-4 mr-2" />
-											Add Fee
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setIsFeeSelectOpen(true)}
-										>
-											Select Existing Fee
-										</Button>
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductFeesStep
+								template={template}
+								currencyCode={wizardData.currencyCode}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(5, data)}
+								onDataInvalid={() => handleStepDataInvalid(5)}
+							/>
 						)}
-
 						{currentStep === 6 && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Penalties</CardTitle>
-									<CardDescription>
-										Late payment penalties based on overdue balances.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<p className="text-xs text-muted-foreground">
-										Penalties are charged when installments become overdue and
-										are marked as penalties in Fineract.
-									</p>
-
-									<div className="flex flex-wrap gap-2">
-										{penalties.length === 0 && (
-											<span className="text-xs text-muted-foreground">
-												No penalties selected yet.
-											</span>
-										)}
-										{penalties.map((penalty) => (
-											<Badge
-												key={penalty.id}
-												variant="outline"
-												className="flex items-center gap-2"
-											>
-												<span>
-													{formatPenaltySummary(penalty, currencyCode)}
-												</span>
-												<button
-													type="button"
-													onClick={() =>
-														setPenalties((prev) =>
-															prev.filter((item) => item.id !== penalty.id),
-														)
-													}
-												>
-													<X className="h-3 w-3" />
-												</button>
-											</Badge>
-										))}
-									</div>
-
-									<div className="flex flex-wrap gap-2">
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setIsPenaltyDrawerOpen(true)}
-										>
-											<Plus className="h-4 w-4 mr-2" />
-											Add Penalty
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={() => setIsPenaltySelectOpen(true)}
-										>
-											Select Existing Penalty
-										</Button>
-									</div>
-								</CardContent>
-							</Card>
+							<LoanProductPenaltiesStep
+								template={template}
+								currencyCode={wizardData.currencyCode}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(6, data)}
+								onDataInvalid={() => handleStepDataInvalid(6)}
+							/>
 						)}
-
 						{currentStep === 7 && (
-							<div className="space-y-4">
-								<Card>
-									<CardHeader>
-										<CardTitle>Delinquency & NPA</CardTitle>
-										<CardDescription>
-											Control delinquency behavior and NPA thresholds.
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="grid gap-4 md:grid-cols-3">
-										<div className="space-y-2">
-											<Label htmlFor="graceOnArrearsAgeing">
-												Grace on Arrears Ageing (days)
-											</Label>
-											<Input
-												id="graceOnArrearsAgeing"
-												type="number"
-												{...register("graceOnArrearsAgeing", {
-													valueAsNumber: true,
-												})}
-												placeholder="0"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Days before arrears ageing starts. Example: 3 days.
-											</p>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="inArrearsTolerance">
-												In Arrears Tolerance
-											</Label>
-											<Input
-												id="inArrearsTolerance"
-												type="number"
-												{...register("inArrearsTolerance", {
-													valueAsNumber: true,
-												})}
-												placeholder="0"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Tolerance amount before marking in arrears. Example:
-												100.
-											</p>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="overdueDaysForNPA">
-												Overdue Days for NPA
-											</Label>
-											<Input
-												id="overdueDaysForNPA"
-												type="number"
-												{...register("overdueDaysForNPA", {
-													valueAsNumber: true,
-												})}
-												placeholder="90"
-											/>
-											<p className="text-xs text-muted-foreground">
-												Days overdue to classify NPA. Example: 90 days.
-											</p>
-										</div>
-									</CardContent>
-								</Card>
-
-								<Card>
-									<CardHeader>
-										<CardTitle>Repayment Waterfall</CardTitle>
-										<CardDescription>
-											This decides how repayments are allocated.
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-2">
-										<Label htmlFor="transactionProcessingStrategyCode">
-											Transaction Processing Strategy{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Controller
-											control={control}
-											name="transactionProcessingStrategyCode"
-											render={({ field }) => (
-												<Select
-													value={field.value || undefined}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger id="transactionProcessingStrategyCode">
-														<SelectValue placeholder="Select strategy" />
-													</SelectTrigger>
-													<SelectContent>
-														{template?.transactionProcessingStrategyOptions
-															?.filter((option) => option.code)
-															.map((option) => (
-																<SelectItem
-																	key={option.code}
-																	value={option.code!}
-																>
-																	{waterfallLabel(option)}
-																</SelectItem>
-															))}
-													</SelectContent>
-												</Select>
-											)}
-										/>
-										{errors.transactionProcessingStrategyCode && (
-											<p className="text-sm text-destructive">
-												{String(
-													errors.transactionProcessingStrategyCode.message,
-												)}
-											</p>
-										)}
-									</CardContent>
-								</Card>
-
-								<Card>
-									<CardHeader>
-										<CardTitle>Accounting</CardTitle>
-										<CardDescription>
-											Enable accounting rule and map GL accounts.
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<div className="space-y-2">
-											<Label htmlFor="accountingRule">
-												Accounting Rule{" "}
-												<span className="text-destructive">*</span>
-											</Label>
-											<Controller
-												control={control}
-												name="accountingRule"
-												render={({ field }) => (
-													<Select
-														value={
-															field.value !== undefined && field.value !== null
-																? String(field.value)
-																: undefined
-														}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger id="accountingRule">
-															<SelectValue placeholder="Select rule" />
-														</SelectTrigger>
-														<SelectContent>
-															{template?.accountingRuleOptions?.map(
-																(option) => (
-																	<SelectItem
-																		key={option.id}
-																		value={String(option.id)}
-																	>
-																		{optionLabel(option)}
-																	</SelectItem>
-																),
-															)}
-														</SelectContent>
-													</Select>
-												)}
-											/>
-											{errors.accountingRule && (
-												<p className="text-sm text-destructive">
-													{String(errors.accountingRule.message)}
-												</p>
-											)}
-										</div>
-
-										{accountingRule && accountingRule !== 1 && (
-											<div className="space-y-4">
-												<Separator />
-												<div className="grid gap-4 md:grid-cols-2">
-													<div className="space-y-2">
-														<Label htmlFor="fundSourceAccountId">
-															Fund Source Account{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="fundSourceAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="fundSourceAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{assetOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.fundSourceAccountId && (
-															<p className="text-sm text-destructive">
-																{String(errors.fundSourceAccountId.message)}
-															</p>
-														)}
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="loanPortfolioAccountId">
-															Loan Portfolio Account{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="loanPortfolioAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="loanPortfolioAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{assetOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.loanPortfolioAccountId && (
-															<p className="text-sm text-destructive">
-																{String(errors.loanPortfolioAccountId.message)}
-															</p>
-														)}
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="interestOnLoanAccountId">
-															Interest on Loan Account{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="interestOnLoanAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="interestOnLoanAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{incomeOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.interestOnLoanAccountId && (
-															<p className="text-sm text-destructive">
-																{String(errors.interestOnLoanAccountId.message)}
-															</p>
-														)}
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="incomeFromFeeAccountId">
-															Income from Fees{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="incomeFromFeeAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="incomeFromFeeAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{incomeOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.incomeFromFeeAccountId && (
-															<p className="text-sm text-destructive">
-																{String(errors.incomeFromFeeAccountId.message)}
-															</p>
-														)}
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="incomeFromPenaltyAccountId">
-															Income from Penalties{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="incomeFromPenaltyAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="incomeFromPenaltyAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{incomeOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.incomeFromPenaltyAccountId && (
-															<p className="text-sm text-destructive">
-																{String(
-																	errors.incomeFromPenaltyAccountId.message,
-																)}
-															</p>
-														)}
-													</div>
-													<div className="space-y-2">
-														<Label htmlFor="writeOffAccountId">
-															Write-off Account{" "}
-															<span className="text-destructive">*</span>
-														</Label>
-														<Controller
-															control={control}
-															name="writeOffAccountId"
-															render={({ field }) => (
-																<Select
-																	value={
-																		field.value !== undefined &&
-																		field.value !== null
-																			? String(field.value)
-																			: undefined
-																	}
-																	onValueChange={(value) =>
-																		field.onChange(Number(value))
-																	}
-																>
-																	<SelectTrigger id="writeOffAccountId">
-																		<SelectValue placeholder="Select account" />
-																	</SelectTrigger>
-																	<SelectContent>
-																		{expenseOptions.map((option) => (
-																			<SelectItem
-																				key={option.id}
-																				value={String(option.id)}
-																			>
-																				{option.name}
-																			</SelectItem>
-																		))}
-																	</SelectContent>
-																</Select>
-															)}
-														/>
-														{errors.writeOffAccountId && (
-															<p className="text-sm text-destructive">
-																{String(errors.writeOffAccountId.message)}
-															</p>
-														)}
-													</div>
-												</div>
-
-												{(accountingRule === 3 || accountingRule === 4) && (
-													<div className="space-y-4">
-														<Separator />
-														<div className="grid gap-4 md:grid-cols-2">
-															<div className="space-y-2">
-																<Label htmlFor="receivableInterestAccountId">
-																	Receivable Interest{" "}
-																	<span className="text-destructive">*</span>
-																</Label>
-																<Controller
-																	control={control}
-																	name="receivableInterestAccountId"
-																	render={({ field }) => (
-																		<Select
-																			value={
-																				field.value !== undefined &&
-																				field.value !== null
-																					? String(field.value)
-																					: undefined
-																			}
-																			onValueChange={(value) =>
-																				field.onChange(Number(value))
-																			}
-																		>
-																			<SelectTrigger id="receivableInterestAccountId">
-																				<SelectValue placeholder="Select account" />
-																			</SelectTrigger>
-																			<SelectContent>
-																				{assetOptions.map((option) => (
-																					<SelectItem
-																						key={option.id}
-																						value={String(option.id)}
-																					>
-																						{option.name}
-																					</SelectItem>
-																				))}
-																			</SelectContent>
-																		</Select>
-																	)}
-																/>
-																{errors.receivableInterestAccountId && (
-																	<p className="text-sm text-destructive">
-																		{String(
-																			errors.receivableInterestAccountId
-																				.message,
-																		)}
-																	</p>
-																)}
-															</div>
-															<div className="space-y-2">
-																<Label htmlFor="receivableFeeAccountId">
-																	Receivable Fees{" "}
-																	<span className="text-destructive">*</span>
-																</Label>
-																<Controller
-																	control={control}
-																	name="receivableFeeAccountId"
-																	render={({ field }) => (
-																		<Select
-																			value={
-																				field.value !== undefined &&
-																				field.value !== null
-																					? String(field.value)
-																					: undefined
-																			}
-																			onValueChange={(value) =>
-																				field.onChange(Number(value))
-																			}
-																		>
-																			<SelectTrigger id="receivableFeeAccountId">
-																				<SelectValue placeholder="Select account" />
-																			</SelectTrigger>
-																			<SelectContent>
-																				{assetOptions.map((option) => (
-																					<SelectItem
-																						key={option.id}
-																						value={String(option.id)}
-																					>
-																						{option.name}
-																					</SelectItem>
-																				))}
-																			</SelectContent>
-																		</Select>
-																	)}
-																/>
-																{errors.receivableFeeAccountId && (
-																	<p className="text-sm text-destructive">
-																		{String(
-																			errors.receivableFeeAccountId.message,
-																		)}
-																	</p>
-																)}
-															</div>
-															<div className="space-y-2">
-																<Label htmlFor="receivablePenaltyAccountId">
-																	Receivable Penalties{" "}
-																	<span className="text-destructive">*</span>
-																</Label>
-																<Controller
-																	control={control}
-																	name="receivablePenaltyAccountId"
-																	render={({ field }) => (
-																		<Select
-																			value={
-																				field.value !== undefined &&
-																				field.value !== null
-																					? String(field.value)
-																					: undefined
-																			}
-																			onValueChange={(value) =>
-																				field.onChange(Number(value))
-																			}
-																		>
-																			<SelectTrigger id="receivablePenaltyAccountId">
-																				<SelectValue placeholder="Select account" />
-																			</SelectTrigger>
-																			<SelectContent>
-																				{assetOptions.map((option) => (
-																					<SelectItem
-																						key={option.id}
-																						value={String(option.id)}
-																					>
-																						{option.name}
-																					</SelectItem>
-																				))}
-																			</SelectContent>
-																		</Select>
-																	)}
-																/>
-																{errors.receivablePenaltyAccountId && (
-																	<p className="text-sm text-destructive">
-																		{String(
-																			errors.receivablePenaltyAccountId.message,
-																		)}
-																	</p>
-																)}
-															</div>
-															<div className="space-y-2">
-																<Label htmlFor="overpaymentLiabilityAccountId">
-																	Overpayment Liability{" "}
-																	<span className="text-destructive">*</span>
-																</Label>
-																<Controller
-																	control={control}
-																	name="overpaymentLiabilityAccountId"
-																	render={({ field }) => (
-																		<Select
-																			value={
-																				field.value !== undefined &&
-																				field.value !== null
-																					? String(field.value)
-																					: undefined
-																			}
-																			onValueChange={(value) =>
-																				field.onChange(Number(value))
-																			}
-																		>
-																			<SelectTrigger id="overpaymentLiabilityAccountId">
-																				<SelectValue placeholder="Select account" />
-																			</SelectTrigger>
-																			<SelectContent>
-																				{liabilityOptions.map((option) => (
-																					<SelectItem
-																						key={option.id}
-																						value={String(option.id)}
-																					>
-																						{option.name}
-																					</SelectItem>
-																				))}
-																			</SelectContent>
-																		</Select>
-																	)}
-																/>
-																{errors.overpaymentLiabilityAccountId && (
-																	<p className="text-sm text-destructive">
-																		{String(
-																			errors.overpaymentLiabilityAccountId
-																				.message,
-																		)}
-																	</p>
-																)}
-															</div>
-															<div className="space-y-2">
-																<Label htmlFor="transfersInSuspenseAccountId">
-																	Transfers in Suspense{" "}
-																	<span className="text-destructive">*</span>
-																</Label>
-																<Controller
-																	control={control}
-																	name="transfersInSuspenseAccountId"
-																	render={({ field }) => (
-																		<Select
-																			value={
-																				field.value !== undefined &&
-																				field.value !== null
-																					? String(field.value)
-																					: undefined
-																			}
-																			onValueChange={(value) =>
-																				field.onChange(Number(value))
-																			}
-																		>
-																			<SelectTrigger id="transfersInSuspenseAccountId">
-																				<SelectValue placeholder="Select account" />
-																			</SelectTrigger>
-																			<SelectContent>
-																				{liabilityOptions.map((option) => (
-																					<SelectItem
-																						key={option.id}
-																						value={String(option.id)}
-																					>
-																						{option.name}
-																					</SelectItem>
-																				))}
-																			</SelectContent>
-																		</Select>
-																	)}
-																/>
-																{errors.transfersInSuspenseAccountId && (
-																	<p className="text-sm text-destructive">
-																		{String(
-																			errors.transfersInSuspenseAccountId
-																				.message,
-																		)}
-																	</p>
-																)}
-															</div>
-														</div>
-													</div>
-												)}
-											</div>
-										)}
-									</CardContent>
-								</Card>
-
-								<Card>
-									<CardHeader>
-										<CardTitle>Review</CardTitle>
-										<CardDescription>
-											Confirm the loan product details before submission.
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<div className="space-y-2 text-sm">
-											<p>
-												<strong>{watchedValues.name || "Loan Product"}</strong>
-											</p>
-											<p>
-												{currencyCode || "Currency"}{" "}
-												{watchedValues.minPrincipal || "-"} -{" "}
-												{watchedValues.maxPrincipal || "-"},{" "}
-												{watchedValues.minNumberOfRepayments || "-"} -{" "}
-												{watchedValues.maxNumberOfRepayments || "-"} repayments
-											</p>
-											<p>
-												{watchedValues.interestRatePerPeriod || "-"}%{" "}
-												{optionLabel(
-													template?.interestRateFrequencyTypeOptions?.find(
-														(option) =>
-															option.id ===
-															watchedValues.interestRateFrequencyType,
-													),
-												)}
-												, {watchedValues.repaymentEvery || "-"}{" "}
-												{optionLabel(
-													template?.repaymentFrequencyTypeOptions?.find(
-														(option) =>
-															option.id ===
-															watchedValues.repaymentFrequencyType,
-													),
-												)}
-											</p>
-											<p>
-												Fees:{" "}
-												{fees.length
-													? fees
-															.map((fee) => formatFeeSummary(fee, currencyCode))
-															.join("; ")
-													: "None"}
-											</p>
-											<p>
-												Late penalties:{" "}
-												{penalties.length
-													? penalties
-															.map((penalty) =>
-																formatPenaltySummary(penalty, currencyCode),
-															)
-															.join("; ")
-													: "None"}
-											</p>
-											<p>
-												Repayment order:{" "}
-												{waterfallLabel(
-													template?.transactionProcessingStrategyOptions?.find(
-														(option) =>
-															option.code ===
-															watchedValues.transactionProcessingStrategyCode,
-													),
-												)}
-											</p>
-										</div>
-
-										<div className="flex items-center justify-between">
-											<span className="text-sm font-medium">JSON Preview</span>
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={handleCopyPayload}
-											>
-												<Copy className="h-4 w-4 mr-2" />
-												Copy
-											</Button>
-										</div>
-										{copyMessage && (
-											<p className="text-xs text-muted-foreground">
-												{copyMessage}
-											</p>
-										)}
-										<pre className="rounded-sm border border-border/80 bg-muted/30 p-3 text-xs text-foreground overflow-auto max-h-64">
-											{JSON.stringify(payloadPreview, null, 2)}
-										</pre>
-									</CardContent>
-								</Card>
-							</div>
+							<LoanProductAccountingStep
+								template={template}
+								data={wizardData}
+								onDataValid={(data) => handleStepDataValid(7, data)}
+								onDataInvalid={() => handleStepDataInvalid(7)}
+							/>
 						)}
 
 						{submitError && (
 							<Alert variant="destructive" className="mt-4">
-								<AlertTitle>Unable to submit</AlertTitle>
+								<AlertTitle>Failed to create loan product</AlertTitle>
 								<AlertDescription>{submitError}</AlertDescription>
 							</Alert>
 						)}
@@ -2369,7 +864,15 @@ export function LoanProductWizard({
 								>
 									Save Draft
 								</Button>
-								<Button type="submit" disabled={isSubmitting}>
+								<Button
+									type="button"
+									disabled={isSubmitting}
+									onClick={
+										currentStep === steps.length
+											? handleFinalSubmit
+											: handleNext
+									}
+								>
 									{currentStep === steps.length ? (
 										isSubmitting ? (
 											"Submitting..."
@@ -2385,13 +888,13 @@ export function LoanProductWizard({
 								</Button>
 							</div>
 						</div>
-					</form>
+					</div>
 				)}
 
 				<Sheet open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-lg overflow-y-auto"
+						className="w-full sm:max-w-xl overflow-y-auto"
 					>
 						<SheetHeader>
 							<SheetTitle>Add Fee</SheetTitle>
@@ -2399,18 +902,14 @@ export function LoanProductWizard({
 						</SheetHeader>
 						<div className="mt-4">
 							<form onSubmit={handleCreateFee} className="space-y-4">
-								{feeSubmitError && (
-									<Alert variant="destructive">
-										<AlertTitle>Fee creation failed</AlertTitle>
-										<AlertDescription>{feeSubmitError}</AlertDescription>
-									</Alert>
-								)}
 								<div className="space-y-2">
-									<Label htmlFor="fee-name">Fee Name</Label>
+									<Label htmlFor="fee-name">
+										Name <span className="text-destructive">*</span>
+									</Label>
 									<Input
 										id="fee-name"
 										{...feeForm.register("name")}
-										placeholder="Processing Fee"
+										placeholder="e.g. Processing Fee"
 									/>
 									{feeForm.formState.errors.name && (
 										<p className="text-sm text-destructive">
@@ -2418,126 +917,127 @@ export function LoanProductWizard({
 										</p>
 									)}
 								</div>
+
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="fee-calculation">Fee Type</Label>
-										<Controller
-											control={feeForm.control}
-											name="calculationMethod"
-											render={({ field }) => (
-												<Select
-													value={field.value}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger id="fee-calculation">
-														<SelectValue placeholder="Select fee type" />
-													</SelectTrigger>
-													<SelectContent>
-														<SelectItem value="flat">Flat amount</SelectItem>
-														<SelectItem value="percent">Percentage</SelectItem>
-													</SelectContent>
-												</Select>
-											)}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="fee-amount">Amount</Label>
+										<Label htmlFor="fee-amount">
+											Amount <span className="text-destructive">*</span>
+										</Label>
 										<Input
 											id="fee-amount"
 											type="number"
+											step="0.01"
 											{...feeForm.register("amount", { valueAsNumber: true })}
+											placeholder="100"
 										/>
-										<p className="text-xs text-muted-foreground">
-											Fee value for the charge. Example: 500.
-										</p>
 										{feeForm.formState.errors.amount && (
 											<p className="text-sm text-destructive">
 												{String(feeForm.formState.errors.amount.message)}
 											</p>
 										)}
 									</div>
+									<div className="space-y-2">
+										<Label htmlFor="fee-calculation">
+											Calculation Method{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Select
+											value={feeForm.watch("calculationMethod")}
+											onValueChange={(value) =>
+												feeForm.setValue(
+													"calculationMethod",
+													value as "flat" | "percent",
+												)
+											}
+										>
+											<SelectTrigger id="fee-calculation">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="flat">Flat Amount</SelectItem>
+												<SelectItem value="percent">Percentage</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
 								</div>
+
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="fee-charge-time">When Charged</Label>
-										<Controller
-											control={feeForm.control}
-											name="chargeTimeType"
-											render={({ field }) => (
-												<Select
-													value={field.value}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger id="fee-charge-time">
-														<SelectValue placeholder="Select charge timing" />
-													</SelectTrigger>
-													<SelectContent>
-														<SelectItem value="disbursement">
-															At disbursement
-														</SelectItem>
-														<SelectItem value="specifiedDueDate">
-															On specified due date
-														</SelectItem>
-														<SelectItem value="approval">
-															On approval
-														</SelectItem>
-													</SelectContent>
-												</Select>
-											)}
-										/>
+										<Label htmlFor="fee-time">
+											Charge Time <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											value={feeForm.watch("chargeTimeType")}
+											onValueChange={(value) =>
+												feeForm.setValue(
+													"chargeTimeType",
+													value as
+														| "disbursement"
+														| "specifiedDueDate"
+														| "approval",
+												)
+											}
+										>
+											<SelectTrigger id="fee-time">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="disbursement">
+													At Disbursement
+												</SelectItem>
+												<SelectItem value="specifiedDueDate">
+													On Specified Due Date
+												</SelectItem>
+												<SelectItem value="approval">On Approval</SelectItem>
+											</SelectContent>
+										</Select>
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="fee-payment-mode">Payment Mode</Label>
-										<Controller
-											control={feeForm.control}
-											name="paymentMode"
-											render={({ field }) => (
-												<Select
-													value={field.value}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger id="fee-payment-mode">
-														<SelectValue placeholder="Select payment mode" />
-													</SelectTrigger>
-													<SelectContent>
-														<SelectItem value="deduct">
-															Deduct from disbursement
-														</SelectItem>
-														<SelectItem value="payable">
-															Payable separately
-														</SelectItem>
-													</SelectContent>
-												</Select>
-											)}
-										/>
-										<p className="text-xs text-muted-foreground">
-											Deducted fees reduce the disbursed amount; payable fees
-											are billed separately.
-										</p>
+										<Label htmlFor="fee-payment">
+											Payment Mode <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											value={feeForm.watch("paymentMode")}
+											onValueChange={(value) =>
+												feeForm.setValue(
+													"paymentMode",
+													value as "deduct" | "payable",
+												)
+											}
+										>
+											<SelectTrigger id="fee-payment">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="deduct">
+													Deduct from Disbursement
+												</SelectItem>
+												<SelectItem value="payable">
+													Payable Separately
+												</SelectItem>
+											</SelectContent>
+										</Select>
 									</div>
 								</div>
-								<div className="space-y-2">
-									<Label htmlFor="fee-currency">Currency</Label>
-									<Input
-										id="fee-currency"
-										{...feeForm.register("currencyCode")}
-									/>
-									{feeForm.formState.errors.currencyCode && (
-										<p className="text-sm text-destructive">
-											{String(feeForm.formState.errors.currencyCode.message)}
-										</p>
-									)}
-								</div>
-								<div className="flex items-center justify-between">
+
+								{feeSubmitError && (
+									<Alert variant="destructive">
+										<AlertTitle>Failed to create fee</AlertTitle>
+										<AlertDescription>{feeSubmitError}</AlertDescription>
+									</Alert>
+								)}
+
+								<div className="flex items-center justify-end gap-2 pt-4">
 									<Button
 										type="button"
 										variant="outline"
 										onClick={() => setIsFeeDrawerOpen(false)}
+										disabled={isCreatingFee}
 									>
 										Cancel
 									</Button>
 									<Button type="submit" disabled={isCreatingFee}>
-										{isCreatingFee ? "Saving..." : "Save Fee"}
+										{isCreatingFee ? "Creating..." : "Create Fee"}
 									</Button>
 								</div>
 							</form>
@@ -2548,10 +1048,10 @@ export function LoanProductWizard({
 				<Sheet open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-lg overflow-y-auto"
+						className="w-full sm:max-w-xl overflow-y-auto"
 					>
 						<SheetHeader>
-							<SheetTitle>Select Existing Fees</SheetTitle>
+							<SheetTitle>Select Existing Fee</SheetTitle>
 							<SheetDescription>
 								Choose from configured fee charges.
 							</SheetDescription>
@@ -2577,7 +1077,10 @@ export function LoanProductWizard({
 										type="button"
 										size="sm"
 										variant="outline"
-										onClick={() => handleAddExistingFee(option)}
+										onClick={() => {
+											handleAddExistingFee(option);
+											setIsFeeSelectOpen(false);
+										}}
 									>
 										Add
 									</Button>
@@ -2590,7 +1093,7 @@ export function LoanProductWizard({
 				<Sheet open={isPenaltyDrawerOpen} onOpenChange={setIsPenaltyDrawerOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-lg overflow-y-auto"
+						className="w-full sm:max-w-xl overflow-y-auto"
 					>
 						<SheetHeader>
 							<SheetTitle>Add Penalty</SheetTitle>
@@ -2598,21 +1101,14 @@ export function LoanProductWizard({
 						</SheetHeader>
 						<div className="mt-4">
 							<form onSubmit={handleCreatePenalty} className="space-y-4">
-								{penaltySubmitError && (
-									<Alert variant="destructive">
-										<AlertTitle>Penalty creation failed</AlertTitle>
-										<AlertDescription>{penaltySubmitError}</AlertDescription>
-									</Alert>
-								)}
-								<p className="text-xs text-muted-foreground">
-									Applied when an installment becomes overdue.
-								</p>
 								<div className="space-y-2">
-									<Label htmlFor="penalty-name">Penalty Name</Label>
+									<Label htmlFor="penalty-name">
+										Name <span className="text-destructive">*</span>
+									</Label>
 									<Input
 										id="penalty-name"
 										{...penaltyForm.register("name")}
-										placeholder="Late Payment Penalty"
+										placeholder="e.g. Late Payment Penalty"
 									/>
 									{penaltyForm.formState.errors.name && (
 										<p className="text-sm text-destructive">
@@ -2620,124 +1116,121 @@ export function LoanProductWizard({
 										</p>
 									)}
 								</div>
-								<div className="space-y-2">
-									<Label htmlFor="penalty-basis">Penalty Basis</Label>
-									<Controller
-										control={penaltyForm.control}
-										name="penaltyBasis"
-										render={({ field }) => (
-											<Select
-												value={field.value}
-												onValueChange={field.onChange}
-											>
-												<SelectTrigger id="penalty-basis">
-													<SelectValue placeholder="Select penalty basis" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="totalOverdue">
-														Entire overdue amount
-													</SelectItem>
-													<SelectItem value="overduePrincipal">
-														Overdue principal only
-													</SelectItem>
-													<SelectItem value="overdueInterest">
-														Overdue interest only
-													</SelectItem>
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									<p className="text-xs text-muted-foreground">
-										Example: 2% on overdue principal means if KES 10,000 is
-										overdue, penalty = KES 200.
-									</p>
-								</div>
+
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="penalty-method">Calculation Method</Label>
-										<Controller
-											control={penaltyForm.control}
-											name="calculationMethod"
-											render={({ field }) => (
-												<Select
-													value={field.value}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger id="penalty-method">
-														<SelectValue placeholder="Select method" />
-													</SelectTrigger>
-													<SelectContent>
-														<SelectItem value="flat">Flat amount</SelectItem>
-														<SelectItem value="percent">Percentage</SelectItem>
-													</SelectContent>
-												</Select>
-											)}
-										/>
-										<p className="text-xs text-muted-foreground">
-											Flat fee means the same penalty regardless of overdue
-											amount.
-										</p>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="penalty-amount">Amount</Label>
+										<Label htmlFor="penalty-amount">
+											Amount <span className="text-destructive">*</span>
+										</Label>
 										<Input
 											id="penalty-amount"
 											type="number"
+											step="0.01"
 											{...penaltyForm.register("amount", {
 												valueAsNumber: true,
 											})}
+											placeholder="100"
 										/>
-										<p className="text-xs text-muted-foreground">
-											Penalty value. Example: 2 for 2% or 500 for flat.
-										</p>
 										{penaltyForm.formState.errors.amount && (
 											<p className="text-sm text-destructive">
 												{String(penaltyForm.formState.errors.amount.message)}
 											</p>
 										)}
 									</div>
+									<div className="space-y-2">
+										<Label htmlFor="penalty-calculation">
+											Calculation Method{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Select
+											value={penaltyForm.watch("calculationMethod")}
+											onValueChange={(value) =>
+												penaltyForm.setValue(
+													"calculationMethod",
+													value as "flat" | "percent",
+												)
+											}
+										>
+											<SelectTrigger id="penalty-calculation">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="flat">Flat Amount</SelectItem>
+												<SelectItem value="percent">Percentage</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
 								</div>
-								<div className="space-y-2">
-									<Label htmlFor="penalty-grace">
-										Grace Period Override (days)
-									</Label>
-									<Input
-										id="penalty-grace"
-										type="number"
-										{...penaltyForm.register("gracePeriodOverride", {
-											valueAsNumber: true,
-										})}
-										placeholder="3"
-									/>
-									<p className="text-xs text-muted-foreground">
-										Optional. Overrides the delinquency grace period for this
-										penalty. Example: 3 days.
-									</p>
-								</div>
-								<div className="space-y-2">
-									<Label htmlFor="penalty-currency">Currency</Label>
-									<Input
-										id="penalty-currency"
-										{...penaltyForm.register("currencyCode")}
-									/>
-									{penaltyForm.formState.errors.currencyCode && (
-										<p className="text-sm text-destructive">
-											{String(
-												penaltyForm.formState.errors.currencyCode.message,
-											)}
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label htmlFor="penalty-basis">
+											Penalty Basis <span className="text-destructive">*</span>
+										</Label>
+										<Select
+											value={penaltyForm.watch("penaltyBasis")}
+											onValueChange={(value) =>
+												penaltyForm.setValue(
+													"penaltyBasis",
+													value as
+														| "totalOverdue"
+														| "overduePrincipal"
+														| "overdueInterest",
+												)
+											}
+										>
+											<SelectTrigger id="penalty-basis">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="totalOverdue">
+													Total Overdue Amount
+												</SelectItem>
+												<SelectItem value="overduePrincipal">
+													Overdue Principal
+												</SelectItem>
+												<SelectItem value="overdueInterest">
+													Overdue Interest
+												</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="penalty-grace">
+											Grace Period Override (days)
+										</Label>
+										<Input
+											id="penalty-grace"
+											type="number"
+											{...penaltyForm.register("gracePeriodOverride", {
+												valueAsNumber: true,
+											})}
+											placeholder="0"
+										/>
+										<p className="text-xs text-muted-foreground">
+											Optional grace period before penalty applies.
 										</p>
-									)}
+									</div>
 								</div>
-								<div className="flex items-center justify-between">
+
+								{penaltySubmitError && (
+									<Alert variant="destructive">
+										<AlertTitle>Failed to create penalty</AlertTitle>
+										<AlertDescription>{penaltySubmitError}</AlertDescription>
+									</Alert>
+								)}
+
+								<div className="flex items-center justify-end gap-2 pt-4">
 									<Button
 										type="button"
 										variant="outline"
 										onClick={() => setIsPenaltyDrawerOpen(false)}
+										disabled={isCreatingPenalty}
 									>
 										Cancel
 									</Button>
 									<Button type="submit" disabled={isCreatingPenalty}>
-										{isCreatingPenalty ? "Saving..." : "Save Penalty"}
+										{isCreatingPenalty ? "Creating..." : "Create Penalty"}
 									</Button>
 								</div>
 							</form>
@@ -2748,7 +1241,7 @@ export function LoanProductWizard({
 				<Sheet open={isPenaltySelectOpen} onOpenChange={setIsPenaltySelectOpen}>
 					<SheetContent
 						side="right"
-						className="w-full sm:max-w-lg overflow-y-auto"
+						className="w-full sm:max-w-xl overflow-y-auto"
 					>
 						<SheetHeader>
 							<SheetTitle>Select Existing Penalties</SheetTitle>
@@ -2777,7 +1270,10 @@ export function LoanProductWizard({
 										type="button"
 										size="sm"
 										variant="outline"
-										onClick={() => handleAddExistingPenalty(option)}
+										onClick={() => {
+											handleAddExistingPenalty(option);
+											setIsPenaltySelectOpen(false);
+										}}
 									>
 										Add
 									</Button>

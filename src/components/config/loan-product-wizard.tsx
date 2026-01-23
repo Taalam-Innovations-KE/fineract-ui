@@ -11,7 +11,7 @@ import {
 	Plus,
 	X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, type FieldPath, useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -376,8 +376,6 @@ export function LoanProductWizard({
 	});
 
 	const currencyCode = watch("currencyCode");
-	const watchedValues = watch();
-
 	useEffect(() => {
 		if (!template) return;
 
@@ -505,17 +503,74 @@ export function LoanProductWizard({
 		}
 	}, [isPenaltyDrawerOpen]);
 
-	const handleStepDataValid = (
-		stepId: number,
-		data: Record<string, unknown>,
-	) => {
-		setWizardData((prev) => ({ ...prev, ...data }));
-		setStepValidities((prev) => ({ ...prev, [stepId]: true }));
-	};
+	const handleStepDataValid = useCallback(
+		(stepId: number, data: Record<string, unknown>) => {
+			setWizardData((prev) => ({ ...prev, ...data }));
+			setStepValidities((prev) => ({ ...prev, [stepId]: true }));
+		},
+		[],
+	);
 
-	const handleStepDataInvalid = (stepId: number) => {
+	const handleStepDataInvalid = useCallback((stepId: number) => {
 		setStepValidities((prev) => ({ ...prev, [stepId]: false }));
-	};
+	}, []);
+
+	const step1Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(1, data),
+		[handleStepDataValid],
+	);
+	const step1Invalid = useCallback(
+		() => handleStepDataInvalid(1),
+		[handleStepDataInvalid],
+	);
+	const step2Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(2, data),
+		[handleStepDataValid],
+	);
+	const step2Invalid = useCallback(
+		() => handleStepDataInvalid(2),
+		[handleStepDataInvalid],
+	);
+	const step3Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(3, data),
+		[handleStepDataValid],
+	);
+	const step3Invalid = useCallback(
+		() => handleStepDataInvalid(3),
+		[handleStepDataInvalid],
+	);
+	const step4Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(4, data),
+		[handleStepDataValid],
+	);
+	const step4Invalid = useCallback(
+		() => handleStepDataInvalid(4),
+		[handleStepDataInvalid],
+	);
+	const step5Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(5, data),
+		[handleStepDataValid],
+	);
+	const step5Invalid = useCallback(
+		() => handleStepDataInvalid(5),
+		[handleStepDataInvalid],
+	);
+	const step6Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(6, data),
+		[handleStepDataValid],
+	);
+	const step6Invalid = useCallback(
+		() => handleStepDataInvalid(6),
+		[handleStepDataInvalid],
+	);
+	const step7Valid = useCallback(
+		(data: Record<string, unknown>) => handleStepDataValid(7, data),
+		[handleStepDataValid],
+	);
+	const step7Invalid = useCallback(
+		() => handleStepDataInvalid(7),
+		[handleStepDataInvalid],
+	);
 
 	const handleNext = () => {
 		if (stepValidities[currentStep]) {
@@ -700,7 +755,7 @@ export function LoanProductWizard({
 	});
 
 	const _payloadPreview = buildLoanProductRequest(
-		watchedValues as CreateLoanProductFormData,
+		getValues() as CreateLoanProductFormData,
 	);
 
 	const chargeOptions = template?.chargeOptions || [];
@@ -788,31 +843,31 @@ export function LoanProductWizard({
 								template={template}
 								currencies={currencies}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(1, data)}
-								onDataInvalid={() => handleStepDataInvalid(1)}
+								onDataValid={step1Valid}
+								onDataInvalid={step1Invalid}
 							/>
 						)}
 						{currentStep === 2 && (
 							<LoanProductAmountStep
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(2, data)}
-								onDataInvalid={() => handleStepDataInvalid(2)}
+								onDataValid={step2Valid}
+								onDataInvalid={step2Invalid}
 							/>
 						)}
 						{currentStep === 3 && (
 							<LoanProductScheduleStep
 								template={template}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(3, data)}
-								onDataInvalid={() => handleStepDataInvalid(3)}
+								onDataValid={step3Valid}
+								onDataInvalid={step3Invalid}
 							/>
 						)}
 						{currentStep === 4 && (
 							<LoanProductInterestStep
 								template={template}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(4, data)}
-								onDataInvalid={() => handleStepDataInvalid(4)}
+								onDataValid={step4Valid}
+								onDataInvalid={step4Invalid}
 							/>
 						)}
 						{currentStep === 5 && (
@@ -820,8 +875,8 @@ export function LoanProductWizard({
 								template={template}
 								currencyCode={wizardData.currencyCode}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(5, data)}
-								onDataInvalid={() => handleStepDataInvalid(5)}
+								onDataValid={step5Valid}
+								onDataInvalid={step5Invalid}
 							/>
 						)}
 						{currentStep === 6 && (
@@ -829,16 +884,16 @@ export function LoanProductWizard({
 								template={template}
 								currencyCode={wizardData.currencyCode}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(6, data)}
-								onDataInvalid={() => handleStepDataInvalid(6)}
+								onDataValid={step6Valid}
+								onDataInvalid={step6Invalid}
 							/>
 						)}
 						{currentStep === 7 && (
 							<LoanProductAccountingStep
 								template={template}
 								data={wizardData}
-								onDataValid={(data) => handleStepDataValid(7, data)}
-								onDataInvalid={() => handleStepDataInvalid(7)}
+								onDataValid={step7Valid}
+								onDataInvalid={step7Invalid}
 							/>
 						)}
 

@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Calendar, CreditCard, Plus, Users } from "lucide-react";
+import {
+	Banknote,
+	Calendar,
+	CreditCard,
+	Plus,
+	Save,
+	Users,
+	X,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -33,6 +41,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsPageItemsResponse,
@@ -409,9 +418,15 @@ export default function LoansPage() {
 			loanTermFrequencyType: data.loanTermFrequencyType,
 			repaymentEvery: data.repaymentEvery,
 			repaymentFrequencyType: data.repaymentFrequencyType,
-			expectedDisbursementDate: data.expectedDisbursementDate,
-			submittedOnDate: data.submittedOnDate,
-			dateFormat: "yyyy-MM-dd",
+			expectedDisbursementDate: formatDateStringToFormat(
+				data.expectedDisbursementDate,
+				"dd MMMM yyyy",
+			),
+			submittedOnDate: formatDateStringToFormat(
+				data.submittedOnDate,
+				"dd MMMM yyyy",
+			),
+			dateFormat: "dd MMMM yyyy",
 			locale: "en",
 			loanType: "individual",
 		};
@@ -843,9 +858,11 @@ export default function LoansPage() {
 										variant="outline"
 										onClick={() => setIsDrawerOpen(false)}
 									>
+										<X className="w-4 h-4 mr-2" />
 										Cancel
 									</Button>
 									<Button type="submit" disabled={disableSubmit}>
+										<Save className="w-4 h-4 mr-2" />
 										{createMutation.isPending ? "Submitting..." : "Book Loan"}
 									</Button>
 								</div>

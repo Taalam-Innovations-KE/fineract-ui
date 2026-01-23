@@ -30,7 +30,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
@@ -252,13 +252,18 @@ export default function HolidaysPage() {
 	const handleSubmit = () => {
 		const holidayData = {
 			name: formData.name,
-			fromDate: formData.fromDate,
-			toDate: formData.toDate,
-			repaymentsRescheduledTo: formData.repaymentsRescheduledTo,
+			fromDate: formatDateStringToFormat(formData.fromDate, "dd MMMM yyyy"),
+			toDate: formatDateStringToFormat(formData.toDate, "dd MMMM yyyy"),
+			repaymentsRescheduledTo: formData.repaymentsRescheduledTo
+				? formatDateStringToFormat(
+						formData.repaymentsRescheduledTo,
+						"dd MMMM yyyy",
+					)
+				: undefined,
 			description: formData.description,
 			offices: formData.offices.map((officeId) => ({ officeId })),
 			locale: "en",
-			dateFormat: "yyyy-MM-dd",
+			dateFormat: "dd MMMM yyyy",
 		};
 
 		if (editingHoliday?.id) {

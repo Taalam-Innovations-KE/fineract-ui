@@ -111,6 +111,7 @@ export function ClientRegistrationWizard({
 			</div>
 
 			<div className="min-h-[400px]">
+				{/* biome-ignore lint/suspicious/noExplicitAny: Dynamic props for wizard steps */}
 				<CurrentStepComponent {...(stepProps as any)} />
 			</div>
 

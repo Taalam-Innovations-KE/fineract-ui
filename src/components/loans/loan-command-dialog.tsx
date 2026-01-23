@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +30,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetPaymentTypeData } from "@/lib/fineract/generated/types.gen";
 import {
@@ -173,7 +175,37 @@ export function LoanCommandDialog({
 	});
 
 	const onSubmit = (data: CommandFormData) => {
-		commandMutation.mutate(data);
+		const formattedData = { ...data };
+		const dateFormat =
+			(formattedData as { dateFormat: string }).dateFormat || "dd MMMM yyyy";
+		if ("approvedOnDate" in formattedData && formattedData.approvedOnDate) {
+			formattedData.approvedOnDate = formatDateStringToFormat(
+				formattedData.approvedOnDate,
+				dateFormat,
+			);
+		}
+		if (
+			"actualDisbursementDate" in formattedData &&
+			formattedData.actualDisbursementDate
+		) {
+			formattedData.actualDisbursementDate = formatDateStringToFormat(
+				formattedData.actualDisbursementDate,
+				dateFormat,
+			);
+		}
+		if ("rejectedOnDate" in formattedData && formattedData.rejectedOnDate) {
+			formattedData.rejectedOnDate = formatDateStringToFormat(
+				formattedData.rejectedOnDate,
+				dateFormat,
+			);
+		}
+		if ("withdrawnOnDate" in formattedData && formattedData.withdrawnOnDate) {
+			formattedData.withdrawnOnDate = formatDateStringToFormat(
+				formattedData.withdrawnOnDate,
+				dateFormat,
+			);
+		}
+		commandMutation.mutate(formattedData);
 	};
 
 	const renderFormFields = () => {
@@ -426,6 +458,7 @@ export function LoanCommandDialog({
 								Cancel
 							</Button>
 							<Button type="submit" disabled={commandMutation.isPending}>
+								<Check className="w-4 h-4 mr-2" />
 								{commandMutation.isPending ? "Processing..." : "Confirm"}
 							</Button>
 						</DialogFooter>

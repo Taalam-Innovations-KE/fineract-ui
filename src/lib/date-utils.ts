@@ -1,4 +1,4 @@
-import { format, parse } from "date-fns";
+import { format, parse, parseISO } from "date-fns";
 
 /**
  * Fineract date format configuration
@@ -38,4 +38,15 @@ export function formatDateForDisplay(date: Date | string): string {
 		return date;
 	}
 	return format(date, "dd MMM yyyy");
+}
+
+/**
+ * Formats a date string (e.g., YYYY-MM-DD) to the specified dateFormat
+ */
+export function formatDateStringToFormat(
+	dateString: string,
+	dateFormat: string,
+): string {
+	const date = parseISO(dateString); // Parse YYYY-MM-DD to Date
+	return format(date, dateFormat); // Format to specified dateFormat
 }

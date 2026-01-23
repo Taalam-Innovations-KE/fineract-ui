@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Control, Controller, useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -24,6 +24,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	JournalEntryCommand,
@@ -91,7 +92,7 @@ async function createJournalEntry(
 		},
 		body: JSON.stringify({
 			...data,
-			dateFormat: "yyyy-MM-dd",
+			dateFormat: "dd MMMM yyyy",
 			locale: "en",
 		}),
 	});
@@ -279,7 +280,14 @@ export function JournalEntryForm({
 			alert("Debits and credits must balance");
 			return;
 		}
-		createMutation.mutate(data);
+		const formattedData = {
+			...data,
+			transactionDate: formatDateStringToFormat(
+				data.transactionDate,
+				"dd MMMM yyyy",
+			),
+		};
+		createMutation.mutate(formattedData);
 	};
 
 	useEffect(() => {
@@ -461,6 +469,7 @@ export function JournalEntryForm({
 							onClick={onCancel}
 							className="rounded-none"
 						>
+							<X className="w-4 h-4 mr-2" />
 							Cancel
 						</Button>
 					)}

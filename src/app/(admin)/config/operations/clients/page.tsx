@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ClientRegistrationWizard } from "@/components/clients/ClientRegistrationWizard";
@@ -33,6 +34,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import {
 	createClient,
 	createClientIdentifier,
@@ -139,17 +141,6 @@ function getDefaultOptionId(
 	const defaultOption = options.find((option) => option.isDefault);
 	if (defaultOption?.id) return defaultOption.id;
 	return fallbackToFirst ? options[0]?.id : undefined;
-}
-
-function formatDateForFineract(value?: string) {
-	if (!value) return undefined;
-	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return undefined;
-	return new Intl.DateTimeFormat("en-GB", {
-		day: "2-digit",
-		month: "long",
-		year: "numeric",
-	}).format(parsed);
 }
 
 function resolveDocumentTypeId(options: LookupOption[], matches: string[]) {
@@ -582,8 +573,12 @@ export default function ClientsPage() {
 		if (data.clientClassificationId)
 			payload.clientClassificationId = data.clientClassificationId;
 
-		const activationDate = formatDateForFineract(data.activationDate);
-		const dateOfBirth = formatDateForFineract(data.dateOfBirth);
+		const activationDate = data.activationDate
+			? formatDateStringToFormat(data.activationDate, "dd MMMM yyyy")
+			: undefined;
+		const dateOfBirth = data.dateOfBirth
+			? formatDateStringToFormat(data.dateOfBirth, "dd MMMM yyyy")
+			: undefined;
 		if (activationDate) payload.activationDate = activationDate;
 		if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
 		if (activationDate || dateOfBirth) {
@@ -652,7 +647,10 @@ export default function ClientsPage() {
 				title="Clients"
 				subtitle="Onboard clients with preloaded system lookups"
 				actions={
-					<Button onClick={() => setIsDrawerOpen(true)}>New Client</Button>
+					<Button onClick={() => setIsDrawerOpen(true)}>
+						<Plus className="w-4 h-4 mr-2" />
+						New Client
+					</Button>
 				}
 			>
 				<Card>

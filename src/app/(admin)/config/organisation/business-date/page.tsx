@@ -14,7 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
@@ -106,8 +106,8 @@ export default function BusinessDatePage() {
 
 		updateMutation.mutate({
 			type: selectedType,
-			date: newDate,
-			dateFormat: "yyyy-MM-dd",
+			date: formatDateStringToFormat(newDate, "dd MMMM yyyy"),
+			dateFormat: "dd MMMM yyyy",
 			locale: "en",
 		});
 	};

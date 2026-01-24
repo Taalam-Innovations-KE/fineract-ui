@@ -1,8 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFormContext } from "react-hook-form";
 import {
 	Card,
 	CardContent,
@@ -20,16 +18,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { GetLoanProductsTemplateResponse } from "@/lib/fineract/generated/types.gen";
-import {
-	type LoanProductScheduleFormData,
-	loanProductScheduleSchema,
-} from "@/lib/schemas/loan-product";
+import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
 interface LoanProductScheduleStepProps {
 	template?: GetLoanProductsTemplateResponse;
-	data?: Partial<LoanProductScheduleFormData>;
-	onDataValid: (data: LoanProductScheduleFormData) => void;
-	onDataInvalid: () => void;
 }
 
 function optionLabel(option?: {
@@ -49,51 +41,12 @@ function optionLabel(option?: {
 
 export function LoanProductScheduleStep({
 	template,
-	data,
-	onDataValid,
-	onDataInvalid,
 }: LoanProductScheduleStepProps) {
 	const {
 		register,
 		control,
-		setValue,
-		watch,
-		formState: { errors, isValid },
-	} = useForm<LoanProductScheduleFormData>({
-		resolver: zodResolver(loanProductScheduleSchema),
-		mode: "onChange",
-		defaultValues: data || {
-			minNumberOfRepayments: 6,
-			numberOfRepayments: 12,
-			maxNumberOfRepayments: 24,
-			repaymentEvery: 1,
-			minimumDaysBetweenDisbursalAndFirstRepayment: 0,
-		},
-	});
-
-	const watchedValues = watch();
-
-	useEffect(() => {
-		if (!template) return;
-
-		if (
-			data?.repaymentFrequencyType === undefined &&
-			template.repaymentFrequencyTypeOptions?.[0]?.id !== undefined
-		) {
-			setValue(
-				"repaymentFrequencyType",
-				template.repaymentFrequencyTypeOptions[0].id,
-			);
-		}
-	}, [template, data, setValue]);
-
-	useEffect(() => {
-		if (isValid) {
-			onDataValid(watchedValues);
-		} else {
-			onDataInvalid();
-		}
-	}, [isValid, watchedValues, onDataValid, onDataInvalid]);
+		formState: { errors },
+	} = useFormContext<CreateLoanProductFormData>();
 
 	return (
 		<Card>

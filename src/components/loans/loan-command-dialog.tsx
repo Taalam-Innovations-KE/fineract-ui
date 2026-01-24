@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,6 +136,13 @@ export function LoanCommandDialog({
 		resolver: zodResolver(schema),
 		defaultValues: getDefaultValues(commandType),
 	});
+
+	// Reset form when dialog opens or command type changes
+	useEffect(() => {
+		if (open) {
+			form.reset(getDefaultValues(commandType));
+		}
+	}, [open, commandType, form]);
 
 	const paymentTypesQuery = useQuery({
 		queryKey: ["paymentTypes", tenantId],
@@ -314,7 +321,10 @@ export function LoanCommandDialog({
 							name="actualDisbursementDate"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Disbursement Date</FormLabel>
+									<FormLabel>
+										Disbursement Date{" "}
+										<span className="text-destructive">*</span>
+									</FormLabel>
 									<FormControl>
 										<Input type="date" {...field} />
 									</FormControl>
@@ -352,7 +362,9 @@ export function LoanCommandDialog({
 							name="paymentTypeId"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Payment Type</FormLabel>
+									<FormLabel>
+										Payment Type <span className="text-destructive">*</span>
+									</FormLabel>
 									<Select
 										onValueChange={(value) => field.onChange(parseInt(value))}
 										value={field.value?.toString()}

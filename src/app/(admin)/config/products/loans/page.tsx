@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Plus, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import { FormErrorBoundary } from "@/components/ui/form-error-boundary";
 import {
 	Sheet,
 	SheetContent,
@@ -80,8 +81,10 @@ export default function LoanProductsPage() {
 		queryFn: () => fetchCurrencies(tenantId),
 	});
 
-	const enabledCurrencies =
-		currencyConfig?.selectedCurrencyOptions?.map((c) => c.code!) || [];
+	const enabledCurrencies = useMemo(
+		() => currencyConfig?.selectedCurrencyOptions?.map((c) => c.code!) || [],
+		[currencyConfig],
+	);
 
 	const createMutation = useMutation({
 		mutationFn: (data: PostLoanProductsRequest) =>
@@ -256,7 +259,7 @@ export default function LoanProductsPage() {
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-2xl overflow-y-auto"
+					className="w-full sm:max-w-[80vw] overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>Create Loan Product</SheetTitle>
@@ -265,12 +268,14 @@ export default function LoanProductsPage() {
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
-						<LoanProductWizard
-							currencies={enabledCurrencies}
-							isOpen={isDrawerOpen}
-							onSubmit={(data) => createMutation.mutateAsync(data)}
-							onCancel={() => setIsDrawerOpen(false)}
-						/>
+						<FormErrorBoundary>
+							<LoanProductWizard
+								currencies={enabledCurrencies}
+								isOpen={isDrawerOpen}
+								onSubmit={(data) => createMutation.mutateAsync(data)}
+								onCancel={() => setIsDrawerOpen(false)}
+							/>
+						</FormErrorBoundary>
 					</div>
 				</SheetContent>
 			</Sheet>

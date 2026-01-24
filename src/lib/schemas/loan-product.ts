@@ -140,6 +140,13 @@ export const loanProductInterestSchema = z.object({
 	interestRateFrequencyType: z.number().min(0),
 	interestCalculationPeriodType: z.number().min(0),
 	allowPartialPeriodInterestCalculation: z.boolean().optional(),
+	daysInYearType: z.number().refine((val) => [1, 360, 364, 365].includes(val), {
+		message: "Days in year must be 1 (Actual), 360, 364, or 365",
+	}),
+	daysInMonthType: z.number().refine((val) => [1, 30].includes(val), {
+		message: "Days in month must be 1 (Actual) or 30",
+	}),
+	isInterestRecalculationEnabled: z.boolean(),
 });
 
 // Step 5: Fees
@@ -180,6 +187,7 @@ export const loanProductAccountingSchema = z
 			return;
 		}
 
+		// Base accounts required for all non-NONE accounting (2, 3, 4)
 		const requiredBase = [
 			"fundSourceAccountId",
 			"loanPortfolioAccountId",
@@ -187,9 +195,13 @@ export const loanProductAccountingSchema = z
 			"incomeFromFeeAccountId",
 			"incomeFromPenaltyAccountId",
 			"writeOffAccountId",
+			// Fineract requires these for all accounting types
+			"transfersInSuspenseAccountId",
+			"overpaymentLiabilityAccountId",
+			"incomeFromRecoveryAccountId",
 		] as const;
 
-		requiredBase.forEach((field) => {
+		for (const field of requiredBase) {
 			if (!data[field]) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
@@ -197,18 +209,17 @@ export const loanProductAccountingSchema = z
 					message: "Required when accounting is enabled",
 				});
 			}
-		});
+		}
 
+		// Additional receivable accounts for accrual accounting (3, 4)
 		if (data.accountingRule === 3 || data.accountingRule === 4) {
 			const requiredAccrual = [
 				"receivableInterestAccountId",
 				"receivableFeeAccountId",
 				"receivablePenaltyAccountId",
-				"overpaymentLiabilityAccountId",
-				"transfersInSuspenseAccountId",
 			] as const;
 
-			requiredAccrual.forEach((field) => {
+			for (const field of requiredAccrual) {
 				if (!data[field]) {
 					ctx.addIssue({
 						code: z.ZodIssueCode.custom,
@@ -216,7 +227,7 @@ export const loanProductAccountingSchema = z
 						message: "Required for accrual accounting",
 					});
 				}
-			});
+			}
 		}
 	});
 

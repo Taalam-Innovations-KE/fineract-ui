@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from "@/components/ui/dialog";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@/components/ui/sheet";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -212,24 +213,24 @@ export default function RolesPage() {
 					<CardHeader>
 						<CardTitle className="flex items-center justify-between">
 							Roles
-							<Dialog
-								open={createDialogOpen}
-								onOpenChange={setCreateDialogOpen}
-							>
-								<DialogTrigger asChild>
+							<Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+								<SheetTrigger asChild>
 									<Button>
 										<Plus className="mr-2 h-4 w-4" />
 										Create Role
 									</Button>
-								</DialogTrigger>
-								<DialogContent>
-									<DialogHeader>
-										<DialogTitle>Create New Role</DialogTitle>
-										<DialogDescription>
+								</SheetTrigger>
+								<SheetContent side="right" className="sm:max-w-[450px]">
+									<SheetHeader>
+										<SheetTitle>Create New Role</SheetTitle>
+										<SheetDescription>
 											Add a new custom role to the system.
-										</DialogDescription>
-									</DialogHeader>
-									<form onSubmit={handleCreateSubmit} className="space-y-4">
+										</SheetDescription>
+									</SheetHeader>
+									<form
+										onSubmit={handleCreateSubmit}
+										className="space-y-4 mt-6"
+									>
 										<div>
 											<label className="text-sm font-medium">
 												Template (Optional)
@@ -282,7 +283,7 @@ export default function RolesPage() {
 												rows={3}
 											/>
 										</div>
-										<div className="flex justify-end space-x-2">
+										<SheetFooter>
 											<Button
 												type="button"
 												variant="outline"
@@ -293,10 +294,10 @@ export default function RolesPage() {
 											<Button type="submit" disabled={createMutation.isPending}>
 												{createMutation.isPending ? "Creating..." : "Create"}
 											</Button>
-										</div>
+										</SheetFooter>
 									</form>
-								</DialogContent>
-							</Dialog>
+								</SheetContent>
+							</Sheet>
 						</CardTitle>
 						<CardDescription>
 							{roles.length} role{roles.length !== 1 ? "s" : ""} in the system

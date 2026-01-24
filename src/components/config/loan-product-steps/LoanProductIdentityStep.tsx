@@ -1,9 +1,8 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Info } from "lucide-react";
-import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useMemo } from "react";
+import { Controller, useFormContext } from "react-hook-form";
 import {
 	Card,
 	CardContent,
@@ -27,17 +26,11 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { GetLoanProductsTemplateResponse } from "@/lib/fineract/generated/types.gen";
-import {
-	type LoanProductIdentityFormData,
-	loanProductIdentitySchema,
-} from "@/lib/schemas/loan-product";
+import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
 interface LoanProductIdentityStepProps {
 	template?: GetLoanProductsTemplateResponse;
 	currencies: string[];
-	data?: Partial<LoanProductIdentityFormData>;
-	onDataValid: (data: LoanProductIdentityFormData) => void;
-	onDataInvalid: () => void;
 }
 
 function getTemplateCurrencyOptions(
@@ -55,48 +48,33 @@ function getTemplateCurrencyOptions(
 export function LoanProductIdentityStep({
 	template,
 	currencies,
-	data,
-	onDataValid,
-	onDataInvalid,
 }: LoanProductIdentityStepProps) {
-	const currencyOptions = getTemplateCurrencyOptions(template, currencies);
-
 	const {
 		register,
 		control,
 		watch,
 		setValue,
-		formState: { errors, isValid },
-	} = useForm<LoanProductIdentityFormData>({
-		resolver: zodResolver(loanProductIdentitySchema),
-		mode: "onChange",
-		defaultValues: data || {
-			name: "",
-			shortName: "",
-			description: "",
-			currencyCode: currencyOptions[0]?.code || "",
-			digitsAfterDecimal: currencyOptions[0]?.decimalPlaces || 2,
-		},
-	});
+		formState: { errors },
+	} = useFormContext<CreateLoanProductFormData>();
+
+	const currencyOptions = useMemo(
+		() => getTemplateCurrencyOptions(template, currencies),
+		[template, currencies],
+	);
 
 	const shortNameValue = watch("shortName");
 	const currencyCode = watch("currencyCode");
 
+	// Set default currency from template if not already set
 	useEffect(() => {
 		if (!template) return;
 
-		if (!data?.currencyCode && currencyOptions[0]?.code) {
+		if (!currencyCode && currencyOptions[0]?.code) {
 			setValue("currencyCode", currencyOptions[0]?.code);
 		}
+	}, [template, currencyOptions, currencyCode, setValue]);
 
-		if (
-			data?.digitsAfterDecimal === undefined &&
-			currencyOptions[0]?.decimalPlaces !== undefined
-		) {
-			setValue("digitsAfterDecimal", currencyOptions[0].decimalPlaces);
-		}
-	}, [template, currencyOptions, data, setValue]);
-
+	// Update decimal places when currency changes
 	useEffect(() => {
 		if (!currencyCode) return;
 		const match = currencyOptions.find(
@@ -106,20 +84,6 @@ export function LoanProductIdentityStep({
 			setValue("digitsAfterDecimal", match.decimalPlaces);
 		}
 	}, [currencyCode, currencyOptions, setValue]);
-
-	useEffect(() => {
-		if (isValid) {
-			onDataValid({
-				name: watch("name"),
-				shortName: watch("shortName"),
-				description: watch("description"),
-				currencyCode: watch("currencyCode"),
-				digitsAfterDecimal: watch("digitsAfterDecimal"),
-			});
-		} else {
-			onDataInvalid();
-		}
-	}, [isValid, watch, onDataValid, onDataInvalid]);
 
 	return (
 		<TooltipProvider>

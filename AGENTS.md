@@ -26,10 +26,7 @@ with existing patterns and avoid editing generated files.
 ## Build, Lint, and Dev Commands
 All scripts are in `package.json`; use pnpm.
 
-### Development Workflow
-- `pnpm dev`: start local development server
-- `pnpm build`: production build (run before committing)
-- `pnpm start`: run production build locally for testing
+**IMPORTANT**: Do not run test, build, or dev commands at all.
 
 ### Code Quality
 - `pnpm lint`: Biome lint + auto-fix (run after changes, before committing)
@@ -40,17 +37,17 @@ All scripts are in `package.json`; use pnpm.
 ### API Generation
 - `pnpm generate:api`: regenerate OpenAPI client from Fineract schema
 
+### Testing
+- **Current Status**: No test runner configured yet
+- **Test Files**: Placeholder implementations in `src/__tests__/`
+- **Setup Required**: Install Vitest or Jest and add test scripts to `package.json`
+- **Future Commands**: `pnpm test`, `pnpm test:watch`, `pnpm test -- <pattern>` (single test)
+- **Single Test Execution**: Once configured, use `pnpm test <test-file>` or `pnpm test -- <pattern>` to run specific tests
+
 ### When to Run Commands
 - Run `pnpm lint` after any code changes to catch issues early
 - Run `pnpm check:spacing` whenever you modify Tailwind classes with spacing values
 - Run `pnpm generate:api` if you modify OpenAPI schemas or need updated types
-
-## Tests
-- No test runner is currently configured.
-- There is no single-test command yet.
-- Test files exist in `src/__tests__/` but are placeholder implementations.
-- If you add tests, also add corresponding scripts in `package.json` and update
-  this file with single-test examples (e.g., `pnpm test -- <pattern>`).
 
 ## Formatting and Imports
 - Biome is the formatter and linter; do not add ESLint/Prettier rules.
@@ -401,6 +398,99 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 );
 ```
 
+## Styling Conventions
+
+Follow these patterns observed in loan products and loans view pages:
+
+### Page Layout Structure
+```typescript
+// Use PageShell for consistent page headers with actions
+<PageShell
+  title="Page Title"
+  subtitle="Page description"
+  actions={<Button>Action Button</Button>}
+>
+  <div className="space-y-6">
+    {/* Page content */}
+  </div>
+</PageShell>
+```
+
+### Statistics Cards Grid
+```typescript
+// Statistics overview with icon, metric, and label
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <Card>
+    <CardContent className="pt-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+          <Icon className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <div className="text-2xl font-bold">{count}</div>
+          <div className="text-sm text-muted-foreground">Label</div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+```
+
+### Data Tables
+```typescript
+// Main content card with table
+<Card>
+  <CardHeader>
+    <CardTitle>Table Title</CardTitle>
+    <CardDescription>{count} items configured</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <DataTable
+      data={data}
+      columns={columns}
+      getRowId={(item) => String(item.id)}
+      enableActions={true}
+      getViewUrl={(item) => `/path/${item.id}`}
+    />
+  </CardContent>
+</Card>
+```
+
+### Form Layouts
+```typescript
+// Side drawer forms with proper spacing
+<Sheet open={open} onOpenChange={setOpen}>
+  <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+    <SheetHeader>
+      <SheetTitle>Form Title</SheetTitle>
+      <SheetDescription>Form description</SheetDescription>
+    </SheetHeader>
+    <div className="mt-6">
+      <form className="space-y-4">
+        {/* Form fields */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Grid fields */}
+        </div>
+        {/* Submit buttons */}
+        <div className="flex items-center justify-end gap-2 pt-4">
+          <Button type="button" variant="outline">Cancel</Button>
+          <Button type="submit">Submit</Button>
+        </div>
+      </form>
+    </div>
+  </SheetContent>
+</Sheet>
+```
+
+### Badge Variants
+```typescript
+// Status badges with semantic colors
+<Badge variant="secondary">Default</Badge>
+<Badge variant="success">Active</Badge>
+<Badge variant="warning">Pending</Badge>
+<Badge variant="destructive">Rejected</Badge>
+```
+
 ## Enforced Spacing Scale
 Use only these sizes to keep layouts consistent:
 - Margin/padding: `0`, `0.5`, `1`, `1.5`, `2`, `2.5`, `3`, `3.5`, `4`, `5`, `6`, `7`, `8`
@@ -540,8 +630,9 @@ The code registry system provides comprehensive management of Fineract codes and
 
 ## Quick Checklist Before Hand-off
 - Verify all loading states use skeleton components (no spinners)
-- Run `pnpm lint` or `pnpm lint:check`
-- Run `pnpm check:spacing` after layout work
+- Run `pnpm lint` to catch issues early
+- Run `pnpm check:spacing` after layout work with spacing values
 - Run `pnpm build` to ensure no TypeScript/compilation errors
+- Run tests when available: `pnpm test` (when test runner is configured)
 - Ensure no changes in generated folders unless intentionally regenerated
 - Test API routes and components for proper functionality

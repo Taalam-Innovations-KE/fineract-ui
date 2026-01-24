@@ -47,6 +47,21 @@ export function formatDateStringToFormat(
 	dateString: string,
 	dateFormat: string,
 ): string {
-	const date = parseISO(dateString); // Parse YYYY-MM-DD to Date
-	return format(date, dateFormat); // Format to specified dateFormat
+	try {
+		let date: Date;
+		// Check if dateString is in YYYY-MM-DD format
+		if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+			date = parseISO(dateString);
+		} else {
+			// Assume it's in the dateFormat, parse it back
+			date = parse(dateString, dateFormat, new Date());
+		}
+		if (isNaN(date.getTime())) {
+			throw new Error(`Invalid date string: ${dateString}`);
+		}
+		return format(date, dateFormat); // Format to specified dateFormat
+	} catch (error) {
+		console.error("Error formatting date:", error, dateString, dateFormat);
+		throw error;
+	}
 }

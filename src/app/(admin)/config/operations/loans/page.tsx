@@ -1,19 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	Banknote,
-	Calendar,
-	CreditCard,
-	Plus,
-	Save,
-	Users,
-	X,
-} from "lucide-react";
+import { Banknote, Calendar, CreditCard, Plus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { LoanBookingWizard } from "@/components/loans/loan-booking-wizard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,15 +17,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetContent,
@@ -41,7 +24,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { formatDateStringToFormat } from "@/lib/date-utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsPageItemsResponse,
@@ -53,24 +36,10 @@ import { useTenantStore } from "@/store/tenant";
 
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
 
-type LoanFormData = {
-	clientId: number;
-	productId: number;
-	principal: number;
-	numberOfRepayments: number;
-	interestRatePerPeriod: number;
-	loanTermFrequency: number;
-	loanTermFrequencyType: number;
-	repaymentEvery: number;
-	repaymentFrequencyType: number;
-	expectedDisbursementDate: string;
-	submittedOnDate: string;
-	externalId?: string;
-};
-
 type LoanProduct = GetLoanProductsResponse & {
 	id?: number;
 	name?: string;
+	shortName?: string;
 	minPrincipal?: number;
 	maxPrincipal?: number;
 	principal?: number;
@@ -80,6 +49,17 @@ type LoanProduct = GetLoanProductsResponse & {
 	interestRatePerPeriod?: number;
 	repaymentEvery?: number;
 	repaymentFrequencyType?: { id?: number; value?: string };
+	currency?: { code?: string; displaySymbol?: string };
+	enableDownPayment?: boolean;
+	multiDisburseLoan?: boolean;
+	charges?: Array<{
+		id: number;
+		name?: string;
+		amount?: number;
+		chargeCalculationType?: { id?: number; value?: string };
+		chargeTimeType?: { id?: number; value?: string };
+		penalty?: boolean;
+	}>;
 };
 
 type LoanListItem = {
@@ -105,43 +85,22 @@ function formatCurrency(amount: number | undefined, symbol = "KES") {
 	return `${symbol} ${amount.toLocaleString()}`;
 }
 
-function _formatDate(dateStr: string) {
-	if (!dateStr) return "";
-	const date = new Date(dateStr);
-	const year = date.getFullYear();
-	const _month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-	return `${day} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()]} ${year}`;
-}
-
-function getToday() {
-	const today = new Date();
-	const year = today.getFullYear();
-	const month = String(today.getMonth() + 1).padStart(2, "0");
-	const day = String(today.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
-}
-
-function LookupSkeleton() {
+function WizardSkeleton() {
 	return (
-		<div className="space-y-4 animate-pulse">
-			<div className="space-y-2">
-				<div className="h-4 w-24 rounded bg-muted" />
-				<div className="h-9 w-full rounded bg-muted" />
+		<div className="space-y-6 animate-pulse">
+			<div className="flex items-center justify-between">
+				{[1, 2, 3, 4, 5, 6, 7].map((i) => (
+					<div key={i} className="flex flex-col items-center">
+						<div className="h-10 w-10 rounded-full bg-muted" />
+						<div className="h-3 w-16 mt-2 rounded bg-muted" />
+					</div>
+				))}
 			</div>
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<div className="h-4 w-28 rounded bg-muted" />
-					<div className="h-9 w-full rounded bg-muted" />
-				</div>
-				<div className="space-y-2">
-					<div className="h-4 w-24 rounded bg-muted" />
-					<div className="h-9 w-full rounded bg-muted" />
-				</div>
-			</div>
-			<div className="space-y-2">
-				<div className="h-4 w-32 rounded bg-muted" />
-				<div className="h-9 w-full rounded bg-muted" />
+			<div className="space-y-4">
+				<div className="h-6 w-48 rounded bg-muted" />
+				<div className="h-10 w-full rounded bg-muted" />
+				<div className="h-10 w-full rounded bg-muted" />
+				<div className="h-32 w-full rounded bg-muted" />
 			</div>
 		</div>
 	);
@@ -217,9 +176,6 @@ export default function LoansPage() {
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
-	const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(
-		null,
-	);
 
 	const loansQuery = useQuery({
 		queryKey: ["loans", tenantId],
@@ -251,31 +207,10 @@ export default function LoansPage() {
 		},
 	});
 
-	const {
-		register,
-		handleSubmit,
-		control,
-		reset,
-		setValue,
-		watch,
-		formState: { errors },
-	} = useForm<LoanFormData>({
-		defaultValues: {
-			submittedOnDate: getToday(),
-			expectedDisbursementDate: getToday(),
-			loanTermFrequencyType: 2,
-			repaymentFrequencyType: 2,
-			repaymentEvery: 1,
-		},
-	});
-
-	const watchProductId = watch("productId");
-
 	const clients = useMemo(
 		() => (clientsQuery.data?.pageItems || []) as GetClientsPageItemsResponse[],
 		[clientsQuery.data],
 	);
-	const activeClients = clients.filter((c) => c.active);
 
 	const loanProducts = useMemo(
 		() => (productsQuery.data || []) as LoanProduct[],
@@ -295,15 +230,6 @@ export default function LoansPage() {
 	const lookupErrors = [clientsQuery.error, productsQuery.error].filter(
 		Boolean,
 	) as Error[];
-
-	const hasMissingClients = !clients.length;
-	const hasMissingProducts = !loanProducts.length;
-
-	const disableSubmit =
-		isLookupsLoading ||
-		hasMissingClients ||
-		hasMissingProducts ||
-		createMutation.isPending;
 
 	const loanColumns = [
 		{
@@ -362,81 +288,14 @@ export default function LoansPage() {
 		},
 	];
 
-	useEffect(() => {
-		if (!isDrawerOpen) return;
-		const today = getToday();
-		reset({
-			clientId: undefined,
-			productId: undefined,
-			principal: undefined,
-			numberOfRepayments: undefined,
-			interestRatePerPeriod: undefined,
-			loanTermFrequency: undefined,
-			loanTermFrequencyType: 2,
-			repaymentEvery: 1,
-			repaymentFrequencyType: 2,
-			expectedDisbursementDate: today,
-			submittedOnDate: today,
-			externalId: "",
-		});
-		setSelectedProduct(null);
-	}, [isDrawerOpen, reset]);
-
-	useEffect(() => {
-		if (!watchProductId || !loanProducts.length) return;
-		const product = loanProducts.find((p) => p.id === watchProductId);
-		if (product) {
-			setSelectedProduct(product);
-			if (product.principal) setValue("principal", product.principal);
-			if (product.numberOfRepayments)
-				setValue("numberOfRepayments", product.numberOfRepayments);
-			if (product.interestRatePerPeriod)
-				setValue("interestRatePerPeriod", product.interestRatePerPeriod);
-			if (product.repaymentEvery)
-				setValue("repaymentEvery", product.repaymentEvery);
-			if (product.repaymentFrequencyType?.id)
-				setValue("repaymentFrequencyType", product.repaymentFrequencyType.id);
-		}
-	}, [watchProductId, loanProducts, setValue]);
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
-
-	const onSubmit = (data: LoanFormData) => {
-		if (!data.clientId || !data.productId) return;
-
-		const payload: PostLoansRequest = {
-			clientId: data.clientId,
-			productId: data.productId,
-			principal: data.principal,
-			numberOfRepayments: data.numberOfRepayments,
-			interestRatePerPeriod: data.interestRatePerPeriod,
-			loanTermFrequency: data.loanTermFrequency || data.numberOfRepayments,
-			loanTermFrequencyType: data.loanTermFrequencyType,
-			repaymentEvery: data.repaymentEvery,
-			repaymentFrequencyType: data.repaymentFrequencyType,
-			expectedDisbursementDate: formatDateStringToFormat(
-				data.expectedDisbursementDate,
-				"dd MMMM yyyy",
-			),
-			submittedOnDate: formatDateStringToFormat(
-				data.submittedOnDate,
-				"dd MMMM yyyy",
-			),
-			dateFormat: "dd MMMM yyyy",
-			locale: "en",
-			loanType: "individual",
-		};
-
-		if (data.externalId) {
-			payload.externalId = data.externalId;
-		}
-
-		createMutation.mutate(payload);
+	const handleWizardSubmit = async (data: PostLoansRequest) => {
+		await createMutation.mutateAsync(data);
 	};
+
+	// Clear toast after timeout
+	if (toastMessage) {
+		setTimeout(() => setToastMessage(null), 3000);
+	}
 
 	return (
 		<>
@@ -529,6 +388,8 @@ export default function LoansPage() {
 										loan.id?.toString() || loan.accountNo || "loan-row"
 									}
 									emptyMessage="No loans found. Book your first loan to get started."
+									enableActions={true}
+									getViewUrl={(loan) => `/config/operations/loans/${loan.id}`}
 								/>
 							)}
 						</CardContent>
@@ -539,7 +400,7 @@ export default function LoansPage() {
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-xl overflow-y-auto"
+					className="w-full sm:max-w-3xl overflow-y-auto"
 				>
 					<SheetHeader>
 						<SheetTitle>Book New Loan</SheetTitle>
@@ -548,8 +409,8 @@ export default function LoansPage() {
 						</SheetDescription>
 					</SheetHeader>
 
-					<div className="flex flex-col gap-4 mt-6">
-						{isLookupsLoading && <LookupSkeleton />}
+					<div className="mt-6">
+						{isLookupsLoading && <WizardSkeleton />}
 
 						{!isLookupsLoading && lookupErrors.length > 0 && (
 							<Alert variant="destructive">
@@ -561,312 +422,13 @@ export default function LoansPage() {
 						)}
 
 						{!isLookupsLoading && lookupErrors.length === 0 && (
-							<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="clientId">
-										Client <span className="text-destructive">*</span>
-									</Label>
-									<Controller
-										control={control}
-										name="clientId"
-										rules={{ required: "Client is required" }}
-										render={({ field }) => (
-											<Select
-												value={
-													field.value !== undefined && field.value !== null
-														? String(field.value)
-														: undefined
-												}
-												onValueChange={(value) => field.onChange(Number(value))}
-												disabled={hasMissingClients}
-											>
-												<SelectTrigger id="clientId">
-													<SelectValue placeholder="Select client" />
-												</SelectTrigger>
-												<SelectContent>
-													{activeClients.map((client) => (
-														<SelectItem
-															key={client.id}
-															value={String(client.id)}
-														>
-															{client.displayName || client.fullname} (
-															{client.accountNo})
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									{errors.clientId && (
-										<p className="text-sm text-destructive">
-											{errors.clientId.message}
-										</p>
-									)}
-									{hasMissingClients && (
-										<Alert variant="warning">
-											<AlertTitle>No clients available</AlertTitle>
-											<AlertDescription>
-												Onboard clients before booking loans.
-											</AlertDescription>
-										</Alert>
-									)}
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="productId">
-										Loan Product <span className="text-destructive">*</span>
-									</Label>
-									<Controller
-										control={control}
-										name="productId"
-										rules={{ required: "Loan product is required" }}
-										render={({ field }) => (
-											<Select
-												value={
-													field.value !== undefined && field.value !== null
-														? String(field.value)
-														: undefined
-												}
-												onValueChange={(value) => field.onChange(Number(value))}
-												disabled={hasMissingProducts}
-											>
-												<SelectTrigger id="productId">
-													<SelectValue placeholder="Select loan product" />
-												</SelectTrigger>
-												<SelectContent>
-													{loanProducts.map((product) => (
-														<SelectItem
-															key={product.id}
-															value={String(product.id)}
-														>
-															{product.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										)}
-									/>
-									{errors.productId && (
-										<p className="text-sm text-destructive">
-											{errors.productId.message}
-										</p>
-									)}
-									{hasMissingProducts && (
-										<Alert variant="warning">
-											<AlertTitle>No loan products available</AlertTitle>
-											<AlertDescription>
-												Configure loan products before booking loans.
-											</AlertDescription>
-										</Alert>
-									)}
-								</div>
-
-								{selectedProduct && (
-									<div className="p-3 bg-muted/50 border text-sm space-y-1">
-										<div className="font-medium">{selectedProduct.name}</div>
-										<div className="text-muted-foreground">
-											Principal: {formatCurrency(selectedProduct.minPrincipal)}{" "}
-											- {formatCurrency(selectedProduct.maxPrincipal)}
-										</div>
-										<div className="text-muted-foreground">
-											Interest: {selectedProduct.interestRatePerPeriod}% per{" "}
-											{selectedProduct.repaymentFrequencyType?.value ||
-												"period"}
-										</div>
-									</div>
-								)}
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<Label htmlFor="principal">
-											Principal Amount{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="principal"
-											type="number"
-											step="0.01"
-											{...register("principal", {
-												required: "Principal is required",
-												valueAsNumber: true,
-												min: {
-													value: selectedProduct?.minPrincipal || 1,
-													message: `Minimum is ${selectedProduct?.minPrincipal || 1}`,
-												},
-												max: selectedProduct?.maxPrincipal
-													? {
-															value: selectedProduct.maxPrincipal,
-															message: `Maximum is ${selectedProduct.maxPrincipal}`,
-														}
-													: undefined,
-											})}
-											placeholder="Enter principal amount"
-										/>
-										{errors.principal && (
-											<p className="text-sm text-destructive">
-												{errors.principal.message}
-											</p>
-										)}
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="numberOfRepayments">
-											Number of Repayments{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="numberOfRepayments"
-											type="number"
-											{...register("numberOfRepayments", {
-												required: "Number of repayments is required",
-												valueAsNumber: true,
-												min: {
-													value: selectedProduct?.minNumberOfRepayments || 1,
-													message: `Minimum is ${selectedProduct?.minNumberOfRepayments || 1}`,
-												},
-												max: selectedProduct?.maxNumberOfRepayments
-													? {
-															value: selectedProduct.maxNumberOfRepayments,
-															message: `Maximum is ${selectedProduct.maxNumberOfRepayments}`,
-														}
-													: undefined,
-											})}
-											placeholder="Enter number of repayments"
-										/>
-										{errors.numberOfRepayments && (
-											<p className="text-sm text-destructive">
-												{errors.numberOfRepayments.message}
-											</p>
-										)}
-									</div>
-								</div>
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<Label htmlFor="interestRatePerPeriod">
-											Interest Rate (%)
-										</Label>
-										<Input
-											id="interestRatePerPeriod"
-											type="number"
-											step="0.01"
-											{...register("interestRatePerPeriod", {
-												valueAsNumber: true,
-											})}
-											placeholder="Enter interest rate"
-										/>
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="repaymentEvery">Repayment Every</Label>
-										<div className="flex gap-2">
-											<Input
-												id="repaymentEvery"
-												type="number"
-												className="flex-1"
-												{...register("repaymentEvery", {
-													valueAsNumber: true,
-												})}
-												placeholder="1"
-											/>
-											<Controller
-												control={control}
-												name="repaymentFrequencyType"
-												render={({ field }) => (
-													<Select
-														value={String(field.value || 2)}
-														onValueChange={(value) =>
-															field.onChange(Number(value))
-														}
-													>
-														<SelectTrigger className="w-[140px]">
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent>
-															<SelectItem value="0">Days</SelectItem>
-															<SelectItem value="1">Weeks</SelectItem>
-															<SelectItem value="2">Months</SelectItem>
-														</SelectContent>
-													</Select>
-												)}
-											/>
-										</div>
-									</div>
-								</div>
-
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div className="space-y-2">
-										<Label htmlFor="submittedOnDate">
-											Submitted On <span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="submittedOnDate"
-											type="date"
-											{...register("submittedOnDate", {
-												required: "Submission date is required",
-											})}
-										/>
-										{errors.submittedOnDate && (
-											<p className="text-sm text-destructive">
-												{errors.submittedOnDate.message}
-											</p>
-										)}
-									</div>
-
-									<div className="space-y-2">
-										<Label htmlFor="expectedDisbursementDate">
-											Expected Disbursement{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="expectedDisbursementDate"
-											type="date"
-											{...register("expectedDisbursementDate", {
-												required: "Expected disbursement date is required",
-											})}
-										/>
-										{errors.expectedDisbursementDate && (
-											<p className="text-sm text-destructive">
-												{errors.expectedDisbursementDate.message}
-											</p>
-										)}
-									</div>
-								</div>
-
-								<div className="space-y-2">
-									<Label htmlFor="externalId">External ID (Optional)</Label>
-									<Input
-										id="externalId"
-										{...register("externalId")}
-										placeholder="External reference ID"
-									/>
-								</div>
-
-								{createMutation.isError && (
-									<Alert variant="destructive">
-										<AlertTitle>Submission failed</AlertTitle>
-										<AlertDescription>
-											{(createMutation.error as Error)?.message ||
-												"Failed to book loan. Please try again."}
-										</AlertDescription>
-									</Alert>
-								)}
-
-								<div className="flex items-center justify-end gap-2 pt-4">
-									<Button
-										type="button"
-										variant="outline"
-										onClick={() => setIsDrawerOpen(false)}
-									>
-										<X className="w-4 h-4 mr-2" />
-										Cancel
-									</Button>
-									<Button type="submit" disabled={disableSubmit}>
-										<Save className="w-4 h-4 mr-2" />
-										{createMutation.isPending ? "Submitting..." : "Book Loan"}
-									</Button>
-								</div>
-							</form>
+							<LoanBookingWizard
+								clients={clients}
+								products={loanProducts}
+								isOpen={isDrawerOpen}
+								onSubmit={handleWizardSubmit}
+								onCancel={() => setIsDrawerOpen(false)}
+							/>
 						)}
 					</div>
 				</SheetContent>

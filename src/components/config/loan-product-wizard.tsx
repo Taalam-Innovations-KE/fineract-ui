@@ -2,81 +2,26 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import {
-	Check,
-	ChevronLeft,
-	ChevronRight,
-	Copy,
-	Info,
-	Plus,
-	X,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Controller, type FieldPath, useForm } from "react-hook-form";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
-	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
-	PostChargesResponse,
 	PostLoanProductsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import {
 	buildLoanProductRequest,
-	chargesApi,
 	loanProductsApi,
-	mapFeeUiToChargeRequest,
-	mapPenaltyUiToChargeRequest,
 } from "@/lib/fineract/loan-products";
 import {
 	type CreateLoanProductFormData,
 	createLoanProductSchema,
-	type FeeFormData,
-	type FeeSelection,
-	feeChargeFormSchema,
-	loanProductAccountingSchema,
-	loanProductAmountSchema,
-	loanProductFeesSchema,
-	loanProductIdentitySchema,
-	loanProductInterestSchema,
-	loanProductPenaltiesSchema,
-	loanProductScheduleSchema,
-	type PenaltyFormData,
-	type PenaltySelection,
-	penaltyChargeFormSchema,
 } from "@/lib/schemas/loan-product";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
@@ -93,194 +38,66 @@ interface LoanProductWizardProps {
 	isOpen: boolean;
 	onSubmit: (data: PostLoanProductsRequest) => Promise<void>;
 	onCancel: () => void;
+	isEditMode?: boolean;
+	initialData?: Partial<CreateLoanProductFormData>;
+	onUpdate?: (data: PostLoanProductsRequest) => Promise<void>;
 }
-
-type FeeItem = FeeSelection & { summary?: string };
-
-type PenaltyItem = PenaltySelection & {
-	summary?: string;
-	gracePeriodOverride?: number;
-};
 
 const steps = [
-	{
-		id: 1,
-		name: "Identity & Currency",
-		schema: loanProductIdentitySchema,
-		fields: [
-			"name",
-			"shortName",
-			"description",
-			"currencyCode",
-			"digitsAfterDecimal",
-		] as const,
-	},
-	{
-		id: 2,
-		name: "Loan Amount Rules",
-		schema: loanProductAmountSchema,
-		fields: [
-			"minPrincipal",
-			"principal",
-			"maxPrincipal",
-			"inMultiplesOf",
-		] as const,
-	},
-	{
-		id: 3,
-		name: "Tenure & Schedule",
-		schema: loanProductScheduleSchema,
-		fields: [
-			"minNumberOfRepayments",
-			"numberOfRepayments",
-			"maxNumberOfRepayments",
-			"repaymentEvery",
-			"repaymentFrequencyType",
-			"minimumDaysBetweenDisbursalAndFirstRepayment",
-		] as const,
-	},
-	{
-		id: 4,
-		name: "Interest & Calculation",
-		schema: loanProductInterestSchema,
-		fields: [
-			"interestType",
-			"amortizationType",
-			"interestRatePerPeriod",
-			"interestRateFrequencyType",
-			"interestCalculationPeriodType",
-			"allowPartialPeriodInterestCalculation",
-		] as const,
-	},
-	{
-		id: 5,
-		name: "Fees",
-		schema: loanProductFeesSchema,
-		fields: ["fees"] as const,
-	},
-	{
-		id: 6,
-		name: "Penalties",
-		schema: loanProductPenaltiesSchema,
-		fields: ["penalties"] as const,
-	},
-	{
-		id: 7,
-		name: "Delinquency, Accounting & Review",
-		schema: loanProductAccountingSchema,
-		fields: [
-			"transactionProcessingStrategyCode",
-			"graceOnArrearsAgeing",
-			"inArrearsTolerance",
-			"overdueDaysForNPA",
-			"accountingRule",
-			"fundSourceAccountId",
-			"loanPortfolioAccountId",
-			"interestOnLoanAccountId",
-			"incomeFromFeeAccountId",
-			"incomeFromPenaltyAccountId",
-			"writeOffAccountId",
-			"receivableInterestAccountId",
-			"receivableFeeAccountId",
-			"receivablePenaltyAccountId",
-			"incomeFromRecoveryAccountId",
-			"overpaymentLiabilityAccountId",
-			"transfersInSuspenseAccountId",
-		] as const,
-	},
+	{ id: 1, name: "Identity & Currency" },
+	{ id: 2, name: "Loan Amount Rules" },
+	{ id: 3, name: "Tenure & Schedule" },
+	{ id: 4, name: "Interest & Calculation" },
+	{ id: 5, name: "Fees" },
+	{ id: 6, name: "Penalties" },
+	{ id: 7, name: "Delinquency, Accounting & Review" },
 ];
 
-function _optionLabel(option?: {
-	code?: string;
-	description?: string;
-	value?: string;
-	name?: string;
-}) {
-	return (
-		option?.description ||
-		option?.value ||
-		option?.name ||
-		option?.code ||
-		"Unknown"
-	);
-}
-
-function toAmountLabel(
-	amount?: number,
-	currencyCode?: string,
-	calculation?: "flat" | "percent",
-) {
-	if (amount === undefined) return "Amount not set";
-
-	if (calculation === "percent") {
-		return `${amount}%`;
-	}
-
-	if (!currencyCode) {
-		return `${amount}`;
-	}
-
-	return `${currencyCode} ${amount}`;
-}
-
-function _formatFeeSummary(fee: FeeItem, currencyCode?: string) {
-	if (fee.summary) return fee.summary;
-
-	const amountLabel = toAmountLabel(
-		fee.amount,
-		fee.currencyCode || currencyCode,
-		fee.calculationMethod,
-	);
-	const chargeTimeLabel =
-		fee.chargeTimeType === "disbursement"
-			? "at disbursement"
-			: fee.chargeTimeType === "approval"
-				? "on approval"
-				: "on specified due date";
-	const paymentModeLabel =
-		fee.paymentMode === "deduct"
-			? "deducted from disbursement"
-			: "payable separately";
-
-	return `${fee.name} - ${amountLabel} - ${chargeTimeLabel}, ${paymentModeLabel}`;
-}
-
-function _formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
-	if (penalty.summary) return penalty.summary;
-
-	const amountLabel = toAmountLabel(
-		penalty.amount,
-		penalty.currencyCode || currencyCode,
-		penalty.calculationMethod,
-	);
-	const basisLabel =
-		penalty.penaltyBasis === "overduePrincipal"
-			? "overdue principal"
-			: penalty.penaltyBasis === "overdueInterest"
-				? "overdue interest"
-				: "entire overdue amount";
-
-	const graceLabel = penalty.gracePeriodOverride
-		? ` after ${penalty.gracePeriodOverride} grace days`
-		: "";
-
-	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}`;
-}
-
-function _waterfallLabel(option?: { code?: string; name?: string }) {
-	if (!option?.code) return option?.name || "Strategy";
-
-	const mapping: Record<string, string> = {
-		"mifos-standard-strategy":
-			"Standard (Penalties -> Fees -> Interest -> Principal)",
-		"principal-interest-penalties-fees-order-strategy":
-			"Principal -> Interest -> Penalties -> Fees",
-		"interest-principal-penalties-fees-order-strategy":
-			"Interest -> Principal -> Penalties -> Fees",
-	};
-
-	return mapping[option.code] || option?.name || option.code;
-}
+// Field names for each step - used for partial validation on Next click
+const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
+	1: ["name", "shortName", "description", "currencyCode", "digitsAfterDecimal"],
+	2: ["minPrincipal", "principal", "maxPrincipal", "inMultiplesOf"],
+	3: [
+		"minNumberOfRepayments",
+		"numberOfRepayments",
+		"maxNumberOfRepayments",
+		"repaymentEvery",
+		"repaymentFrequencyType",
+		"minimumDaysBetweenDisbursalAndFirstRepayment",
+	],
+	4: [
+		"interestType",
+		"amortizationType",
+		"interestRatePerPeriod",
+		"interestRateFrequencyType",
+		"interestCalculationPeriodType",
+		"allowPartialPeriodInterestCalculation",
+		"daysInYearType",
+		"daysInMonthType",
+		"isInterestRecalculationEnabled",
+	],
+	5: ["fees"],
+	6: ["penalties"],
+	7: [
+		"transactionProcessingStrategyCode",
+		"graceOnArrearsAgeing",
+		"inArrearsTolerance",
+		"overdueDaysForNPA",
+		"accountingRule",
+		"fundSourceAccountId",
+		"loanPortfolioAccountId",
+		"interestOnLoanAccountId",
+		"incomeFromFeeAccountId",
+		"incomeFromPenaltyAccountId",
+		"writeOffAccountId",
+		"receivableInterestAccountId",
+		"receivableFeeAccountId",
+		"receivablePenaltyAccountId",
+		"incomeFromRecoveryAccountId",
+		"overpaymentLiabilityAccountId",
+		"transfersInSuspenseAccountId",
+	],
+};
 
 function getTemplateCurrencyOptions(
 	template?: GetLoanProductsTemplateResponse,
@@ -299,31 +116,15 @@ export function LoanProductWizard({
 	isOpen,
 	onSubmit,
 	onCancel,
+	isEditMode = false,
+	initialData,
+	onUpdate,
 }: LoanProductWizardProps) {
 	const { tenantId } = useTenantStore();
 	const [currentStep, setCurrentStep] = useState(1);
-	const [fees, setFees] = useState<FeeItem[]>([]);
-	const [penalties, setPenalties] = useState<PenaltyItem[]>([]);
-	const [isFeeDrawerOpen, setIsFeeDrawerOpen] = useState(false);
-	const [isPenaltyDrawerOpen, setIsPenaltyDrawerOpen] = useState(false);
-	const [isFeeSelectOpen, setIsFeeSelectOpen] = useState(false);
-	const [isPenaltySelectOpen, setIsPenaltySelectOpen] = useState(false);
-	const [feeSubmitError, setFeeSubmitError] = useState<string | null>(null);
-	const [penaltySubmitError, setPenaltySubmitError] = useState<string | null>(
-		null,
-	);
-	const [isCreatingFee, setIsCreatingFee] = useState(false);
-	const [isCreatingPenalty, setIsCreatingPenalty] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<string | null>(null);
-	const [copyMessage, setCopyMessage] = useState<string | null>(null);
 	const [draftMessage, setDraftMessage] = useState<string | null>(null);
-	const [wizardData, setWizardData] = useState<
-		Partial<CreateLoanProductFormData>
-	>({});
-	const [stepValidities, setStepValidities] = useState<Record<number, boolean>>(
-		{},
-	);
 
 	const templateQuery = useQuery({
 		queryKey: ["loanProductTemplate", tenantId],
@@ -338,9 +139,11 @@ export function LoanProductWizard({
 		[template, currencies],
 	);
 
+	// Single form instance for the entire wizard
 	const form = useForm<CreateLoanProductFormData>({
 		resolver: zodResolver(createLoanProductSchema),
 		mode: "onChange",
+		shouldUnregister: false, // Preserve values when fields unmount
 		defaultValues: {
 			fees: [],
 			penalties: [],
@@ -349,33 +152,18 @@ export function LoanProductWizard({
 			graceOnArrearsAgeing: 0,
 			inArrearsTolerance: 0,
 			overdueDaysForNPA: 0,
+			daysInYearType: 365,
+			daysInMonthType: 30,
+			isInterestRecalculationEnabled: false,
+			...initialData,
 		},
 	});
 
-	const { setValue, watch, getValues } = form;
+	const { setValue, getValues, trigger } = form;
 
-	const feeForm = useForm<FeeFormData>({
-		resolver: zodResolver(feeChargeFormSchema),
-		mode: "onChange",
-		defaultValues: {
-			calculationMethod: "flat",
-			chargeTimeType: "disbursement",
-			paymentMode: "deduct",
-			currencyCode: currencyOptions[0]?.code || "KES",
-		},
-	});
+	const currencyCode = form.watch("currencyCode");
 
-	const penaltyForm = useForm<PenaltyFormData>({
-		resolver: zodResolver(penaltyChargeFormSchema),
-		mode: "onChange",
-		defaultValues: {
-			calculationMethod: "percent",
-			penaltyBasis: "totalOverdue",
-			currencyCode: currencyOptions[0]?.code || "KES",
-		},
-	});
-
-	const currencyCode = watch("currencyCode");
+	// Set template defaults when template loads
 	useEffect(() => {
 		if (!template) return;
 
@@ -434,6 +222,28 @@ export function LoanProductWizard({
 			);
 		}
 
+		// Set daysInYearType default - prefer 365 if available
+		if (getValues("daysInYearType") === undefined) {
+			const yearOptions = template.daysInYearTypeOptions || [];
+			const preferred = yearOptions.find((o) => o.id === 365);
+			if (preferred?.id !== undefined) {
+				setValue("daysInYearType", preferred.id);
+			} else if (yearOptions[0]?.id !== undefined) {
+				setValue("daysInYearType", yearOptions[0].id);
+			}
+		}
+
+		// Set daysInMonthType default - prefer 30 if available
+		if (getValues("daysInMonthType") === undefined) {
+			const monthOptions = template.daysInMonthTypeOptions || [];
+			const preferred = monthOptions.find((o) => o.id === 30);
+			if (preferred?.id !== undefined) {
+				setValue("daysInMonthType", preferred.id);
+			} else if (monthOptions[0]?.id !== undefined) {
+				setValue("daysInMonthType", monthOptions[0].id);
+			}
+		}
+
 		if (
 			!getValues("transactionProcessingStrategyCode") &&
 			template.transactionProcessingStrategyOptions?.[0]?.code
@@ -450,8 +260,21 @@ export function LoanProductWizard({
 		) {
 			setValue("accountingRule", template.accountingRuleOptions[0].id);
 		}
+
+		// Set default numeric values
+		if (getValues("minPrincipal") === undefined) {
+			setValue("minPrincipal", 1000);
+			setValue("principal", 10000);
+			setValue("maxPrincipal", 20000);
+			setValue("minNumberOfRepayments", 1);
+			setValue("numberOfRepayments", 12);
+			setValue("maxNumberOfRepayments", 24);
+			setValue("repaymentEvery", 1);
+			setValue("interestRatePerPeriod", 10);
+		}
 	}, [template, currencyOptions, getValues, setValue]);
 
+	// Update decimal places when currency changes
 	useEffect(() => {
 		if (!currencyCode) return;
 		const match = currencyOptions.find(
@@ -460,24 +283,7 @@ export function LoanProductWizard({
 		if (match?.decimalPlaces !== undefined) {
 			setValue("digitsAfterDecimal", match.decimalPlaces);
 		}
-
-		feeForm.setValue("currencyCode", currencyCode);
-		penaltyForm.setValue("currencyCode", currencyCode);
-	}, [currencyCode, currencyOptions, setValue, feeForm, penaltyForm]);
-
-	useEffect(() => {
-		setValue(
-			"fees",
-			fees.map(({ summary, ...fee }) => fee),
-		);
-	}, [fees, setValue]);
-
-	useEffect(() => {
-		setValue(
-			"penalties",
-			penalties.map(({ summary, gracePeriodOverride, ...penalty }) => penalty),
-		);
-	}, [penalties, setValue]);
+	}, [currencyCode, currencyOptions, setValue]);
 
 	useEffect(() => {
 		if (!draftMessage) return;
@@ -485,98 +291,12 @@ export function LoanProductWizard({
 		return () => clearTimeout(timeout);
 	}, [draftMessage]);
 
-	useEffect(() => {
-		if (!copyMessage) return;
-		const timeout = setTimeout(() => setCopyMessage(null), 2000);
-		return () => clearTimeout(timeout);
-	}, [copyMessage]);
-
-	useEffect(() => {
-		if (isFeeDrawerOpen) {
-			setFeeSubmitError(null);
-		}
-	}, [isFeeDrawerOpen]);
-
-	useEffect(() => {
-		if (isPenaltyDrawerOpen) {
-			setPenaltySubmitError(null);
-		}
-	}, [isPenaltyDrawerOpen]);
-
-	const handleStepDataValid = useCallback(
-		(stepId: number, data: Record<string, unknown>) => {
-			setWizardData((prev) => ({ ...prev, ...data }));
-			setStepValidities((prev) => ({ ...prev, [stepId]: true }));
-		},
-		[],
-	);
-
-	const handleStepDataInvalid = useCallback((stepId: number) => {
-		setStepValidities((prev) => ({ ...prev, [stepId]: false }));
-	}, []);
-
-	const step1Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(1, data),
-		[handleStepDataValid],
-	);
-	const step1Invalid = useCallback(
-		() => handleStepDataInvalid(1),
-		[handleStepDataInvalid],
-	);
-	const step2Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(2, data),
-		[handleStepDataValid],
-	);
-	const step2Invalid = useCallback(
-		() => handleStepDataInvalid(2),
-		[handleStepDataInvalid],
-	);
-	const step3Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(3, data),
-		[handleStepDataValid],
-	);
-	const step3Invalid = useCallback(
-		() => handleStepDataInvalid(3),
-		[handleStepDataInvalid],
-	);
-	const step4Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(4, data),
-		[handleStepDataValid],
-	);
-	const step4Invalid = useCallback(
-		() => handleStepDataInvalid(4),
-		[handleStepDataInvalid],
-	);
-	const step5Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(5, data),
-		[handleStepDataValid],
-	);
-	const step5Invalid = useCallback(
-		() => handleStepDataInvalid(5),
-		[handleStepDataInvalid],
-	);
-	const step6Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(6, data),
-		[handleStepDataValid],
-	);
-	const step6Invalid = useCallback(
-		() => handleStepDataInvalid(6),
-		[handleStepDataInvalid],
-	);
-	const step7Valid = useCallback(
-		(data: Record<string, unknown>) => handleStepDataValid(7, data),
-		[handleStepDataValid],
-	);
-	const step7Invalid = useCallback(
-		() => handleStepDataInvalid(7),
-		[handleStepDataInvalid],
-	);
-
-	const handleNext = () => {
-		if (stepValidities[currentStep]) {
-			if (currentStep < steps.length) {
-				setCurrentStep(currentStep + 1);
-			}
+	// Validate current step fields and advance if valid
+	const handleNext = async () => {
+		const fields = STEP_FIELDS[currentStep];
+		const isValid = await trigger(fields, { shouldFocus: true });
+		if (isValid && currentStep < steps.length) {
+			setCurrentStep(currentStep + 1);
 		}
 	};
 
@@ -601,10 +321,27 @@ export function LoanProductWizard({
 		setIsSubmitting(true);
 
 		try {
-			const payload = buildLoanProductRequest(
-				wizardData as CreateLoanProductFormData,
-			);
-			await onSubmit(payload);
+			// Validate entire form before submission
+			const isValid = await trigger();
+			if (!isValid) {
+				const errors = form.formState.errors;
+				const errorMessages = Object.entries(errors)
+					.map(([key, error]) => `${key}: ${error?.message || "Invalid"}`)
+					.join(", ");
+				setSubmitError(`Validation failed: ${errorMessages}`);
+				setIsSubmitting(false);
+				return;
+			}
+
+			const formData = getValues();
+			const payload = buildLoanProductRequest(formData);
+
+			if (isEditMode && onUpdate) {
+				await onUpdate(payload);
+			} else {
+				await onSubmit(payload);
+			}
+
 			localStorage.removeItem("loanProductDraft");
 		} catch (error) {
 			const mapped = mapFineractError(error);
@@ -614,170 +351,10 @@ export function LoanProductWizard({
 		}
 	};
 
-	const _handleCopyPayload = async () => {
-		try {
-			const payload = buildLoanProductRequest(
-				getValues() as CreateLoanProductFormData,
-			);
-			await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-			setCopyMessage("Copied");
-		} catch (_error) {
-			setCopyMessage("Copy failed");
-		}
-	};
-
-	const handleAddExistingFee = (option: GetLoanProductsChargeOptions) => {
-		if (!option?.id || typeof option.id !== "number") return;
-		if (fees.some((fee) => fee.id === option.id)) return;
-
-		const summary =
-			`${option.name || "Fee"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
-
-		setFees((prev) => [
-			...prev,
-			{
-				id: option.id,
-				name: option.name || "Fee",
-				amount: option.amount,
-				currencyCode: option.currency?.code,
-				summary,
-			},
-		]);
-	};
-
-	const handleAddExistingPenalty = (option: GetLoanProductsChargeOptions) => {
-		if (!option?.id || typeof option.id !== "number") return;
-		if (penalties.some((penalty) => penalty.id === option.id)) return;
-
-		const summary =
-			`${option.name || "Penalty"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
-
-		setPenalties((prev) => [
-			...prev,
-			{
-				id: option.id,
-				name: option.name || "Penalty",
-				amount: option.amount,
-				currencyCode: option.currency?.code,
-				summary,
-			},
-		]);
-	};
-
-	const handleCreateFee = feeForm.handleSubmit(async (values) => {
-		setFeeSubmitError(null);
-		setIsCreatingFee(true);
-		try {
-			const payload = mapFeeUiToChargeRequest(values);
-			const response = (await chargesApi.create(
-				tenantId,
-				payload,
-			)) as PostChargesResponse;
-			const chargeId = response.resourceId;
-
-			if (!chargeId) {
-				throw new Error("Charge ID missing from response");
-			}
-
-			setFees((prev) => [
-				...prev,
-				{
-					id: chargeId,
-					name: values.name,
-					amount: values.amount,
-					currencyCode: values.currencyCode,
-					calculationMethod: values.calculationMethod,
-					chargeTimeType: values.chargeTimeType,
-					paymentMode: values.paymentMode,
-				},
-			]);
-
-			feeForm.reset({
-				calculationMethod: "flat",
-				chargeTimeType: "disbursement",
-				paymentMode: "deduct",
-				currencyCode: values.currencyCode,
-				amount: undefined,
-				name: "",
-			});
-			setIsFeeDrawerOpen(false);
-		} catch (error) {
-			const mapped = mapFineractError(error);
-			setFeeSubmitError(mapped.message);
-		} finally {
-			setIsCreatingFee(false);
-		}
-	});
-
-	const handleCreatePenalty = penaltyForm.handleSubmit(async (values) => {
-		setPenaltySubmitError(null);
-		setIsCreatingPenalty(true);
-		try {
-			const payload = mapPenaltyUiToChargeRequest(values);
-			const response = (await chargesApi.create(
-				tenantId,
-				payload,
-			)) as PostChargesResponse;
-			const chargeId = response.resourceId;
-
-			if (!chargeId) {
-				throw new Error("Charge ID missing from response");
-			}
-
-			setPenalties((prev) => [
-				...prev,
-				{
-					id: chargeId,
-					name: values.name,
-					amount: values.amount,
-					currencyCode: values.currencyCode,
-					calculationMethod: values.calculationMethod,
-					penaltyBasis: values.penaltyBasis,
-					gracePeriodOverride: values.gracePeriodOverride,
-				},
-			]);
-
-			penaltyForm.reset({
-				calculationMethod: "percent",
-				penaltyBasis: "totalOverdue",
-				currencyCode: values.currencyCode,
-				amount: undefined,
-				name: "",
-				gracePeriodOverride: undefined,
-			});
-			setIsPenaltyDrawerOpen(false);
-		} catch (error) {
-			const mapped = mapFineractError(error);
-			setPenaltySubmitError(mapped.message);
-		} finally {
-			setIsCreatingPenalty(false);
-		}
-	});
-
-	const _payloadPreview = buildLoanProductRequest(
-		getValues() as CreateLoanProductFormData,
-	);
-
-	const chargeOptions = template?.chargeOptions || [];
-	const feeOptions = chargeOptions.filter(
-		(option) => option.penalty === false && option.active !== false,
-	);
-	const penaltyOptions = chargeOptions.filter(
-		(option) => option.penalty === true && option.active !== false,
-	);
-
-	const _assetOptions =
-		template?.accountingMappingOptions?.assetAccountOptions || [];
-	const _incomeOptions =
-		template?.accountingMappingOptions?.incomeAccountOptions || [];
-	const _expenseOptions =
-		template?.accountingMappingOptions?.expenseAccountOptions || [];
-	const _liabilityOptions =
-		template?.accountingMappingOptions?.liabilityAccountOptions || [];
-
 	return (
 		<TooltipProvider>
 			<div className="space-y-6">
+				{/* Step indicator */}
 				<div className="flex items-center justify-between">
 					{steps.map((step, index) => (
 						<div key={step.id} className="flex items-center flex-1">
@@ -821,10 +398,38 @@ export function LoanProductWizard({
 					))}
 				</div>
 
+				{/* Loading skeleton */}
 				{templateQuery.isLoading && (
 					<Card>
-						<CardContent className="py-6 text-sm text-muted-foreground">
-							Loading loan product template...
+						<CardHeader>
+							<Skeleton className="h-6 w-48" />
+							<Skeleton className="h-4 w-72 mt-2" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-10 w-full" />
+							</div>
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-20" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-20" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+							</div>
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+							</div>
 						</CardContent>
 					</Card>
 				)}
@@ -837,516 +442,96 @@ export function LoanProductWizard({
 				)}
 
 				{!templateQuery.isLoading && !templateQuery.error && (
-					<div>
-						{currentStep === 1 && (
-							<LoanProductIdentityStep
-								template={template}
-								currencies={currencies}
-								data={wizardData}
-								onDataValid={step1Valid}
-								onDataInvalid={step1Invalid}
-							/>
-						)}
-						{currentStep === 2 && (
-							<LoanProductAmountStep
-								data={wizardData}
-								onDataValid={step2Valid}
-								onDataInvalid={step2Invalid}
-							/>
-						)}
-						{currentStep === 3 && (
-							<LoanProductScheduleStep
-								template={template}
-								data={wizardData}
-								onDataValid={step3Valid}
-								onDataInvalid={step3Invalid}
-							/>
-						)}
-						{currentStep === 4 && (
-							<LoanProductInterestStep
-								template={template}
-								data={wizardData}
-								onDataValid={step4Valid}
-								onDataInvalid={step4Invalid}
-							/>
-						)}
-						{currentStep === 5 && (
-							<LoanProductFeesStep
-								template={template}
-								currencyCode={wizardData.currencyCode}
-								data={wizardData}
-								onDataValid={step5Valid}
-								onDataInvalid={step5Invalid}
-							/>
-						)}
-						{currentStep === 6 && (
-							<LoanProductPenaltiesStep
-								template={template}
-								currencyCode={wizardData.currencyCode}
-								data={wizardData}
-								onDataValid={step6Valid}
-								onDataInvalid={step6Invalid}
-							/>
-						)}
-						{currentStep === 7 && (
-							<LoanProductAccountingStep
-								template={template}
-								data={wizardData}
-								onDataValid={step7Valid}
-								onDataInvalid={step7Invalid}
-							/>
-						)}
+					<FormProvider {...form}>
+						<div>
+							{currentStep === 1 && (
+								<LoanProductIdentityStep
+									template={template}
+									currencies={currencies}
+								/>
+							)}
+							{currentStep === 2 && <LoanProductAmountStep />}
+							{currentStep === 3 && (
+								<LoanProductScheduleStep template={template} />
+							)}
+							{currentStep === 4 && (
+								<LoanProductInterestStep template={template} />
+							)}
+							{currentStep === 5 && (
+								<LoanProductFeesStep
+									template={template}
+									currencyCode={currencyCode}
+								/>
+							)}
+							{currentStep === 6 && (
+								<LoanProductPenaltiesStep
+									template={template}
+									currencyCode={currencyCode}
+								/>
+							)}
+							{currentStep === 7 && (
+								<LoanProductAccountingStep template={template} />
+							)}
 
-						{submitError && (
-							<Alert variant="destructive" className="mt-4">
-								<AlertTitle>Failed to create loan product</AlertTitle>
-								<AlertDescription>{submitError}</AlertDescription>
-							</Alert>
-						)}
+							{submitError && (
+								<Alert variant="destructive" className="mt-4">
+									<AlertTitle>Failed to create loan product</AlertTitle>
+									<AlertDescription>{submitError}</AlertDescription>
+								</Alert>
+							)}
 
-						{draftMessage && (
-							<Alert variant="success" className="mt-4">
-								<AlertTitle>Draft status</AlertTitle>
-								<AlertDescription>{draftMessage}</AlertDescription>
-							</Alert>
-						)}
+							{draftMessage && (
+								<Alert variant="default" className="mt-4">
+									<AlertTitle>Draft status</AlertTitle>
+									<AlertDescription>{draftMessage}</AlertDescription>
+								</Alert>
+							)}
 
-						<div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={currentStep === 1 ? onCancel : handleBack}
-							>
-								<ChevronLeft className="h-4 w-4 mr-2" />
-								{currentStep === 1 ? "Cancel" : "Back"}
-							</Button>
-
-							<div className="flex items-center gap-2">
+							<div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t">
 								<Button
 									type="button"
 									variant="outline"
-									onClick={handleSaveDraft}
+									onClick={currentStep === 1 ? onCancel : handleBack}
 								>
-									Save Draft
+									<ChevronLeft className="h-4 w-4 mr-2" />
+									{currentStep === 1 ? "Cancel" : "Back"}
 								</Button>
-								<Button
-									type="button"
-									disabled={isSubmitting}
-									onClick={
-										currentStep === steps.length
-											? handleFinalSubmit
-											: handleNext
-									}
-								>
-									{currentStep === steps.length ? (
-										isSubmitting ? (
-											"Submitting..."
+
+								<div className="flex items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={handleSaveDraft}
+									>
+										Save Draft
+									</Button>
+									<Button
+										type="button"
+										disabled={isSubmitting}
+										onClick={
+											currentStep === steps.length
+												? handleFinalSubmit
+												: handleNext
+										}
+									>
+										{currentStep === steps.length ? (
+											isSubmitting ? (
+												"Submitting..."
+											) : (
+												"Submit Loan Product"
+											)
 										) : (
-											"Submit Loan Product"
-										)
-									) : (
-										<>
-											Next
-											<ChevronRight className="h-4 w-4 ml-2" />
-										</>
-									)}
-								</Button>
+											<>
+												Next
+												<ChevronRight className="h-4 w-4 ml-2" />
+											</>
+										)}
+									</Button>
+								</div>
 							</div>
 						</div>
-					</div>
+					</FormProvider>
 				)}
-
-				<Sheet open={isFeeDrawerOpen} onOpenChange={setIsFeeDrawerOpen}>
-					<SheetContent
-						side="right"
-						className="w-full sm:max-w-xl overflow-y-auto"
-					>
-						<SheetHeader>
-							<SheetTitle>Add Fee</SheetTitle>
-							<SheetDescription>Create a new fee charge.</SheetDescription>
-						</SheetHeader>
-						<div className="mt-4">
-							<form onSubmit={handleCreateFee} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="fee-name">
-										Name <span className="text-destructive">*</span>
-									</Label>
-									<Input
-										id="fee-name"
-										{...feeForm.register("name")}
-										placeholder="e.g. Processing Fee"
-									/>
-									{feeForm.formState.errors.name && (
-										<p className="text-sm text-destructive">
-											{String(feeForm.formState.errors.name.message)}
-										</p>
-									)}
-								</div>
-
-								<div className="grid gap-4 md:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="fee-amount">
-											Amount <span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="fee-amount"
-											type="number"
-											step="0.01"
-											{...feeForm.register("amount", { valueAsNumber: true })}
-											placeholder="100"
-										/>
-										{feeForm.formState.errors.amount && (
-											<p className="text-sm text-destructive">
-												{String(feeForm.formState.errors.amount.message)}
-											</p>
-										)}
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="fee-calculation">
-											Calculation Method{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={feeForm.watch("calculationMethod")}
-											onValueChange={(value) =>
-												feeForm.setValue(
-													"calculationMethod",
-													value as "flat" | "percent",
-												)
-											}
-										>
-											<SelectTrigger id="fee-calculation">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="flat">Flat Amount</SelectItem>
-												<SelectItem value="percent">Percentage</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-
-								<div className="grid gap-4 md:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="fee-time">
-											Charge Time <span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={feeForm.watch("chargeTimeType")}
-											onValueChange={(value) =>
-												feeForm.setValue(
-													"chargeTimeType",
-													value as
-														| "disbursement"
-														| "specifiedDueDate"
-														| "approval",
-												)
-											}
-										>
-											<SelectTrigger id="fee-time">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="disbursement">
-													At Disbursement
-												</SelectItem>
-												<SelectItem value="specifiedDueDate">
-													On Specified Due Date
-												</SelectItem>
-												<SelectItem value="approval">On Approval</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="fee-payment">
-											Payment Mode <span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={feeForm.watch("paymentMode")}
-											onValueChange={(value) =>
-												feeForm.setValue(
-													"paymentMode",
-													value as "deduct" | "payable",
-												)
-											}
-										>
-											<SelectTrigger id="fee-payment">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="deduct">
-													Deduct from Disbursement
-												</SelectItem>
-												<SelectItem value="payable">
-													Payable Separately
-												</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-
-								{feeSubmitError && (
-									<Alert variant="destructive">
-										<AlertTitle>Failed to create fee</AlertTitle>
-										<AlertDescription>{feeSubmitError}</AlertDescription>
-									</Alert>
-								)}
-
-								<div className="flex items-center justify-end gap-2 pt-4">
-									<Button
-										type="button"
-										variant="outline"
-										onClick={() => setIsFeeDrawerOpen(false)}
-										disabled={isCreatingFee}
-									>
-										Cancel
-									</Button>
-									<Button type="submit" disabled={isCreatingFee}>
-										{isCreatingFee ? "Creating..." : "Create Fee"}
-									</Button>
-								</div>
-							</form>
-						</div>
-					</SheetContent>
-				</Sheet>
-
-				<Sheet open={isFeeSelectOpen} onOpenChange={setIsFeeSelectOpen}>
-					<SheetContent
-						side="right"
-						className="w-full sm:max-w-xl overflow-y-auto"
-					>
-						<SheetHeader>
-							<SheetTitle>Select Existing Fee</SheetTitle>
-							<SheetDescription>
-								Choose from configured fee charges.
-							</SheetDescription>
-						</SheetHeader>
-						<div className="space-y-3 mt-4">
-							{feeOptions.length === 0 && (
-								<p className="text-sm text-muted-foreground">
-									No fee charges available.
-								</p>
-							)}
-							{feeOptions.map((option) => (
-								<div
-									key={option.id}
-									className="flex items-center justify-between rounded-sm border border-border/80 p-3"
-								>
-									<div>
-										<div className="text-sm font-medium">{option.name}</div>
-										<div className="text-xs text-muted-foreground">
-											{option.currency?.code} {option.amount}
-										</div>
-									</div>
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										onClick={() => {
-											handleAddExistingFee(option);
-											setIsFeeSelectOpen(false);
-										}}
-									>
-										Add
-									</Button>
-								</div>
-							))}
-						</div>
-					</SheetContent>
-				</Sheet>
-
-				<Sheet open={isPenaltyDrawerOpen} onOpenChange={setIsPenaltyDrawerOpen}>
-					<SheetContent
-						side="right"
-						className="w-full sm:max-w-xl overflow-y-auto"
-					>
-						<SheetHeader>
-							<SheetTitle>Add Penalty</SheetTitle>
-							<SheetDescription>Create a new penalty charge.</SheetDescription>
-						</SheetHeader>
-						<div className="mt-4">
-							<form onSubmit={handleCreatePenalty} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="penalty-name">
-										Name <span className="text-destructive">*</span>
-									</Label>
-									<Input
-										id="penalty-name"
-										{...penaltyForm.register("name")}
-										placeholder="e.g. Late Payment Penalty"
-									/>
-									{penaltyForm.formState.errors.name && (
-										<p className="text-sm text-destructive">
-											{String(penaltyForm.formState.errors.name.message)}
-										</p>
-									)}
-								</div>
-
-								<div className="grid gap-4 md:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="penalty-amount">
-											Amount <span className="text-destructive">*</span>
-										</Label>
-										<Input
-											id="penalty-amount"
-											type="number"
-											step="0.01"
-											{...penaltyForm.register("amount", {
-												valueAsNumber: true,
-											})}
-											placeholder="100"
-										/>
-										{penaltyForm.formState.errors.amount && (
-											<p className="text-sm text-destructive">
-												{String(penaltyForm.formState.errors.amount.message)}
-											</p>
-										)}
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="penalty-calculation">
-											Calculation Method{" "}
-											<span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={penaltyForm.watch("calculationMethod")}
-											onValueChange={(value) =>
-												penaltyForm.setValue(
-													"calculationMethod",
-													value as "flat" | "percent",
-												)
-											}
-										>
-											<SelectTrigger id="penalty-calculation">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="flat">Flat Amount</SelectItem>
-												<SelectItem value="percent">Percentage</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-
-								<div className="grid gap-4 md:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="penalty-basis">
-											Penalty Basis <span className="text-destructive">*</span>
-										</Label>
-										<Select
-											value={penaltyForm.watch("penaltyBasis")}
-											onValueChange={(value) =>
-												penaltyForm.setValue(
-													"penaltyBasis",
-													value as
-														| "totalOverdue"
-														| "overduePrincipal"
-														| "overdueInterest",
-												)
-											}
-										>
-											<SelectTrigger id="penalty-basis">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="totalOverdue">
-													Total Overdue Amount
-												</SelectItem>
-												<SelectItem value="overduePrincipal">
-													Overdue Principal
-												</SelectItem>
-												<SelectItem value="overdueInterest">
-													Overdue Interest
-												</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="penalty-grace">
-											Grace Period Override (days)
-										</Label>
-										<Input
-											id="penalty-grace"
-											type="number"
-											{...penaltyForm.register("gracePeriodOverride", {
-												valueAsNumber: true,
-											})}
-											placeholder="0"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Optional grace period before penalty applies.
-										</p>
-									</div>
-								</div>
-
-								{penaltySubmitError && (
-									<Alert variant="destructive">
-										<AlertTitle>Failed to create penalty</AlertTitle>
-										<AlertDescription>{penaltySubmitError}</AlertDescription>
-									</Alert>
-								)}
-
-								<div className="flex items-center justify-end gap-2 pt-4">
-									<Button
-										type="button"
-										variant="outline"
-										onClick={() => setIsPenaltyDrawerOpen(false)}
-										disabled={isCreatingPenalty}
-									>
-										Cancel
-									</Button>
-									<Button type="submit" disabled={isCreatingPenalty}>
-										{isCreatingPenalty ? "Creating..." : "Create Penalty"}
-									</Button>
-								</div>
-							</form>
-						</div>
-					</SheetContent>
-				</Sheet>
-
-				<Sheet open={isPenaltySelectOpen} onOpenChange={setIsPenaltySelectOpen}>
-					<SheetContent
-						side="right"
-						className="w-full sm:max-w-xl overflow-y-auto"
-					>
-						<SheetHeader>
-							<SheetTitle>Select Existing Penalties</SheetTitle>
-							<SheetDescription>
-								Choose from configured penalty charges.
-							</SheetDescription>
-						</SheetHeader>
-						<div className="space-y-3 mt-4">
-							{penaltyOptions.length === 0 && (
-								<p className="text-sm text-muted-foreground">
-									No penalty charges available.
-								</p>
-							)}
-							{penaltyOptions.map((option) => (
-								<div
-									key={option.id}
-									className="flex items-center justify-between rounded-sm border border-border/80 p-3"
-								>
-									<div>
-										<div className="text-sm font-medium">{option.name}</div>
-										<div className="text-xs text-muted-foreground">
-											{option.currency?.code} {option.amount}
-										</div>
-									</div>
-									<Button
-										type="button"
-										size="sm"
-										variant="outline"
-										onClick={() => {
-											handleAddExistingPenalty(option);
-											setIsPenaltySelectOpen(false);
-										}}
-									>
-										Add
-									</Button>
-								</div>
-							))}
-						</div>
-					</SheetContent>
-				</Sheet>
 			</div>
 		</TooltipProvider>
 	);

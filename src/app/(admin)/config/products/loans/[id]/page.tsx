@@ -1,20 +1,25 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	AlertTriangle,
+	ArrowLeft,
+	Banknote,
+	Calculator,
+	Calendar,
+	CreditCard,
+	FileText,
+	Percent,
+	Settings,
+	TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
 import { use, useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Select,
 	SelectContent,
@@ -22,6 +27,23 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetChargesResponse,
@@ -32,27 +54,22 @@ import { chargesApi, loanProductsApi } from "@/lib/fineract/loan-products";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
 
-// Simple permission check - in a real app this would check user roles
-function useHasPermission(permission: string): boolean {
-	// TODO: Implement proper permission checking based on user roles
-	// For now, allow edit for all users in admin section
-	return permission === "loan_product_edit";
-}
+type TabValue =
+	| "overview"
+	| "terms"
+	| "interest"
+	| "fees"
+	| "accounting"
+	| "settings";
 
 async function fetchLoanProduct(
 	tenantId: string,
 	id: string,
 ): Promise<GetLoanProductsProductIdResponse> {
 	const response = await fetch(`${BFF_ROUTES.loanProducts}/${id}`, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
+		headers: { "x-tenant-id": tenantId },
 	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch loan product");
-	}
-
+	if (!response.ok) throw new Error("Failed to fetch loan product");
 	return response.json();
 }
 
@@ -61,23 +78,22 @@ async function fetchDetailedCharges(
 	chargeIds: number[],
 ): Promise<GetChargesResponse[]> {
 	if (chargeIds.length === 0) return [];
-
 	try {
 		const allCharges = (await chargesApi.list(
 			tenantId,
 		)) as GetChargesResponse[];
-		return allCharges.filter((charge: GetChargesResponse) =>
-			chargeIds.includes(charge.id || 0),
-		);
-	} catch (error) {
-		console.error("Failed to fetch detailed charges:", error);
+		return allCharges.filter((charge) => chargeIds.includes(charge.id || 0));
+	} catch {
 		return [];
 	}
 }
 
 function formatCurrency(amount: number | undefined, symbol = "KES") {
 	if (amount === undefined || amount === null) return "—";
-	return `${symbol} ${amount.toLocaleString()}`;
+	return `${symbol} ${amount.toLocaleString(undefined, {
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 2,
+	})}`;
 }
 
 function formatPercentage(value: number | undefined) {
@@ -97,85 +113,192 @@ function formatBoolean(value: boolean | undefined) {
 	return value ? "Yes" : "No";
 }
 
-function formatChargeAmount(
+function transformProductToFormData(
+	product: GetLoanProductsProductIdResponse,
+	detailedCharges: GetChargesResponse[],
+) {
+	// Transform detailed charges into fees and penalties arrays
+	const fees = detailedCharges
+		.filter((charge) => !charge.penalty)
+		.map((charge) => ({
+			id: charge.id!,
+			name: charge.name || "",
+			amount: charge.amount,
+			currencyCode: charge.currency?.code,
+			calculationMethod:
+				charge.chargeCalculationType?.id === 1
+					? "flat"
+					: ("percent" as "flat" | "percent"),
+			chargeTimeType: (charge.chargeTimeType?.id === 1
+				? "disbursement"
+				: charge.chargeTimeType?.id === 2
+					? "specifiedDueDate"
+					: charge.chargeTimeType?.id === 5
+						? "approval"
+						: "disbursement") as
+				| "disbursement"
+				| "specifiedDueDate"
+				| "approval",
+			paymentMode:
+				charge.chargePaymentMode?.id === 1
+					? "deduct"
+					: ("payable" as "deduct" | "payable"),
+		}));
+
+	const penalties = detailedCharges
+		.filter((charge) => charge.penalty)
+		.map((charge) => ({
+			id: charge.id!,
+			name: charge.name || "",
+			amount: charge.amount,
+			currencyCode: charge.currency?.code,
+			calculationMethod:
+				charge.chargeCalculationType?.id === 1
+					? "flat"
+					: ("percent" as "flat" | "percent"),
+			penaltyBasis:
+				charge.chargeCalculationType?.id === 3
+					? "overdueInterest"
+					: charge.chargeCalculationType?.id === 4
+						? "overduePrincipal"
+						: ("totalOverdue" as
+								| "totalOverdue"
+								| "overduePrincipal"
+								| "overdueInterest"),
+		}));
+
+	return {
+		name: product.name || "",
+		shortName: product.shortName || "",
+		description: product.description || "",
+		currencyCode: product.currency?.code || "",
+		digitsAfterDecimal: product.currency?.decimalPlaces || 2,
+		minPrincipal: product.minPrincipal,
+		principal: product.principal,
+		maxPrincipal: product.maxPrincipal,
+		numberOfRepayments: product.numberOfRepayments,
+		minNumberOfRepayments: product.minNumberOfRepayments,
+		maxNumberOfRepayments: product.maxNumberOfRepayments,
+		repaymentEvery: product.repaymentEvery,
+		repaymentFrequencyType: product.repaymentFrequencyType?.id,
+		interestType: product.interestType?.id,
+		amortizationType: product.amortizationType?.id,
+		interestRatePerPeriod: product.interestRatePerPeriod,
+		interestRateFrequencyType: product.interestRateFrequencyType?.id,
+		interestCalculationPeriodType: product.interestCalculationPeriodType?.id,
+		allowPartialPeriodInterestCalculation:
+			product.allowPartialPeriodInterestCalculation,
+		transactionProcessingStrategyCode:
+			product.transactionProcessingStrategyCode,
+		inArrearsTolerance: product.inArrearsTolerance,
+		overdueDaysForNPA: product.overdueDaysForNPA,
+		accountingRule: product.accountingRule?.id,
+		interestOnLoanAccountId:
+			product.accountingMappings?.interestOnLoanAccount?.id,
+		incomeFromFeeAccountId:
+			product.accountingMappings?.incomeFromFeeAccount?.id,
+		incomeFromPenaltyAccountId:
+			product.accountingMappings?.incomeFromPenaltyAccount?.id,
+		writeOffAccountId: product.accountingMappings?.writeOffAccount?.id,
+		receivableInterestAccountId:
+			product.accountingMappings?.receivableInterestAccount?.id,
+		receivableFeeAccountId:
+			product.accountingMappings?.receivableFeeAccount?.id,
+		receivablePenaltyAccountId:
+			product.accountingMappings?.receivablePenaltyAccount?.id,
+		incomeFromRecoveryAccountId:
+			product.accountingMappings?.incomeFromRecoveryAccount?.id,
+		overpaymentLiabilityAccountId:
+			product.accountingMappings?.overpaymentLiabilityAccount?.id,
+		transfersInSuspenseAccountId:
+			product.accountingMappings?.transfersInSuspenseAccount?.id,
+		fees,
+		penalties,
+	};
+}
+
+function InfoRow({
+	label,
+	value,
+	className,
+}: {
+	label: string;
+	value: React.ReactNode;
+	className?: string;
+}) {
+	return (
+		<div className={cn("flex justify-between py-2", className)}>
+			<span className="text-sm text-muted-foreground">{label}</span>
+			<span className="text-sm font-medium text-right">{value}</span>
+		</div>
+	);
+}
+
+function KpiCard({
+	label,
+	value,
+	icon: Icon,
+	variant = "default",
+}: {
+	label: string;
+	value: React.ReactNode;
+	icon?: React.ElementType;
+	variant?: "default" | "primary" | "success" | "warning";
+}) {
+	const variantStyles = {
+		default: "border-l-4 border-l-border",
+		primary: "border-l-4 border-l-blue-500 bg-blue-50/50",
+		success: "border-l-4 border-l-green-500 bg-green-50/50",
+		warning: "border-l-4 border-l-yellow-500 bg-yellow-50/50",
+	};
+
+	const iconStyles = {
+		default: "text-muted-foreground",
+		primary: "text-blue-600",
+		success: "text-green-600",
+		warning: "text-yellow-600",
+	};
+
+	return (
+		<Card className={variantStyles[variant]}>
+			<CardContent className="p-4">
+				<div className="flex items-start justify-between gap-2">
+					<div className="space-y-1">
+						<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+							{label}
+						</p>
+						<p className="text-lg font-semibold font-mono">{value}</p>
+					</div>
+					{Icon && <Icon className={cn("h-5 w-5", iconStyles[variant])} />}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+function getChargeAmountDisplay(
 	charge: GetChargesResponse,
 	currencySymbol = "KES",
 ) {
 	if (!charge.amount) return "—";
-
 	const calculationType = charge.chargeCalculationType?.id;
 
 	switch (calculationType) {
-		case 1: // Flat
+		case 1:
 			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
-		case 2: // Percentage
-			const equivalentAmount = (100 * charge.amount) / 100;
-			const formattedEquivalent =
-				equivalentAmount % 1 === 0
-					? equivalentAmount.toString()
-					: equivalentAmount.toFixed(2);
-			return `${charge.amount}% (${currencySymbol} ${formattedEquivalent} for every ${currencySymbol} 100)`;
-		case 3: // Percent of Interest
+		case 2:
+			return `${charge.amount}%`;
+		case 3:
 			return `${charge.amount}% of Interest`;
-		case 4: // Percent of Principal
+		case 4:
 			return `${charge.amount}% of Principal`;
 		default:
 			return `${currencySymbol} ${charge.amount.toLocaleString()}`;
 	}
 }
 
-function summarizeChargesByType(charges: GetChargesResponse[]) {
-	const flatCharges = charges.filter((c) => c.chargeCalculationType?.id === 1);
-	const percentageCharges = charges.filter(
-		(c) => c.chargeCalculationType?.id === 2,
-	);
-
-	return {
-		flatCount: flatCharges.length,
-		flatAmounts: flatCharges.map((c) => c.amount || 0),
-		percentageCount: percentageCharges.length,
-		percentageRates: percentageCharges.map((c) => c.amount || 0),
-	};
-}
-
-function calculateTotalCostPer100(
-	charges: GetChargesResponse[],
-	currencySymbol = "KES",
-) {
-	// Only include percentage-based charges in the per-100 calculation
-	const percentageCharges = charges.filter(
-		(c) => c.chargeCalculationType?.id === 2,
-	);
-
-	const totalPercentage = percentageCharges.reduce((total, charge) => {
-		return total + (charge.amount || 0);
-	}, 0);
-
-	// Calculate equivalent amount for every KES 100
-	const equivalentPer100 = (100 * totalPercentage) / 100;
-
-	return {
-		totalPercentage,
-		equivalentPer100,
-		percentageChargeCount: percentageCharges.length,
-		hasFlatCharges: charges.some((c) => c.chargeCalculationType?.id === 1),
-	};
-}
-
-function categorizeCharges(charges: GetChargesResponse[]) {
-	const disbursementCharges = charges.filter(
-		(charge) => charge.chargeTimeType?.id === 1,
-	);
-	const repaymentCharges = charges.filter(
-		(charge) => charge.chargeTimeType?.id !== 1,
-	);
-
-	return { disbursementCharges, repaymentCharges };
-}
-
 function getChargeTimingLabel(charge: GetChargesResponse) {
 	const timeTypeId = charge.chargeTimeType?.id;
-
 	switch (timeTypeId) {
 		case 1:
 			return "Disbursement";
@@ -195,19 +318,15 @@ function getChargeTimingLabel(charge: GetChargesResponse) {
 
 function getChargeApplicationLabel(charge: GetChargesResponse) {
 	const calculationType = charge.chargeCalculationType?.id;
-	const isPenalty = charge.penalty;
-
 	switch (calculationType) {
-		case 1: // Flat
+		case 1:
 			return "Fixed Amount";
-		case 2: // Percent (total)
-			return isPenalty
-				? "Principal + Interest (Overdue)"
-				: "Principal + Interest";
-		case 3: // Percent of Interest
-			return isPenalty ? "Interest (Overdue)" : "Interest";
-		case 4: // Percent of Principal
-			return isPenalty ? "Principal (Overdue)" : "Principal";
+		case 2:
+			return "Principal + Interest";
+		case 3:
+			return "Interest";
+		case 4:
+			return "Principal";
 		default:
 			return "Unknown";
 	}
@@ -220,9 +339,9 @@ export default function LoanProductDetailPage({
 }) {
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
-
-	const [activeTab, setActiveTab] = useState("overview");
-	const canEdit = useHasPermission("loan_product_edit");
+	const [activeTab, setActiveTab] = useState<TabValue>("overview");
+	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const queryClient = useQueryClient();
 
 	const {
 		data: product,
@@ -244,973 +363,989 @@ export default function LoanProductDetailPage({
 		enabled: !!product && chargeIds.length > 0,
 	});
 
+	const { data: currencies = [] } = useQuery({
+		queryKey: ["currencies", tenantId],
+		queryFn: async () => {
+			const response = await fetch(`${BFF_ROUTES.currencies}`, {
+				headers: { "x-tenant-id": tenantId },
+			});
+			const data = await response.json();
+			return (
+				data.selectedCurrencyOptions?.map((c: { code: string }) => c.code) || []
+			);
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (data: PostLoanProductsRequest) =>
+			loanProductsApi.update(tenantId, id, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["loanProduct", tenantId, id],
+			});
+			queryClient.invalidateQueries({ queryKey: ["loanProducts", tenantId] });
+			setIsDrawerOpen(false);
+		},
+	});
+
 	if (isLoading) {
 		return (
-			<PageShell title="Loan Product Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading loan product details...
-				</div>
+			<PageShell title="Loan Product Details" subtitle="Loading...">
+				<LoadingSkeleton />
 			</PageShell>
 		);
 	}
 
 	if (error || !product) {
 		return (
-			<PageShell title="Loan Product Details">
-				<div className="py-6 text-center text-destructive">
-					Failed to load loan product details. Please try again.
-				</div>
+			<PageShell title="Loan Product Details" subtitle="Error loading product">
+				<Card>
+					<CardContent className="py-8 text-center">
+						<p className="text-red-600">
+							Failed to load loan product details. Please try again.
+						</p>
+					</CardContent>
+				</Card>
 			</PageShell>
 		);
 	}
 
-	const tabs = [
-		{
-			id: "overview",
-			label: "Overview",
-			description: "Basic information and principal amounts",
-		},
-		{
-			id: "terms",
-			label: "Terms",
-			description: "Repayment terms and scheduling",
-		},
-		{
-			id: "interest",
-			label: "Interest",
-			description: "Interest configuration and rules",
-		},
-		{ id: "fees", label: "Fees", description: "Fees and penalties" },
-		{
-			id: "accounting",
-			label: "Accounting",
-			description: "GL mappings and accounting rules",
-		},
-		{
-			id: "settings",
-			label: "Settings",
-			description: "Advanced settings and risk management",
-		},
-	];
+	const currency = product.currency?.displaySymbol || "KES";
+	const fees = detailedCharges.filter((c) => !c.penalty);
+	const penalties = detailedCharges.filter((c) => c.penalty);
 
 	return (
 		<PageShell
-			title={`Loan Product: ${product.name}`}
-			subtitle="Complete setup configuration"
+			title={`${product.name}${product.status === "loanProduct.active" ? " (Active)" : ""}`}
+			subtitle={`${product.shortName} | ${currency} (${product.currency?.code})`}
 			actions={
-				canEdit ? (
-					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							onClick={() => {
-								// Since Fineract doesn't support updating loan products directly,
-								// we'll create a new version by duplicating the product
-								alert(
-									"Edit functionality will create a new version of this loan product. This feature is not yet implemented.",
-								);
-							}}
-							disabled={!product}
-						>
-							Modify Product
-						</Button>
-					</div>
-				) : null
+				<div className="flex items-center gap-2">
+					<Button variant="outline" asChild>
+						<Link href="/config/products/loans">
+							<ArrowLeft className="h-4 w-4 mr-2" />
+							Back to Loan Products
+						</Link>
+					</Button>
+					<Button variant="outline" onClick={() => setIsDrawerOpen(true)}>
+						Modify Product
+					</Button>
+				</div>
 			}
 		>
-			{/* Mobile Tab Selector */}
-			<div className="md:hidden mb-4">
-				<Select value={activeTab} onValueChange={setActiveTab}>
-					<SelectTrigger>
-						<SelectValue placeholder="Select section" />
-					</SelectTrigger>
-					<SelectContent>
-						{tabs.map((tab) => (
-							<SelectItem key={tab.id} value={tab.id}>
-								{tab.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Desktop Tab Navigation */}
-			<div className="hidden md:block mb-6">
-				<div className="border-b border-border">
-					<nav className="flex space-x-8">
-						{tabs.map((tab) => (
-							<button
-								key={tab.id}
-								onClick={() => setActiveTab(tab.id)}
-								className={cn(
-									"py-2 px-1 border-b-2 font-medium text-sm",
-									activeTab === tab.id
-										? "border-primary text-primary"
-										: "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
-								)}
-							>
-								{tab.label}
-							</button>
-						))}
-					</nav>
-				</div>
-			</div>
-
-			{/* Tab Content */}
 			<div className="space-y-6">
-				{/* Overview Tab */}
-				{activeTab === "overview" && (
-					<>
-						<Card>
-							<CardHeader>
-								<CardTitle>Currency & Principal Amounts</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">Currency</label>
-										<p>
-											{product.currency?.displaySymbol} (
-											{product.currency?.code})
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Principal Amount Range
-										</label>
-										<p className="font-mono">
-											{formatCurrency(
-												product.minPrincipal,
-												product.currency?.displaySymbol,
-											)}{" "}
-											-{" "}
-											{formatCurrency(
-												product.maxPrincipal,
-												product.currency?.displaySymbol,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Default Principal
-										</label>
-										<p className="font-mono">
-											{formatCurrency(
-												product.principal,
-												product.currency?.displaySymbol,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Principal Threshold for Last Installment
-										</label>
-										<p className="font-mono">
-											{formatCurrency(
+				{/* KPI Strip */}
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					<KpiCard
+						label="Principal Range"
+						value={`${formatCurrency(product.minPrincipal, currency)} - ${formatCurrency(product.maxPrincipal, currency)}`}
+						icon={Banknote}
+						variant="primary"
+					/>
+					<KpiCard
+						label="Interest Rate"
+						value={
+							product.interestRatePerPeriod !== undefined
+								? `${product.interestRatePerPeriod}% ${formatEnum(product.interestRateFrequencyType)?.toLowerCase()}`
+								: "—"
+						}
+						icon={Percent}
+						variant="success"
+					/>
+					<KpiCard
+						label="Repayments"
+						value={`${product.minNumberOfRepayments || "—"} - ${product.maxNumberOfRepayments || "—"}`}
+						icon={Calendar}
+					/>
+					<KpiCard
+						label="Charges"
+						value={`${detailedCharges.length} (${fees.length} fees, ${penalties.length} penalties)`}
+						icon={CreditCard}
+						variant={detailedCharges.length > 0 ? "warning" : "default"}
+					/>
+				</div>
+
+				{/* Tabs */}
+				<Tabs
+					value={activeTab}
+					onValueChange={(value) => setActiveTab(value as TabValue)}
+				>
+					{/* Mobile Tab Selector */}
+					<div className="md:hidden mb-4">
+						<Select
+							value={activeTab}
+							onValueChange={(v) => setActiveTab(v as TabValue)}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Select section" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="overview">Overview</SelectItem>
+								<SelectItem value="terms">Terms</SelectItem>
+								<SelectItem value="interest">Interest</SelectItem>
+								<SelectItem value="fees">Fees</SelectItem>
+								<SelectItem value="accounting">Accounting</SelectItem>
+								<SelectItem value="settings">Settings</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					{/* Desktop Tab Navigation */}
+					<TabsList
+						variant="line"
+						className="hidden md:flex w-full justify-start border-b"
+					>
+						<TabsTrigger value="overview">
+							<FileText className="w-4 h-4 mr-1.5" />
+							Overview
+						</TabsTrigger>
+						<TabsTrigger value="terms">
+							<Calendar className="w-4 h-4 mr-1.5" />
+							Terms
+						</TabsTrigger>
+						<TabsTrigger value="interest">
+							<TrendingUp className="w-4 h-4 mr-1.5" />
+							Interest
+						</TabsTrigger>
+						<TabsTrigger value="fees">
+							<CreditCard className="w-4 h-4 mr-1.5" />
+							Fees
+							{detailedCharges.length > 0 && (
+								<Badge variant="secondary" className="ml-1.5 text-xs">
+									{detailedCharges.length}
+								</Badge>
+							)}
+						</TabsTrigger>
+						<TabsTrigger value="accounting">
+							<Calculator className="w-4 h-4 mr-1.5" />
+							Accounting
+						</TabsTrigger>
+						<TabsTrigger value="settings">
+							<Settings className="w-4 h-4 mr-1.5" />
+							Settings
+						</TabsTrigger>
+					</TabsList>
+
+					<div className="mt-4">
+						{/* Overview Tab */}
+						<TabsContent value="overview">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Banknote className="h-4 w-4" />
+											Principal Configuration
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Minimum Principal"
+											value={formatCurrency(product.minPrincipal, currency)}
+										/>
+										<InfoRow
+											label="Default Principal"
+											value={formatCurrency(product.principal, currency)}
+										/>
+										<InfoRow
+											label="Maximum Principal"
+											value={formatCurrency(product.maxPrincipal, currency)}
+										/>
+										<InfoRow
+											label="Last Installment Threshold"
+											value={formatCurrency(
 												product.principalThresholdForLastInstalment,
-												product.currency?.displaySymbol,
+												currency,
 											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Outstanding Loan Balance
-										</label>
-										<p className="font-mono">
-											{formatCurrency(
-												product.outstandingLoanBalance,
-												product.currency?.displaySymbol,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Down Payment Percentage
-										</label>
-										<p>
-											{formatPercentage(
-												product.disbursedAmountPercentageForDownPayment,
-											)}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
+										/>
+									</CardContent>
+								</Card>
 
-						<Card>
-							<CardHeader>
-								<CardTitle>Additional Settings</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Over Applied Calculation Type
-										</label>
-										<p>{product.overAppliedCalculationType || "—"}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Supported Interest Refund Types
-										</label>
-										<p>
-											{product.supportedInterestRefundTypes
-												?.map((t) => t.value)
-												.join(", ") || "—"}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<FileText className="h-4 w-4" />
+											Product Details
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow label="Product Name" value={product.name} />
+										<InfoRow label="Short Name" value={product.shortName} />
+										<InfoRow
+											label="Currency"
+											value={`${currency} (${product.currency?.code})`}
+										/>
+										<InfoRow
+											label="Decimal Places"
+											value={product.currency?.decimalPlaces}
+										/>
+									</CardContent>
+								</Card>
 
-						<Card>
-							<CardHeader>
-								<CardTitle>Version Information</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Current Version
-										</label>
-										<p className="font-mono">v1</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Created</label>
-										<p className="font-mono">
-											{new Date().toLocaleDateString()}{" "}
-											{new Date().toLocaleTimeString()}
-										</p>
-									</div>
-									<div className="md:col-span-2">
-										<label className="text-sm font-medium">
-											Version History
-										</label>
-										<div className="mt-2 space-y-2">
-											<div className="flex justify-between items-center p-2 bg-muted rounded">
-												<span className="font-mono">v1</span>
-												<span className="text-sm text-muted-foreground">
-													{new Date().toLocaleDateString()}{" "}
-													{new Date().toLocaleTimeString()}
-												</span>
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Settings className="h-4 w-4" />
+											Additional Configuration
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Multi Disburse
+												</p>
+												<Badge
+													variant={
+														product.multiDisburseLoan ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.multiDisburseLoan)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Topup Enabled
+												</p>
+												<Badge
+													variant={
+														product.canUseForTopup ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.canUseForTopup)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Variable Installments
+												</p>
+												<Badge
+													variant={
+														product.allowVariableInstallments
+															? "default"
+															: "secondary"
+													}
+												>
+													{formatBoolean(product.allowVariableInstallments)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Down Payment
+												</p>
+												<Badge
+													variant={
+														product.enableDownPayment ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.enableDownPayment)}
+												</Badge>
 											</div>
 										</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</>
-				)}
-
-				{/* Terms Tab */}
-				{activeTab === "terms" && (
-					<>
-						<Card>
-							<CardHeader>
-								<CardTitle>Repayment Terms</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Number of Repayments
-										</label>
-										<p>
-											{product.minNumberOfRepayments || "—"} -{" "}
-											{product.maxNumberOfRepayments || "—"} (default:{" "}
-											{product.numberOfRepayments || "—"})
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Repayment Frequency
-										</label>
-										<p>
-											Every {product.repaymentEvery}{" "}
-											{formatEnum(product.repaymentFrequencyType)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Repayment Start Date Type
-										</label>
-										<p>{formatEnum(product.repaymentStartDateType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Amortization Type
-										</label>
-										<p>{formatEnum(product.amortizationType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Interest Type</label>
-										<p>{formatEnum(product.interestType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Transaction Processing Strategy
-										</label>
-										<p>
-											{product.transactionProcessingStrategyName ||
-												product.transactionProcessingStrategyCode}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Loan Schedule Type
-										</label>
-										<p>{formatEnum(product.loanScheduleType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Loan Schedule Processing Type
-										</label>
-										<p>{formatEnum(product.loanScheduleProcessingType)}</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle>Time & Date Settings</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Days in Month Type
-										</label>
-										<p>{formatEnum(product.daysInMonthType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Days in Year Type
-										</label>
-										<p>{formatEnum(product.daysInYearType)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Days in Year Custom Strategy
-										</label>
-										<p>{formatEnum(product.daysInYearCustomStrategy)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Fixed Length</label>
-										<p>{product.fixedLength || "—"}</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</>
-				)}
-
-				{/* Interest Tab */}
-				{activeTab === "interest" && (
-					<Card>
-						<CardHeader>
-							<CardTitle>Interest Configuration</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid gap-4 md:grid-cols-2">
-								<div>
-									<label className="text-sm font-medium">
-										Interest Rate Per Period
-									</label>
-									<p>
-										{formatPercentage(product.minInterestRatePerPeriod)} -{" "}
-										{formatPercentage(product.maxInterestRatePerPeriod)}{" "}
-										(default: {formatPercentage(product.interestRatePerPeriod)})
-									</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Interest Rate Frequency Type
-									</label>
-									<p>{formatEnum(product.interestRateFrequencyType)}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Interest Calculation Period Type
-									</label>
-									<p>{formatEnum(product.interestCalculationPeriodType)}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Annual Interest Rate
-									</label>
-									<p>{formatPercentage(product.annualInterestRate)}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Interest Recognition on Disbursement Date
-									</label>
-									<p>
-										{formatBoolean(
-											product.interestRecognitionOnDisbursementDate,
-										)}
-									</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Interest Recalculation Enabled
-									</label>
-									<p>{formatBoolean(product.isInterestRecalculationEnabled)}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Floating Interest Rate Calculation
-									</label>
-									<p>
-										{formatBoolean(
-											product.isFloatingInterestRateCalculationAllowed,
-										)}
-									</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Linked to Floating Interest Rates
-									</label>
-									<p>
-										{formatBoolean(product.isLinkedToFloatingInterestRates)}
-									</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Rates Enabled</label>
-									<p>{formatBoolean(product.isRatesEnabled)}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">
-										Use Borrower Cycle
-									</label>
-									<p>{formatBoolean(product.useBorrowerCycle)}</p>
-								</div>
+									</CardContent>
+								</Card>
 							</div>
-						</CardContent>
-					</Card>
-				)}
+						</TabsContent>
 
-				{/* Fees Tab */}
-				{activeTab === "fees" && (
-					<>
-						{detailedCharges.length > 0 ? (
-							(() => {
-								const { disbursementCharges, repaymentCharges } =
-									categorizeCharges(detailedCharges);
-								const disbursementSummary =
-									summarizeChargesByType(disbursementCharges);
-								const repaymentSummary =
-									summarizeChargesByType(repaymentCharges);
+						{/* Terms Tab */}
+						<TabsContent value="terms">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Calendar className="h-4 w-4" />
+											Repayment Terms
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Number of Repayments"
+											value={`${product.minNumberOfRepayments || "—"} - ${product.maxNumberOfRepayments || "—"} (default: ${product.numberOfRepayments || "—"})`}
+										/>
+										<InfoRow
+											label="Repayment Frequency"
+											value={`Every ${product.repaymentEvery} ${formatEnum(product.repaymentFrequencyType)}`}
+										/>
+										<InfoRow
+											label="Start Date Type"
+											value={formatEnum(product.repaymentStartDateType)}
+										/>
+										<InfoRow
+											label="Amortization"
+											value={formatEnum(product.amortizationType)}
+										/>
+									</CardContent>
+								</Card>
 
-								const allCharges = [
-									...disbursementCharges,
-									...repaymentCharges,
-								];
-								const totalCostSummary = calculateTotalCostPer100(
-									allCharges,
-									product.currency?.displaySymbol,
-								);
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Settings className="h-4 w-4" />
+											Processing Strategy
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Transaction Strategy"
+											value={
+												product.transactionProcessingStrategyName ||
+												product.transactionProcessingStrategyCode ||
+												"—"
+											}
+										/>
+										<InfoRow
+											label="Schedule Type"
+											value={formatEnum(product.loanScheduleType)}
+										/>
+										<InfoRow
+											label="Processing Type"
+											value={formatEnum(product.loanScheduleProcessingType)}
+										/>
+										<InfoRow
+											label="Interest Type"
+											value={formatEnum(product.interestType)}
+										/>
+									</CardContent>
+								</Card>
 
-								return (
-									<div className="space-y-6">
-										{/* Charges Table */}
-										<Card>
-											<CardHeader>
-												<CardTitle className="flex items-center justify-between">
-													<span>Fees & Penalties</span>
-													<Badge variant="outline">
-														{allCharges.length} charge
-														{allCharges.length !== 1 ? "s" : ""}
-													</Badge>
-												</CardTitle>
-												<CardDescription>
-													Complete list of charges applied to this loan product
-												</CardDescription>
-											</CardHeader>
-											<CardContent>
-												<div className="overflow-x-auto">
-													<table className="w-full border-collapse border border-border">
-														<thead>
-															<tr className="bg-muted">
-																<th className="border border-border p-2 text-left text-sm font-medium">
-																	Charge Name
-																</th>
-																<th className="border border-border p-2 text-left text-sm font-medium">
-																	Amount
-																</th>
-																<th className="border border-border p-2 text-left text-sm font-medium">
-																	When Charged
-																</th>
-																<th className="border border-border p-2 text-left text-sm font-medium">
-																	Applied To
-																</th>
-																<th className="border border-border p-2 text-left text-sm font-medium">
-																	Type
-																</th>
-															</tr>
-														</thead>
-														<tbody>
-															{allCharges.map((charge) => (
-																<tr
-																	key={charge.id}
-																	className="hover:bg-muted/50"
-																>
-																	<td className="border border-border p-2 text-sm">
-																		<div>
-																			<div className="font-medium">
-																				{charge.name}
-																			</div>
-																			{charge.chargeTimeType?.description && (
-																				<div className="text-xs text-muted-foreground">
-																					{charge.chargeTimeType.description}
-																				</div>
-																			)}
-																		</div>
-																	</td>
-																	<td className="border border-border p-2 text-sm font-mono">
-																		{formatChargeAmount(
-																			charge,
-																			product.currency?.displaySymbol,
-																		)}
-																	</td>
-																	<td className="border border-border p-2 text-sm">
-																		{getChargeTimingLabel(charge)}
-																	</td>
-																	<td className="border border-border p-2 text-sm">
-																		<span
-																			className={
-																				charge.penalty
-																					? "font-medium text-orange-700 dark:text-orange-300"
-																					: ""
-																			}
-																		>
-																			{getChargeApplicationLabel(charge)}
-																		</span>
-																	</td>
-																	<td className="border border-border p-2 text-sm">
-																		{charge.penalty ? (
-																			<Badge
-																				variant="destructive"
-																				className="text-xs"
-																			>
-																				Penalty
-																			</Badge>
-																		) : (
-																			<Badge
-																				variant="secondary"
-																				className="text-xs"
-																			>
-																				Fee
-																			</Badge>
-																		)}
-																	</td>
-																</tr>
-															))}
-														</tbody>
-													</table>
-												</div>
-											</CardContent>
-										</Card>
-
-										{/* Summary Card */}
-										<Card>
-											<CardHeader>
-												<CardTitle>Charges Summary</CardTitle>
-											</CardHeader>
-											<CardContent>
-												{/* Total Cost Highlight */}
-												{totalCostSummary.percentageChargeCount > 0 && (
-													<div className="p-6 bg-gradient-to-r from-blue-50 to-orange-50 dark:from-blue-950/20 dark:to-orange-950/20 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 mb-6">
-														<div className="text-center">
-															<div className="text-sm text-muted-foreground mb-1">
-																Total Cost of All Percentage Charges
-															</div>
-															<div className="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-1">
-																{product.currency?.displaySymbol}{" "}
-																{totalCostSummary.equivalentPer100.toFixed(2)}
-																<span className="text-lg font-normal ml-2">
-																	for every {product.currency?.displaySymbol}{" "}
-																	100 borrowed
-																</span>
-															</div>
-															<div className="text-xs text-muted-foreground">
-																From {totalCostSummary.percentageChargeCount}{" "}
-																percentage charge
-																{totalCostSummary.percentageChargeCount !== 1
-																	? "s"
-																	: ""}{" "}
-																({totalCostSummary.totalPercentage.toFixed(2)}%
-																total)
-																{totalCostSummary.hasFlatCharges && (
-																	<div className="mt-1 text-orange-600 dark:text-orange-400">
-																		* Plus additional flat fees
-																	</div>
-																)}
-															</div>
-														</div>
-													</div>
-												)}
-
-												<div className="space-y-4">
-													{/* Disbursement Charges */}
-													{disbursementCharges.length > 0 && (
-														<div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-															<h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-																At Disbursement ({disbursementCharges.length}{" "}
-																charge
-																{disbursementCharges.length !== 1 ? "s" : ""})
-															</h4>
-															<div className="space-y-1 text-sm">
-																{disbursementSummary.flatCount > 0 && (
-																	<div>
-																		{disbursementSummary.flatCount} flat charge
-																		{disbursementSummary.flatCount !== 1
-																			? "s"
-																			: ""}
-																		: {product.currency?.displaySymbol}{" "}
-																		{Math.max(
-																			...disbursementSummary.flatAmounts,
-																		).toLocaleString()}{" "}
-																		each
-																	</div>
-																)}
-																{disbursementSummary.percentageCount > 0 && (
-																	<div>
-																		{disbursementSummary.percentageCount}{" "}
-																		percentage charge
-																		{disbursementSummary.percentageCount !== 1
-																			? "s"
-																			: ""}
-																		{disbursementSummary.percentageRates.map(
-																			(rate, index) => (
-																				<div
-																					key={index}
-																					className="ml-4 text-xs text-muted-foreground"
-																				>
-																					{rate}% (
-																					{product.currency?.displaySymbol}{" "}
-																					{((100 * rate) / 100)
-																						.toFixed(2)
-																						.replace(".00", "")}{" "}
-																					for every{" "}
-																					{product.currency?.displaySymbol} 100
-																					borrowed)
-																				</div>
-																			),
-																		)}
-																	</div>
-																)}
-															</div>
-														</div>
-													)}
-
-													{/* Repayment Charges */}
-													{repaymentCharges.length > 0 && (
-														<div className="p-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
-															<h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">
-																At Repayment ({repaymentCharges.length} charge
-																{repaymentCharges.length !== 1 ? "s" : ""})
-															</h4>
-															<div className="space-y-1 text-sm">
-																{repaymentSummary.flatCount > 0 && (
-																	<div>
-																		{repaymentSummary.flatCount} flat charge
-																		{repaymentSummary.flatCount !== 1
-																			? "s"
-																			: ""}
-																		: {product.currency?.displaySymbol}{" "}
-																		{Math.max(
-																			...repaymentSummary.flatAmounts,
-																		).toLocaleString()}{" "}
-																		each
-																	</div>
-																)}
-																{repaymentSummary.percentageCount > 0 && (
-																	<div>
-																		{repaymentSummary.percentageCount}{" "}
-																		percentage charge
-																		{repaymentSummary.percentageCount !== 1
-																			? "s"
-																			: ""}
-																		{repaymentSummary.percentageRates.map(
-																			(rate, index) => (
-																				<div
-																					key={index}
-																					className="ml-4 text-xs text-muted-foreground"
-																				>
-																					{rate}% (
-																					{product.currency?.displaySymbol}{" "}
-																					{((100 * rate) / 100)
-																						.toFixed(2)
-																						.replace(".00", "")}{" "}
-																					for every{" "}
-																					{product.currency?.displaySymbol} 100
-																					borrowed)
-																				</div>
-																			),
-																		)}
-																	</div>
-																)}
-															</div>
-														</div>
-													)}
-
-													{/* Grand Total */}
-													<div className="pt-4 border-t">
-														<div className="font-medium">
-															Grand Total:{" "}
-															{disbursementCharges.length +
-																repaymentCharges.length}{" "}
-															charges (
-															{disbursementSummary.flatCount +
-																repaymentSummary.flatCount}{" "}
-															flat +{" "}
-															{disbursementSummary.percentageCount +
-																repaymentSummary.percentageCount}{" "}
-															percentage-based)
-														</div>
-													</div>
-												</div>
-											</CardContent>
-										</Card>
-									</div>
-								);
-							})()
-						) : (
-							<Card>
-								<CardHeader>
-									<CardTitle>Fees & Penalties</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<p className="text-muted-foreground">
-										No fees or penalties configured
-									</p>
-								</CardContent>
-							</Card>
-						)}
-					</>
-				)}
-
-				{/* Accounting Tab */}
-				{activeTab === "accounting" && (
-					<>
-						<Card>
-							<CardHeader>
-								<CardTitle>Accounting Setup</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Accounting Rule
-										</label>
-										<p>{product.accountingRule?.description}</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						<Card>
-							<CardHeader>
-								<CardTitle>Advanced Loan Settings</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Allow Approved Disbursed Amounts Over Applied
-										</label>
-										<p>
-											{formatBoolean(
-												product.allowApprovedDisbursedAmountsOverApplied,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Allow Partial Period Interest Calculation
-										</label>
-										<p>
-											{formatBoolean(
-												product.allowPartialPeriodInterestCalculation,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Allow Variable Installments
-										</label>
-										<p>{formatBoolean(product.allowVariableInstallments)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Can Define Installment Amount
-										</label>
-										<p>{formatBoolean(product.canDefineInstallmentAmount)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Can Use for Topup
-										</label>
-										<p>{formatBoolean(product.canUseForTopup)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Multi Disburse Loan
-										</label>
-										<p>{formatBoolean(product.multiDisburseLoan)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Max Tranche Count
-										</label>
-										<p>{product.maxTrancheCount || "—"}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Gap Settings</label>
-										<p>
-											Min: {product.minimumGap || "—"}, Max:{" "}
-											{product.maximumGap || "—"}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Allow Full Term for Tranche
-										</label>
-										<p>{formatBoolean(product.allowFullTermForTranche)}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Disallow Expected Disbursements
-										</label>
-										<p>
-											{formatBoolean(product.disallowExpectedDisbursements)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Enable Accrual Activity Posting
-										</label>
-										<p>{formatBoolean(product.enableAccrualActivityPosting)}</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</>
-				)}
-
-				{/* Settings Tab */}
-				{activeTab === "settings" && (
-					<>
-						<Card>
-							<CardHeader>
-								<CardTitle>Tolerance & Delinquency</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											In Arrears Tolerance
-										</label>
-										<p className="font-mono">
-											{formatCurrency(
-												product.inArrearsTolerance,
-												product.currency?.displaySymbol,
-											)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Enable Installment Level Delinquency
-										</label>
-										<p>
-											{formatBoolean(product.enableInstallmentLevelDelinquency)}
-										</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Delinquency Bucket
-										</label>
-										<p>{product.delinquencyBucket?.name || "—"}</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Overdue Days for NPA
-										</label>
-										<p>{product.overdueDaysForNPA || "—"} days</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Due Days for Repayment Event
-										</label>
-										<p>{product.dueDaysForRepaymentEvent || "—"} days</p>
-									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Over Due Days for Repayment Event
-										</label>
-										<p>{product.overDueDaysForRepaymentEvent || "—"} days</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-
-						{(product.enableDownPayment !== undefined ||
-							product.enableAutoRepaymentForDownPayment !== undefined) && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Down Payment Settings</CardTitle>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<div className="grid gap-4 md:grid-cols-2">
-										<div>
-											<label className="text-sm font-medium">
-												Enable Down Payment
-											</label>
-											<p>{formatBoolean(product.enableDownPayment)}</p>
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Calendar className="h-4 w-4" />
+											Date Calculations
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+											<div className="p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Days in Month
+												</p>
+												<p className="font-medium text-sm">
+													{formatEnum(product.daysInMonthType)}
+												</p>
+											</div>
+											<div className="p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Days in Year
+												</p>
+												<p className="font-medium text-sm">
+													{formatEnum(product.daysInYearType)}
+												</p>
+											</div>
+											<div className="p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Fixed Length
+												</p>
+												<p className="font-medium text-sm">
+													{product.fixedLength || "—"}
+												</p>
+											</div>
+											<div className="p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Grace on Principal
+												</p>
+												<p className="font-medium text-sm">
+													{product.graceOnPrincipalPayment || "—"}
+												</p>
+											</div>
 										</div>
-										<div>
-											<label className="text-sm font-medium">
-												Enable Auto Repayment for Down Payment
-											</label>
-											<p>
-												{formatBoolean(
+									</CardContent>
+								</Card>
+							</div>
+						</TabsContent>
+
+						{/* Interest Tab */}
+						<TabsContent value="interest">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Percent className="h-4 w-4" />
+											Interest Rate
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Rate Range"
+											value={`${formatPercentage(product.minInterestRatePerPeriod)} - ${formatPercentage(product.maxInterestRatePerPeriod)}`}
+										/>
+										<InfoRow
+											label="Default Rate"
+											value={formatPercentage(product.interestRatePerPeriod)}
+										/>
+										<InfoRow
+											label="Rate Frequency"
+											value={formatEnum(product.interestRateFrequencyType)}
+										/>
+										<InfoRow
+											label="Annual Rate"
+											value={formatPercentage(product.annualInterestRate)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Calculator className="h-4 w-4" />
+											Calculation Settings
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Calculation Period"
+											value={formatEnum(product.interestCalculationPeriodType)}
+										/>
+										<InfoRow
+											label="Recognition on Disbursement"
+											value={formatBoolean(
+												product.interestRecognitionOnDisbursementDate,
+											)}
+										/>
+										<InfoRow
+											label="Recalculation Enabled"
+											value={formatBoolean(
+												product.isInterestRecalculationEnabled,
+											)}
+										/>
+										<InfoRow
+											label="Floating Rate Allowed"
+											value={formatBoolean(
+												product.isFloatingInterestRateCalculationAllowed,
+											)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<TrendingUp className="h-4 w-4" />
+											Advanced Interest Options
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Linked to Floating
+												</p>
+												<Badge
+													variant={
+														product.isLinkedToFloatingInterestRates
+															? "default"
+															: "secondary"
+													}
+												>
+													{formatBoolean(
+														product.isLinkedToFloatingInterestRates,
+													)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Rates Enabled
+												</p>
+												<Badge
+													variant={
+														product.isRatesEnabled ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.isRatesEnabled)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Use Borrower Cycle
+												</p>
+												<Badge
+													variant={
+														product.useBorrowerCycle ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.useBorrowerCycle)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Partial Period Calc
+												</p>
+												<Badge
+													variant={
+														product.allowPartialPeriodInterestCalculation
+															? "default"
+															: "secondary"
+													}
+												>
+													{formatBoolean(
+														product.allowPartialPeriodInterestCalculation,
+													)}
+												</Badge>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</div>
+						</TabsContent>
+
+						{/* Fees Tab */}
+						<TabsContent value="fees">
+							<div className="space-y-4">
+								{/* Summary Cards */}
+								<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+									<Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
+										<CardContent className="p-4">
+											<div className="flex items-center justify-between">
+												<div>
+													<p className="text-xs text-muted-foreground uppercase tracking-wide">
+														Total Charges
+													</p>
+													<p className="text-2xl font-bold">
+														{detailedCharges.length}
+													</p>
+												</div>
+												<CreditCard className="h-8 w-8 text-blue-600" />
+											</div>
+										</CardContent>
+									</Card>
+
+									<Card
+										className={cn(
+											"border-l-4",
+											fees.length > 0
+												? "border-l-green-500 bg-green-50/50"
+												: "border-l-gray-300",
+										)}
+									>
+										<CardContent className="p-4">
+											<p className="text-xs text-muted-foreground uppercase tracking-wide">
+												Fees
+											</p>
+											<p className="text-2xl font-bold">{fees.length}</p>
+										</CardContent>
+									</Card>
+
+									<Card
+										className={cn(
+											"border-l-4",
+											penalties.length > 0
+												? "border-l-red-500 bg-red-50/50"
+												: "border-l-gray-300",
+										)}
+									>
+										<CardContent className="p-4">
+											<div className="flex items-center justify-between">
+												<div>
+													<p className="text-xs text-muted-foreground uppercase tracking-wide">
+														Penalties
+													</p>
+													<p className="text-2xl font-bold">
+														{penalties.length}
+													</p>
+												</div>
+												{penalties.length > 0 && (
+													<AlertTriangle className="h-6 w-6 text-red-600" />
+												)}
+											</div>
+										</CardContent>
+									</Card>
+								</div>
+
+								{/* Charges Table */}
+								{detailedCharges.length > 0 ? (
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="flex items-center gap-2 text-base">
+												<CreditCard className="h-4 w-4" />
+												Fees & Penalties
+											</CardTitle>
+										</CardHeader>
+										<CardContent>
+											<div className="rounded-md border overflow-hidden">
+												<Table>
+													<TableHeader>
+														<TableRow className="bg-muted/50">
+															<TableHead>Charge Name</TableHead>
+															<TableHead className="text-right">
+																Amount
+															</TableHead>
+															<TableHead>When Charged</TableHead>
+															<TableHead>Applied To</TableHead>
+															<TableHead>Type</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{detailedCharges.map((charge) => (
+															<TableRow key={charge.id}>
+																<TableCell>
+																	<div>
+																		<p className="font-medium">{charge.name}</p>
+																		{charge.chargeTimeType?.description && (
+																			<p className="text-xs text-muted-foreground">
+																				{charge.chargeTimeType.description}
+																			</p>
+																		)}
+																	</div>
+																</TableCell>
+																<TableCell className="text-right font-mono">
+																	{getChargeAmountDisplay(charge, currency)}
+																</TableCell>
+																<TableCell>
+																	{getChargeTimingLabel(charge)}
+																</TableCell>
+																<TableCell>
+																	{getChargeApplicationLabel(charge)}
+																</TableCell>
+																<TableCell>
+																	<Badge
+																		variant={
+																			charge.penalty
+																				? "destructive"
+																				: "secondary"
+																		}
+																		className="text-xs"
+																	>
+																		{charge.penalty ? "Penalty" : "Fee"}
+																	</Badge>
+																</TableCell>
+															</TableRow>
+														))}
+													</TableBody>
+												</Table>
+											</div>
+										</CardContent>
+									</Card>
+								) : (
+									<Card>
+										<CardContent className="py-8 text-center">
+											<CreditCard className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+											<p className="text-lg font-medium text-muted-foreground mb-2">
+												No Charges Configured
+											</p>
+											<p className="text-sm text-muted-foreground">
+												This loan product has no fees or penalties attached.
+											</p>
+										</CardContent>
+									</Card>
+								)}
+							</div>
+						</TabsContent>
+
+						{/* Accounting Tab */}
+						<TabsContent value="accounting">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Calculator className="h-4 w-4" />
+											Accounting Configuration
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Accounting Rule"
+											value={product.accountingRule?.description || "—"}
+										/>
+										<InfoRow
+											label="Accrual Activity Posting"
+											value={formatBoolean(
+												product.enableAccrualActivityPosting,
+											)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Settings className="h-4 w-4" />
+											Disbursement Settings
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Multi Disburse"
+											value={formatBoolean(product.multiDisburseLoan)}
+										/>
+										<InfoRow
+											label="Max Tranche Count"
+											value={product.maxTrancheCount || "—"}
+										/>
+										<InfoRow
+											label="Disallow Expected Disbursements"
+											value={formatBoolean(
+												product.disallowExpectedDisbursements,
+											)}
+										/>
+										<InfoRow
+											label="Allow Full Term for Tranche"
+											value={formatBoolean(product.allowFullTermForTranche)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<CreditCard className="h-4 w-4" />
+											Advanced Loan Options
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Over Applied Allowed
+												</p>
+												<Badge
+													variant={
+														product.allowApprovedDisbursedAmountsOverApplied
+															? "default"
+															: "secondary"
+													}
+												>
+													{formatBoolean(
+														product.allowApprovedDisbursedAmountsOverApplied,
+													)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Define Installment
+												</p>
+												<Badge
+													variant={
+														product.canDefineInstallmentAmount
+															? "default"
+															: "secondary"
+													}
+												>
+													{formatBoolean(product.canDefineInstallmentAmount)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Can Use for Topup
+												</p>
+												<Badge
+													variant={
+														product.canUseForTopup ? "default" : "secondary"
+													}
+												>
+													{formatBoolean(product.canUseForTopup)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Gap Settings
+												</p>
+												<p className="font-medium text-sm">
+													{product.minimumGap || "—"} /{" "}
+													{product.maximumGap || "—"}
+												</p>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</div>
+						</TabsContent>
+
+						{/* Settings Tab */}
+						<TabsContent value="settings">
+							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<AlertTriangle className="h-4 w-4" />
+											Tolerance & Delinquency
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="In Arrears Tolerance"
+											value={formatCurrency(
+												product.inArrearsTolerance,
+												currency,
+											)}
+										/>
+										<InfoRow
+											label="Overdue Days for NPA"
+											value={
+												product.overdueDaysForNPA
+													? `${product.overdueDaysForNPA} days`
+													: "—"
+											}
+										/>
+										<InfoRow
+											label="Due Days for Repayment Event"
+											value={
+												product.dueDaysForRepaymentEvent
+													? `${product.dueDaysForRepaymentEvent} days`
+													: "—"
+											}
+										/>
+										<InfoRow
+											label="Overdue Days for Repayment Event"
+											value={
+												product.overDueDaysForRepaymentEvent
+													? `${product.overDueDaysForRepaymentEvent} days`
+													: "—"
+											}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<Settings className="h-4 w-4" />
+											Delinquency Settings
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Delinquency Bucket"
+											value={product.delinquencyBucket?.name || "Not Set"}
+										/>
+										<InfoRow
+											label="Installment Level Delinquency"
+											value={formatBoolean(
+												product.enableInstallmentLevelDelinquency,
+											)}
+										/>
+									</CardContent>
+								</Card>
+
+								{(product.enableDownPayment !== undefined ||
+									product.enableAutoRepaymentForDownPayment !== undefined) && (
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="flex items-center gap-2 text-base">
+												<Banknote className="h-4 w-4" />
+												Down Payment
+											</CardTitle>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow
+												label="Enable Down Payment"
+												value={formatBoolean(product.enableDownPayment)}
+											/>
+											<InfoRow
+												label="Auto Repayment for Down Payment"
+												value={formatBoolean(
 													product.enableAutoRepaymentForDownPayment,
 												)}
-											</p>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-						)}
+											/>
+											<InfoRow
+												label="Down Payment Percentage"
+												value={formatPercentage(
+													product.disbursedAmountPercentageForDownPayment,
+												)}
+											/>
+										</CardContent>
+									</Card>
+								)}
 
-						<Card>
-							<CardHeader>
-								<CardTitle>Additional Settings</CardTitle>
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<FileText className="h-4 w-4" />
+											Additional Settings
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Over Applied Calculation Type"
+											value={product.overAppliedCalculationType || "—"}
+										/>
+										<InfoRow
+											label="Supported Interest Refund Types"
+											value={
+												product.supportedInterestRefundTypes
+													?.map((t) => t.value)
+													.join(", ") || "—"
+											}
+										/>
+									</CardContent>
+								</Card>
+							</div>
+						</TabsContent>
+					</div>
+				</Tabs>
+			</div>
+
+			{/* Modify Loan Product Sheet */}
+			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+				<SheetContent
+					side="right"
+					className="w-full sm:max-w-[80vw] overflow-y-auto"
+				>
+					<SheetHeader>
+						<SheetTitle>Modify Loan Product</SheetTitle>
+						<SheetDescription>
+							Update loan product configuration with a multi-step wizard
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<LoanProductWizard
+							currencies={currencies}
+							isOpen={isDrawerOpen}
+							onSubmit={async (data) => {}} // Not used in edit mode
+							onCancel={() => setIsDrawerOpen(false)}
+							isEditMode={true}
+							initialData={transformProductToFormData(product, detailedCharges)}
+							onUpdate={async (data) => {
+								await updateMutation.mutateAsync(data);
+							}}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
+		</PageShell>
+	);
+}
+
+function LoadingSkeleton() {
+	return (
+		<div className="space-y-6">
+			{/* KPI Strip Skeleton */}
+			<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+				{[1, 2, 3, 4].map((i) => (
+					<Card key={i} className="border-l-4 border-l-border">
+						<CardContent className="p-4">
+							<Skeleton className="h-4 w-24 mb-2" />
+							<Skeleton className="h-6 w-32" />
+						</CardContent>
+					</Card>
+				))}
+			</div>
+
+			{/* Tabs Skeleton */}
+			<div className="space-y-4">
+				<div className="flex gap-2 border-b pb-2">
+					{[1, 2, 3, 4, 5, 6].map((i) => (
+						<Skeleton key={i} className="h-8 w-24" />
+					))}
+				</div>
+
+				{/* Content Skeleton */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+					{[1, 2, 3, 4].map((i) => (
+						<Card key={i}>
+							<CardHeader className="pb-3">
+								<Skeleton className="h-5 w-32" />
 							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div>
-										<label className="text-sm font-medium">
-											Over Applied Calculation Type
-										</label>
-										<p>{product.overAppliedCalculationType || "—"}</p>
+							<CardContent className="space-y-3">
+								{[1, 2, 3, 4].map((j) => (
+									<div key={j} className="flex justify-between">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-4 w-32" />
 									</div>
-									<div>
-										<label className="text-sm font-medium">
-											Supported Interest Refund Types
-										</label>
-										<p>
-											{product.supportedInterestRefundTypes
-												?.map((t) => t.value)
-												.join(", ") || "—"}
-										</p>
-									</div>
-								</div>
+								))}
 							</CardContent>
 						</Card>
-					</>
-				)}
+					))}
+				</div>
 			</div>
-		</PageShell>
+		</div>
 	);
 }

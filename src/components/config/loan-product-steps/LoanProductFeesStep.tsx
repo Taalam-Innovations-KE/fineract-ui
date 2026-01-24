@@ -1,10 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { Info, Plus, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -32,12 +31,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsChargeOptions,
@@ -46,20 +40,16 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
 import {
+	type CreateLoanProductFormData,
 	type FeeFormData,
 	type FeeSelection,
 	feeChargeFormSchema,
-	type LoanProductFeesFormData,
-	loanProductFeesSchema,
 } from "@/lib/schemas/loan-product";
 import { useTenantStore } from "@/store/tenant";
 
 interface LoanProductFeesStepProps {
 	template?: GetLoanProductsTemplateResponse;
 	currencyCode?: string;
-	data?: Partial<LoanProductFeesFormData>;
-	onDataValid: (data: LoanProductFeesFormData) => void;
-	onDataInvalid: () => void;
 }
 
 type FeeItem = FeeSelection & { summary?: string };
@@ -104,45 +94,26 @@ function formatFeeSummary(fee: FeeItem, currencyCode?: string) {
 	return `${fee.name} - ${amountLabel} - ${chargeTimeLabel}, ${paymentModeLabel}`;
 }
 
-function handleAddExistingFee(
-	option: GetLoanProductsChargeOptions,
-	setFees: React.Dispatch<React.SetStateAction<FeeItem[]>>,
-) {
-	if (!option?.id || typeof option.id !== "number") return;
-
-	setFees((prev) => {
-		if (prev.some((fee) => fee.id === option.id)) return prev;
-
-		const summary =
-			`${option.name || "Fee"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
-
-		return [
-			...prev,
-			{
-				id: option.id as number,
-				name: option.name || "Fee",
-				amount: option.amount,
-				currencyCode: option.currency?.code,
-				summary,
-			} as FeeItem,
-		];
-	});
-}
-
 export function LoanProductFeesStep({
 	template,
 	currencyCode,
-	data,
-	onDataValid,
-	onDataInvalid,
 }: LoanProductFeesStepProps) {
 	const { tenantId } = useTenantStore();
-	const [fees, setFees] = useState<FeeItem[]>(data?.fees ?? []);
+	const queryClient = useQueryClient();
+	const { control } = useFormContext<CreateLoanProductFormData>();
+
+	// Use useFieldArray for fees array from parent form
+	const { fields, append, remove } = useFieldArray({
+		control,
+		name: "fees",
+	});
+
 	const [isFeeDrawerOpen, setIsFeeDrawerOpen] = useState(false);
 	const [isFeeSelectOpen, setIsFeeSelectOpen] = useState(false);
 	const [feeSubmitError, setFeeSubmitError] = useState<string | null>(null);
 	const [isCreatingFee, setIsCreatingFee] = useState(false);
 
+	// Separate form for creating new fees (API call)
 	const feeForm = useForm<FeeFormData>({
 		resolver: zodResolver(feeChargeFormSchema),
 		mode: "onChange",
@@ -157,11 +128,6 @@ export function LoanProductFeesStep({
 	useEffect(() => {
 		feeForm.setValue("currencyCode", currencyCode || "KES");
 	}, [currencyCode, feeForm]);
-
-	useEffect(() => {
-		// Fees step is always valid since fees are validated when added
-		onDataValid({ fees: fees.map(({ summary, ...fee }) => fee) });
-	}, [fees, onDataValid]);
 
 	useEffect(() => {
 		if (isFeeDrawerOpen) {
@@ -188,6 +154,7 @@ export function LoanProductFeesStep({
 				chargePaymentMode: values.paymentMode === "deduct" ? 0 : 1,
 				active: true,
 				penalty: false,
+				locale: "en",
 			};
 
 			const response = (await chargesApi.create(
@@ -200,18 +167,16 @@ export function LoanProductFeesStep({
 				throw new Error("Charge ID missing from response");
 			}
 
-			setFees((prev) => [
-				...prev,
-				{
-					id: chargeId,
-					name: values.name,
-					amount: values.amount,
-					currencyCode: values.currencyCode,
-					calculationMethod: values.calculationMethod,
-					chargeTimeType: values.chargeTimeType,
-					paymentMode: values.paymentMode,
-				},
-			]);
+			// Add to parent form via useFieldArray
+			append({
+				id: chargeId,
+				name: values.name,
+				amount: values.amount,
+				currencyCode: values.currencyCode,
+				calculationMethod: values.calculationMethod,
+				chargeTimeType: values.chargeTimeType,
+				paymentMode: values.paymentMode,
+			});
 
 			feeForm.reset({
 				calculationMethod: "flat",
@@ -222,6 +187,11 @@ export function LoanProductFeesStep({
 				name: "",
 			});
 			setIsFeeDrawerOpen(false);
+
+			// Refresh template to include newly created fee in select options
+			queryClient.invalidateQueries({
+				queryKey: ["loanProductTemplate", tenantId],
+			});
 		} catch (error) {
 			const mapped = mapFineractError(error);
 			setFeeSubmitError(mapped.message);
@@ -230,9 +200,22 @@ export function LoanProductFeesStep({
 		}
 	});
 
+	const handleAddExistingFee = (option: GetLoanProductsChargeOptions) => {
+		if (!option?.id || typeof option.id !== "number") return;
+		if (fields.some((fee) => fee.id === option.id)) return;
+
+		append({
+			id: option.id,
+			name: option.name || "Fee",
+			amount: option.amount,
+			currencyCode: option.currency?.code,
+		});
+	};
+
 	const chargeOptions = template?.chargeOptions || [];
+	// Fees are charges that are NOT penalties (penalty is false or undefined)
 	const feeOptions = chargeOptions.filter(
-		(option) => option.penalty === false && option.active !== false,
+		(option) => option.penalty !== true && option.active !== false,
 	);
 
 	return (
@@ -251,24 +234,19 @@ export function LoanProductFeesStep({
 					</p>
 
 					<div className="flex flex-wrap gap-2">
-						{fees.length === 0 && (
+						{fields.length === 0 && (
 							<span className="text-xs text-muted-foreground">
 								No fees selected yet.
 							</span>
 						)}
-						{fees.map((fee) => (
+						{fields.map((fee, index) => (
 							<Badge
 								key={fee.id}
 								variant="outline"
 								className="flex items-center gap-2"
 							>
-								<span>{formatFeeSummary(fee, currencyCode)}</span>
-								<button
-									type="button"
-									onClick={() =>
-										setFees((prev) => prev.filter((item) => item.id !== fee.id))
-									}
-								>
+								<span>{formatFeeSummary(fee as FeeItem, currencyCode)}</span>
+								<button type="button" onClick={() => remove(index)}>
 									<X className="h-3 w-3" />
 								</button>
 							</Badge>
@@ -487,12 +465,14 @@ export function LoanProductFeesStep({
 										variant="outline"
 										size="sm"
 										onClick={() => {
-											handleAddExistingFee(option, setFees);
+											handleAddExistingFee(option);
 											setIsFeeSelectOpen(false);
 										}}
-										disabled={fees.some((fee) => fee.id === option.id)}
+										disabled={fields.some((fee) => fee.id === option.id)}
 									>
-										{fees.some((fee) => fee.id === option.id) ? "Added" : "Add"}
+										{fields.some((fee) => fee.id === option.id)
+											? "Added"
+											: "Add"}
 									</Button>
 								</div>
 							))

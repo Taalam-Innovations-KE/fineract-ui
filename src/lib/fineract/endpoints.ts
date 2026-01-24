@@ -37,6 +37,15 @@ export const FINERACT_ENDPOINTS = {
 	loansTemplate: "/v1/loans/template",
 	paymentTypes: "/v1/paymenttypes",
 
+	// Loan Nested Resources
+	loanGuarantors: (loanId: number) => `/v1/loans/${loanId}/guarantors`,
+	loanGuarantorTemplate: (loanId: number) =>
+		`/v1/loans/${loanId}/guarantors/template`,
+	loanDocuments: (loanId: number) => `/v1/loans/${loanId}/documents`,
+	loanCollaterals: (loanId: number) => `/v1/loans/${loanId}/collaterals`,
+	loanCollateralTemplate: (loanId: number) =>
+		`/v1/loans/${loanId}/collaterals/template`,
+
 	// Operations - COB
 	loansCatchUp: "/v1/loans/catch-up",
 	loansCatchUpRunning: "/v1/loans/is-catch-up-running",
@@ -85,6 +94,15 @@ export const BFF_ROUTES = {
 	loansTemplate: "/api/fineract/loans/template",
 	paymentTypes: "/api/fineract/paymenttypes",
 	loanAudit: "/api/fineract/loans/audit",
+	loanGuarantors: (loanId: number) =>
+		`/api/fineract/loans/${loanId}/guarantors`,
+	loanGuarantorTemplate: (loanId: number) =>
+		`/api/fineract/loans/${loanId}/guarantors/template`,
+	loanDocuments: (loanId: number) => `/api/fineract/loans/${loanId}/documents`,
+	loanCollaterals: (loanId: number) =>
+		`/api/fineract/loans/${loanId}/collaterals`,
+	loanCollateralTemplate: (loanId: number) =>
+		`/api/fineract/loans/${loanId}/collaterals/template`,
 
 	// Operations - COB
 	loansCatchUp: "/api/fineract/loans/catch-up",

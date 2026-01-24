@@ -64,6 +64,18 @@ export const loanProductsApi = {
 
 		return parseJsonResponse(response);
 	},
+	async update(tenantId: string, id: string, payload: PostLoanProductsRequest) {
+		const response = await fetch(`${BFF_ROUTES.loanProducts}/${id}`, {
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		return parseJsonResponse(response);
+	},
 	async list(tenantId: string) {
 		const response = await fetch(BFF_ROUTES.loanProducts, {
 			headers: {
@@ -136,6 +148,8 @@ export function mapPenaltyUiToChargeRequest(
 		chargeCalculationType: calculationType,
 		chargeTimeType: CHARGE_TIME_TYPE.overdue,
 		penalty: true,
+		chargePaymentMode: 1, // Payable separately (penalties are paid explicitly)
+		active: true, // Penalties should be active by default
 		locale: "en",
 	};
 }
@@ -146,6 +160,13 @@ export function buildLoanProductRequest(
 	const chargeIds = [...data.fees, ...data.penalties]
 		.map((charge) => charge.id)
 		.filter((id, index, all) => all.indexOf(id) === index);
+
+	// Only include minimumDaysBetweenDisbursalAndFirstRepayment if it's greater than 0
+	const minimumDaysBetweenDisbursalAndFirstRepayment =
+		data.minimumDaysBetweenDisbursalAndFirstRepayment &&
+		data.minimumDaysBetweenDisbursalAndFirstRepayment > 0
+			? data.minimumDaysBetweenDisbursalAndFirstRepayment
+			: undefined;
 
 	return {
 		locale: "en",
@@ -163,8 +184,7 @@ export function buildLoanProductRequest(
 		maxNumberOfRepayments: data.maxNumberOfRepayments,
 		repaymentEvery: data.repaymentEvery,
 		repaymentFrequencyType: data.repaymentFrequencyType,
-		minimumDaysBetweenDisbursalAndFirstRepayment:
-			data.minimumDaysBetweenDisbursalAndFirstRepayment,
+		minimumDaysBetweenDisbursalAndFirstRepayment,
 		interestType: data.interestType,
 		amortizationType: data.amortizationType,
 		interestRatePerPeriod: data.interestRatePerPeriod,
@@ -172,6 +192,10 @@ export function buildLoanProductRequest(
 		interestCalculationPeriodType: data.interestCalculationPeriodType,
 		allowPartialPeriodInterestCalculation:
 			data.allowPartialPeriodInterestCalculation,
+		// Required fields for Fineract
+		daysInYearType: data.daysInYearType,
+		daysInMonthType: data.daysInMonthType,
+		isInterestRecalculationEnabled: data.isInterestRecalculationEnabled,
 		transactionProcessingStrategyCode: data.transactionProcessingStrategyCode,
 		graceOnArrearsAgeing: data.graceOnArrearsAgeing,
 		inArrearsTolerance: data.inArrearsTolerance,

@@ -1,8 +1,6 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useFormContext } from "react-hook-form";
 import {
 	Card,
 	CardContent,
@@ -21,16 +19,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { GetLoanProductsTemplateResponse } from "@/lib/fineract/generated/types.gen";
-import {
-	type LoanProductInterestFormData,
-	loanProductInterestSchema,
-} from "@/lib/schemas/loan-product";
+import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
 interface LoanProductInterestStepProps {
 	template?: GetLoanProductsTemplateResponse;
-	data?: Partial<LoanProductInterestFormData>;
-	onDataValid: (data: LoanProductInterestFormData) => void;
-	onDataInvalid: () => void;
 }
 
 function optionLabel(option?: {
@@ -50,72 +42,12 @@ function optionLabel(option?: {
 
 export function LoanProductInterestStep({
 	template,
-	data,
-	onDataValid,
-	onDataInvalid,
 }: LoanProductInterestStepProps) {
 	const {
 		register,
 		control,
-		setValue,
-		watch,
-		formState: { errors, isValid },
-	} = useForm<LoanProductInterestFormData>({
-		resolver: zodResolver(loanProductInterestSchema),
-		mode: "onChange",
-		defaultValues: data || {
-			interestRatePerPeriod: 15,
-			allowPartialPeriodInterestCalculation: false,
-		},
-	});
-
-	const watchedValues = watch();
-
-	useEffect(() => {
-		if (!template) return;
-
-		if (
-			data?.interestType === undefined &&
-			template.interestTypeOptions?.[0]?.id !== undefined
-		) {
-			setValue("interestType", template.interestTypeOptions[0].id);
-		}
-
-		if (
-			data?.amortizationType === undefined &&
-			template.amortizationTypeOptions?.[0]?.id !== undefined
-		) {
-			setValue("amortizationType", template.amortizationTypeOptions[0].id);
-		}
-
-		if (
-			data?.interestRateFrequencyType === undefined &&
-			template.interestRateFrequencyTypeOptions?.[0]?.id !== undefined
-		) {
-			setValue(
-				"interestRateFrequencyType",
-				template.interestRateFrequencyTypeOptions[0].id,
-			);
-		}
-
-		if (
-			data?.interestCalculationPeriodType === undefined &&
-			template.interestCalculationPeriodTypeOptions?.[0]?.id !== undefined
-		) {
-			setValue(
-				"interestCalculationPeriodType",
-				template.interestCalculationPeriodTypeOptions[0].id,
-			);
-		}
-	}, [template, data, setValue]);
-
-	useEffect(() => {
-		if (isValid) {
-			onDataValid(watchedValues);
-		} else {
-			onDataInvalid();
-		}
-	}, [isValid, watchedValues, onDataValid, onDataInvalid]);
+		formState: { errors },
+	} = useFormContext<CreateLoanProductFormData>();
 
 	return (
 		<Card>
@@ -305,24 +237,128 @@ export function LoanProductInterestStep({
 					</div>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<Controller
-						control={control}
-						name="allowPartialPeriodInterestCalculation"
-						render={({ field }) => (
-							<Checkbox
-								id="allowPartialPeriodInterestCalculation"
-								checked={field.value ?? false}
-								onCheckedChange={(value) => field.onChange(Boolean(value))}
-							/>
+				<div className="grid gap-4 md:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="daysInYearType">
+							Days in Year <span className="text-destructive">*</span>
+						</Label>
+						<Controller
+							control={control}
+							name="daysInYearType"
+							render={({ field }) => (
+								<Select
+									value={
+										field.value !== undefined && field.value !== null
+											? String(field.value)
+											: undefined
+									}
+									onValueChange={(value) => field.onChange(Number(value))}
+								>
+									<SelectTrigger id="daysInYearType">
+										<SelectValue placeholder="Select days in year" />
+									</SelectTrigger>
+									<SelectContent>
+										{template?.daysInYearTypeOptions?.map((option) => (
+											<SelectItem key={option.id} value={String(option.id)}>
+												{optionLabel(option)}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+						{errors.daysInYearType && (
+							<p className="text-sm text-destructive">
+								{String(errors.daysInYearType.message)}
+							</p>
 						)}
-					/>
-					<Label
-						htmlFor="allowPartialPeriodInterestCalculation"
-						className="cursor-pointer"
-					>
-						Allow partial period interest calculation
-					</Label>
+						<p className="text-xs text-muted-foreground">
+							Used for calculating interest. 365 is standard, 360 for some
+							banking conventions.
+						</p>
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="daysInMonthType">
+							Days in Month <span className="text-destructive">*</span>
+						</Label>
+						<Controller
+							control={control}
+							name="daysInMonthType"
+							render={({ field }) => (
+								<Select
+									value={
+										field.value !== undefined && field.value !== null
+											? String(field.value)
+											: undefined
+									}
+									onValueChange={(value) => field.onChange(Number(value))}
+								>
+									<SelectTrigger id="daysInMonthType">
+										<SelectValue placeholder="Select days in month" />
+									</SelectTrigger>
+									<SelectContent>
+										{template?.daysInMonthTypeOptions?.map((option) => (
+											<SelectItem
+												key={option.code || option.id}
+												value={String(option.id)}
+											>
+												{option.description || option.value || "Unknown"}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+						{errors.daysInMonthType && (
+							<p className="text-sm text-destructive">
+								{String(errors.daysInMonthType.message)}
+							</p>
+						)}
+						<p className="text-xs text-muted-foreground">
+							Actual uses calendar days; 30 uses fixed 30-day months.
+						</p>
+					</div>
+				</div>
+
+				<div className="space-y-4">
+					<div className="flex items-center gap-2">
+						<Controller
+							control={control}
+							name="allowPartialPeriodInterestCalculation"
+							render={({ field }) => (
+								<Checkbox
+									id="allowPartialPeriodInterestCalculation"
+									checked={field.value ?? false}
+									onCheckedChange={(value) => field.onChange(Boolean(value))}
+								/>
+							)}
+						/>
+						<Label
+							htmlFor="allowPartialPeriodInterestCalculation"
+							className="cursor-pointer"
+						>
+							Allow partial period interest calculation
+						</Label>
+					</div>
+					<div className="flex items-center gap-2">
+						<Controller
+							control={control}
+							name="isInterestRecalculationEnabled"
+							render={({ field }) => (
+								<Checkbox
+									id="isInterestRecalculationEnabled"
+									checked={field.value ?? false}
+									onCheckedChange={(value) => field.onChange(Boolean(value))}
+								/>
+							)}
+						/>
+						<Label
+							htmlFor="isInterestRecalculationEnabled"
+							className="cursor-pointer"
+						>
+							Enable interest recalculation on early/late repayments
+						</Label>
+					</div>
 				</div>
 			</CardContent>
 		</Card>

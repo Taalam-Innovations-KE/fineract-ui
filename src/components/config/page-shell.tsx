@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 interface PageShellProps {
-	title: string;
-	subtitle?: string;
+	title: React.ReactNode;
+	subtitle?: React.ReactNode;
 	children: React.ReactNode;
 	actions?: React.ReactNode;
 	className?: string;
@@ -25,9 +25,9 @@ export function PageShell({
 				<div>
 					<h1 className="text-[24px] font-semibold tracking-tight">{title}</h1>
 					{subtitle && (
-						<p className="text-muted-foreground mt-0.5 text-[13px] leading-relaxed">
+						<div className="text-muted-foreground mt-0.5 text-[13px] leading-relaxed">
 							{subtitle}
-						</p>
+						</div>
 					)}
 				</div>
 				{actions && <div className="flex items-center gap-1.5">{actions}</div>}

@@ -20,6 +20,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
@@ -216,14 +224,14 @@ export default function RoleDetailPage({
 				</div>
 			</PageShell>
 
-			{/* Edit Dialog */}
-			<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Edit Role</DialogTitle>
-						<DialogDescription>Modify the role details.</DialogDescription>
-					</DialogHeader>
-					<form onSubmit={handleEditSubmit} className="space-y-4">
+			{/* Edit Sheet */}
+			<Sheet open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+				<SheetContent side="right" className="sm:max-w-[450px]">
+					<SheetHeader>
+						<SheetTitle>Edit Role</SheetTitle>
+						<SheetDescription>Modify the role details.</SheetDescription>
+					</SheetHeader>
+					<form onSubmit={handleEditSubmit} className="space-y-4 mt-6">
 						<div>
 							<label className="text-sm font-medium">Name</label>
 							<input
@@ -247,7 +255,7 @@ export default function RoleDetailPage({
 								rows={3}
 							/>
 						</div>
-						<div className="flex justify-end space-x-2">
+						<SheetFooter>
 							<Button
 								type="button"
 								variant="outline"
@@ -259,10 +267,10 @@ export default function RoleDetailPage({
 								<Save className="w-4 h-4 mr-2" />
 								{updateMutation.isPending ? "Updating..." : "Update"}
 							</Button>
-						</div>
+						</SheetFooter>
 					</form>
-				</DialogContent>
-			</Dialog>
+				</SheetContent>
+			</Sheet>
 
 			{/* Delete Dialog */}
 			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

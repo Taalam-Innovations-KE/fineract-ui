@@ -1,9 +1,7 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Info } from "lucide-react";
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 import {
 	Card,
 	CardContent,
@@ -19,46 +17,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-	type LoanProductAmountFormData,
-	loanProductAmountSchema,
-} from "@/lib/schemas/loan-product";
+import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
-interface LoanProductAmountStepProps {
-	data?: Partial<LoanProductAmountFormData>;
-	onDataValid: (data: LoanProductAmountFormData) => void;
-	onDataInvalid: () => void;
-}
-
-export function LoanProductAmountStep({
-	data,
-	onDataValid,
-	onDataInvalid,
-}: LoanProductAmountStepProps) {
+export function LoanProductAmountStep() {
 	const {
 		register,
-		watch,
-		formState: { errors, isValid },
-	} = useForm<LoanProductAmountFormData>({
-		resolver: zodResolver(loanProductAmountSchema),
-		mode: "onChange",
-		defaultValues: data || {
-			minPrincipal: 1000,
-			principal: 10000,
-			maxPrincipal: 100000,
-			inMultiplesOf: 1,
-		},
-	});
-
-	const watchedValues = watch();
-
-	useEffect(() => {
-		if (isValid) {
-			onDataValid(watchedValues);
-		} else {
-			onDataInvalid();
-		}
-	}, [isValid, watchedValues, onDataValid, onDataInvalid]);
+		formState: { errors },
+	} = useFormContext<CreateLoanProductFormData>();
 
 	return (
 		<TooltipProvider>

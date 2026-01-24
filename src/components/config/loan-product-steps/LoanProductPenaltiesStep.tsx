@@ -1,10 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
-import { Info, Plus, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -32,12 +31,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsChargeOptions,
@@ -46,8 +40,7 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
 import {
-	type LoanProductPenaltiesFormData,
-	loanProductPenaltiesSchema,
+	type CreateLoanProductFormData,
 	type PenaltyFormData,
 	type PenaltySelection,
 	penaltyChargeFormSchema,
@@ -57,9 +50,6 @@ import { useTenantStore } from "@/store/tenant";
 interface LoanProductPenaltiesStepProps {
 	template?: GetLoanProductsTemplateResponse;
 	currencyCode?: string;
-	data?: Partial<LoanProductPenaltiesFormData>;
-	onDataValid: (data: LoanProductPenaltiesFormData) => void;
-	onDataInvalid: () => void;
 }
 
 type PenaltyItem = PenaltySelection & {
@@ -107,42 +97,20 @@ function formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
 	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}`;
 }
 
-function handleAddExistingPenalty(
-	option: GetLoanProductsChargeOptions,
-	setPenalties: React.Dispatch<React.SetStateAction<PenaltyItem[]>>,
-) {
-	if (!option?.id || typeof option.id !== "number") return;
-
-	setPenalties((prev) => {
-		if (prev.some((penalty) => penalty.id === option.id)) return prev;
-
-		const summary =
-			`${option.name || "Penalty"} - ${option.currency?.code || ""} ${option.amount || ""} - ${option.chargeTimeType?.description || "Configured"}`.trim();
-
-		return [
-			...prev,
-			{
-				id: option.id as number,
-				name: option.name || "Penalty",
-				amount: option.amount,
-				currencyCode: option.currency?.code,
-				summary,
-			} as PenaltyItem,
-		];
-	});
-}
-
 export function LoanProductPenaltiesStep({
 	template,
 	currencyCode,
-	data,
-	onDataValid,
-	onDataInvalid,
 }: LoanProductPenaltiesStepProps) {
 	const { tenantId } = useTenantStore();
-	const [penalties, setPenalties] = useState<PenaltyItem[]>(
-		data?.penalties ?? [],
-	);
+	const queryClient = useQueryClient();
+	const { control } = useFormContext<CreateLoanProductFormData>();
+
+	// Use useFieldArray for penalties array from parent form
+	const { fields, append, remove } = useFieldArray({
+		control,
+		name: "penalties",
+	});
+
 	const [isPenaltyDrawerOpen, setIsPenaltyDrawerOpen] = useState(false);
 	const [isPenaltySelectOpen, setIsPenaltySelectOpen] = useState(false);
 	const [penaltySubmitError, setPenaltySubmitError] = useState<string | null>(
@@ -150,6 +118,7 @@ export function LoanProductPenaltiesStep({
 	);
 	const [isCreatingPenalty, setIsCreatingPenalty] = useState(false);
 
+	// Separate form for creating new penalties (API call)
 	const penaltyForm = useForm<PenaltyFormData>({
 		resolver: zodResolver(penaltyChargeFormSchema),
 		mode: "onChange",
@@ -165,15 +134,6 @@ export function LoanProductPenaltiesStep({
 	}, [currencyCode, penaltyForm]);
 
 	useEffect(() => {
-		// Penalties step is always valid since penalties are validated when added
-		onDataValid({
-			penalties: penalties.map(
-				({ summary, gracePeriodOverride, ...penalty }) => penalty,
-			),
-		});
-	}, [penalties, onDataValid]);
-
-	useEffect(() => {
 		if (isPenaltyDrawerOpen) {
 			setPenaltySubmitError(null);
 		}
@@ -183,20 +143,29 @@ export function LoanProductPenaltiesStep({
 		setPenaltySubmitError(null);
 		setIsCreatingPenalty(true);
 		try {
+			// Map calculation type based on penalty basis
+			let chargeCalculationType: number;
+			if (values.calculationMethod === "flat") {
+				chargeCalculationType = 1; // Flat
+			} else if (values.penaltyBasis === "overduePrincipal") {
+				chargeCalculationType = 4; // Percent of principal
+			} else if (values.penaltyBasis === "overdueInterest") {
+				chargeCalculationType = 3; // Percent of interest
+			} else {
+				chargeCalculationType = 2; // Percent
+			}
+
 			const payload = {
 				name: values.name,
 				currencyCode: values.currencyCode,
 				amount: values.amount,
 				chargeAppliesTo: 1, // Loan charges
-				chargeTimeType: 9, // Specified due date
-				chargeCalculationType: values.calculationMethod === "flat" ? 1 : 2,
+				chargeTimeType: 4, // Overdue installment charge - correct for penalties
+				chargeCalculationType,
 				penalty: true,
-				penaltyBasis:
-					values.penaltyBasis === "overduePrincipal"
-						? 1
-						: values.penaltyBasis === "overdueInterest"
-							? 2
-							: 0,
+				chargePaymentMode: 1, // Payable separately (penalties are paid explicitly)
+				active: true, // Penalties should be active by default
+				locale: "en",
 			};
 
 			const response = (await chargesApi.create(
@@ -209,18 +178,15 @@ export function LoanProductPenaltiesStep({
 				throw new Error("Charge ID missing from response");
 			}
 
-			setPenalties((prev) => [
-				...prev,
-				{
-					id: chargeId,
-					name: values.name,
-					amount: values.amount,
-					currencyCode: values.currencyCode,
-					calculationMethod: values.calculationMethod,
-					penaltyBasis: values.penaltyBasis,
-					gracePeriodOverride: values.gracePeriodOverride,
-				},
-			]);
+			// Add to parent form via useFieldArray
+			append({
+				id: chargeId,
+				name: values.name,
+				amount: values.amount,
+				currencyCode: values.currencyCode,
+				calculationMethod: values.calculationMethod,
+				penaltyBasis: values.penaltyBasis,
+			});
 
 			penaltyForm.reset({
 				calculationMethod: "percent",
@@ -231,6 +197,11 @@ export function LoanProductPenaltiesStep({
 				gracePeriodOverride: undefined,
 			});
 			setIsPenaltyDrawerOpen(false);
+
+			// Refresh template to include newly created penalty in select options
+			queryClient.invalidateQueries({
+				queryKey: ["loanProductTemplate", tenantId],
+			});
 		} catch (error) {
 			const mapped = mapFineractError(error);
 			setPenaltySubmitError(mapped.message);
@@ -238,6 +209,18 @@ export function LoanProductPenaltiesStep({
 			setIsCreatingPenalty(false);
 		}
 	});
+
+	const handleAddExistingPenalty = (option: GetLoanProductsChargeOptions) => {
+		if (!option?.id || typeof option.id !== "number") return;
+		if (fields.some((penalty) => penalty.id === option.id)) return;
+
+		append({
+			id: option.id,
+			name: option.name || "Penalty",
+			amount: option.amount,
+			currencyCode: option.currency?.code,
+		});
+	};
 
 	const chargeOptions = template?.chargeOptions || [];
 	const penaltyOptions = chargeOptions.filter(
@@ -260,26 +243,21 @@ export function LoanProductPenaltiesStep({
 					</p>
 
 					<div className="flex flex-wrap gap-2">
-						{penalties.length === 0 && (
+						{fields.length === 0 && (
 							<span className="text-xs text-muted-foreground">
 								No penalties selected yet.
 							</span>
 						)}
-						{penalties.map((penalty) => (
+						{fields.map((penalty, index) => (
 							<Badge
 								key={penalty.id}
 								variant="outline"
 								className="flex items-center gap-2"
 							>
-								<span>{formatPenaltySummary(penalty, currencyCode)}</span>
-								<button
-									type="button"
-									onClick={() =>
-										setPenalties((prev) =>
-											prev.filter((item) => item.id !== penalty.id),
-										)
-									}
-								>
+								<span>
+									{formatPenaltySummary(penalty as PenaltyItem, currencyCode)}
+								</span>
+								<button type="button" onClick={() => remove(index)}>
 									<X className="h-3 w-3" />
 								</button>
 							</Badge>
@@ -490,14 +468,14 @@ export function LoanProductPenaltiesStep({
 										variant="outline"
 										size="sm"
 										onClick={() => {
-											handleAddExistingPenalty(option, setPenalties);
+											handleAddExistingPenalty(option);
 											setIsPenaltySelectOpen(false);
 										}}
-										disabled={penalties.some(
+										disabled={fields.some(
 											(penalty) => penalty.id === option.id,
 										)}
 									>
-										{penalties.some((penalty) => penalty.id === option.id)
+										{fields.some((penalty) => penalty.id === option.id)
 											? "Added"
 											: "Add"}
 									</Button>

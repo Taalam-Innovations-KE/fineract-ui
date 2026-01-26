@@ -206,11 +206,17 @@ export default function OfficesPage() {
 		},
 		{
 			header: "External ID",
-			cell: ({ office }: { office: OfficeNode; level: number }) => (
-				<span className={office.externalId ? "" : "text-muted-foreground"}>
-					{office.externalId || "—"}
-				</span>
-			),
+			cell: ({ office }: { office: OfficeNode; level: number }) => {
+				const externalId =
+					typeof office.externalId === "object"
+						? office.externalId?.value
+						: office.externalId;
+				return (
+					<span className={externalId ? "" : "text-muted-foreground"}>
+						{externalId || "—"}
+					</span>
+				);
+			},
 		},
 		{
 			header: "Type",

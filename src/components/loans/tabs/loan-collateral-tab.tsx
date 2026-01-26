@@ -166,7 +166,7 @@ export function LoanCollateralTab({
 				</Card>
 
 				{/* Collateral Table */}
-				<div className="rounded-md border overflow-hidden">
+				<Card className="overflow-hidden">
 					<Table>
 						<TableHeader>
 							<TableRow className="bg-muted/50">
@@ -204,7 +204,7 @@ export function LoanCollateralTab({
 							))}
 						</TableBody>
 					</Table>
-				</div>
+				</Card>
 			</div>
 
 			{/* Add Dialog */}

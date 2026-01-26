@@ -52,7 +52,10 @@ export const loanProductsApi = {
 
 		return parseJsonResponse(response);
 	},
-	async create(tenantId: string, payload: PostLoanProductsRequest) {
+	async create(
+		tenantId: string,
+		payload: PostLoanProductsRequest,
+	): Promise<unknown> {
 		const response = await fetch(BFF_ROUTES.loanProducts, {
 			method: "POST",
 			headers: {
@@ -76,7 +79,7 @@ export const loanProductsApi = {
 
 		return parseJsonResponse(response);
 	},
-	async list(tenantId: string) {
+	async list(tenantId: string): Promise<unknown> {
 		const response = await fetch(BFF_ROUTES.loanProducts, {
 			headers: {
 				"x-tenant-id": tenantId,

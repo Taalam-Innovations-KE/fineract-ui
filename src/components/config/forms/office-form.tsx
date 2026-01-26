@@ -51,7 +51,10 @@ export function OfficeForm({
 			? {
 					name: initialData.name || "",
 					parentId: initialData.parentId,
-					externalId: initialData.externalId || "",
+					externalId:
+						typeof initialData.externalId === "string"
+							? initialData.externalId
+							: initialData.externalId?.value || "",
 					openingDate: initialData.openingDate
 						? new Date(initialData.openingDate)
 						: new Date(),

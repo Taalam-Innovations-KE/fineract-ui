@@ -302,7 +302,7 @@ export function LoanProductInterestStep({
 												key={option.code || option.id}
 												value={String(option.id)}
 											>
-												{option.description || option.value || "Unknown"}
+												{option.value || "Unknown"}
 											</SelectItem>
 										))}
 									</SelectContent>

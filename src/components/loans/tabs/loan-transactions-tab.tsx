@@ -1,10 +1,16 @@
 "use client";
 
-import { ChevronDown, ExternalLink, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, Info, Search } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -28,7 +34,21 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { GetLoansLoanIdTransactions } from "@/lib/fineract/generated/types.gen";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+	GetLoansLoanIdResponse,
+	GetLoansLoanIdTransactions,
+} from "@/lib/fineract/generated/types.gen";
+import {
+	type DisbursementSummary,
+	getDisbursementSummary,
+	getTransactionTypeDisplay,
+} from "@/lib/fineract/loan-disbursement-utils";
 import { cn } from "@/lib/utils";
 
 type TransactionFilter =
@@ -42,6 +62,7 @@ interface LoanTransactionsTabProps {
 	transactions: GetLoansLoanIdTransactions[] | undefined;
 	currency?: string;
 	isLoading?: boolean;
+	loan?: GetLoansLoanIdResponse;
 }
 
 function formatDate(dateInput: string | number[] | undefined): string {
@@ -69,38 +90,6 @@ function formatAmount(amount: number | undefined): string {
 	});
 }
 
-function getTransactionTypeDisplay(
-	type: { code?: string; description?: string } | undefined,
-): {
-	label: string;
-	variant: "default" | "secondary" | "outline" | "destructive";
-} {
-	if (!type?.code) return { label: "Unknown", variant: "outline" };
-
-	const code = type.code.toLowerCase();
-
-	if (code.includes("repayment")) {
-		return { label: "Repayment", variant: "default" };
-	}
-	if (code.includes("disbursement")) {
-		return { label: "Disbursement", variant: "secondary" };
-	}
-	if (code.includes("writeoff") || code.includes("write_off")) {
-		return { label: "Write Off", variant: "destructive" };
-	}
-	if (code.includes("waiver") || code.includes("waive")) {
-		return { label: "Waiver", variant: "outline" };
-	}
-	if (code.includes("charge")) {
-		return { label: "Charge", variant: "secondary" };
-	}
-	if (code.includes("accrual")) {
-		return { label: "Accrual", variant: "outline" };
-	}
-
-	return { label: type.description || type.code, variant: "outline" };
-}
-
 function matchesFilter(
 	transaction: GetLoansLoanIdTransactions,
 	filter: TransactionFilter,
@@ -126,11 +115,16 @@ export function LoanTransactionsTab({
 	transactions,
 	currency = "KES",
 	isLoading,
+	loan,
 }: LoanTransactionsTabProps) {
 	const [filter, setFilter] = useState<TransactionFilter>("all");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedTransaction, setSelectedTransaction] =
 		useState<GetLoansLoanIdTransactions | null>(null);
+
+	// Calculate disbursement summary for context
+	const disbursementSummary = getDisbursementSummary(loan, transactions);
+	const hasNetOffContext = disbursementSummary?.hasNetOff ?? false;
 
 	if (isLoading) {
 		return <LoanTransactionsTabSkeleton />;
@@ -169,6 +163,14 @@ export function LoanTransactionsTab({
 
 	return (
 		<div className="space-y-4">
+			{/* Payout Breakdown Card - shown when there's net-off */}
+			{hasNetOffContext && disbursementSummary && (
+				<PayoutBreakdownCard
+					summary={disbursementSummary}
+					currency={currency}
+				/>
+			)}
+
 			{/* Search and Filter */}
 			<div className="flex flex-col sm:flex-row gap-3">
 				<div className="relative flex-1">
@@ -207,7 +209,7 @@ export function LoanTransactionsTab({
 			</p>
 
 			{/* Transactions Table */}
-			<div className="rounded-md border overflow-hidden">
+			<Card className="overflow-hidden">
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-muted/50">
@@ -234,7 +236,10 @@ export function LoanTransactionsTab({
 							</TableRow>
 						) : (
 							filteredTransactions.map((tx) => {
-								const typeDisplay = getTransactionTypeDisplay(tx.type);
+								const typeDisplay = getTransactionTypeDisplay(
+									tx.type,
+									hasNetOffContext,
+								);
 								const isReversed = tx.manuallyReversed;
 
 								return (
@@ -292,7 +297,7 @@ export function LoanTransactionsTab({
 						)}
 					</TableBody>
 				</Table>
-			</div>
+			</Card>
 
 			{/* Transaction Detail Dialog */}
 			<Dialog
@@ -303,8 +308,13 @@ export function LoanTransactionsTab({
 					<DialogHeader>
 						<DialogTitle>Transaction Details</DialogTitle>
 						<DialogDescription>
-							{selectedTransaction?.type?.description} on{" "}
-							{formatDate(selectedTransaction?.date)}
+							{
+								getTransactionTypeDisplay(
+									selectedTransaction?.type,
+									hasNetOffContext,
+								).label
+							}{" "}
+							on {formatDate(selectedTransaction?.date)}
 						</DialogDescription>
 					</DialogHeader>
 					{selectedTransaction && (
@@ -325,7 +335,12 @@ export function LoanTransactionsTab({
 								<div>
 									<p className="text-sm text-muted-foreground">Type</p>
 									<p className="font-medium">
-										{selectedTransaction.type?.description}
+										{
+											getTransactionTypeDisplay(
+												selectedTransaction.type,
+												hasNetOffContext,
+											).label
+										}
 									</p>
 								</div>
 								<div>
@@ -417,6 +432,65 @@ export function LoanTransactionsTab({
 				</DialogContent>
 			</Dialog>
 		</div>
+	);
+}
+
+interface PayoutBreakdownCardProps {
+	summary: DisbursementSummary;
+	currency: string;
+}
+
+function PayoutBreakdownCard({ summary, currency }: PayoutBreakdownCardProps) {
+	return (
+		<Card className="border-l-4 border-l-blue-500 bg-blue-50/30">
+			<CardHeader className="pb-2">
+				<div className="flex items-center gap-2">
+					<CardTitle className="text-sm font-medium">
+						Payout Breakdown
+					</CardTitle>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Info className="h-4 w-4 text-muted-foreground cursor-help" />
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								<p className="text-sm">
+									Upfront fees were deducted from the disbursement. The customer
+									received the net amount shown below.
+								</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</div>
+				<CardDescription className="text-xs">
+					Disbursement with upfront fee deduction
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="pt-0">
+				<div className="flex flex-wrap items-center gap-4 text-sm">
+					<div className="flex items-center gap-2">
+						<span className="text-muted-foreground">Gross Disbursed:</span>
+						<span className="font-mono font-medium">
+							{currency} {formatAmount(summary.grossDisbursed)}
+						</span>
+					</div>
+					<span className="text-muted-foreground">−</span>
+					<div className="flex items-center gap-2">
+						<span className="text-muted-foreground">Fees Deducted:</span>
+						<span className="font-mono font-medium text-orange-600">
+							{currency} {formatAmount(summary.upfrontFeesDeducted)}
+						</span>
+					</div>
+					<span className="text-muted-foreground">=</span>
+					<div className="flex items-center gap-2 bg-green-100 px-2 py-1 rounded">
+						<span className="text-green-800 font-medium">Net Paid Out:</span>
+						<span className="font-mono font-bold text-green-800">
+							{currency} {formatAmount(summary.netPaidToClient)}
+						</span>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }
 

@@ -148,6 +148,7 @@ export function LoanBookingWizard({
 	);
 
 	const form = useForm<LoanApplicationInput>({
+		// @ts-expect-error - Resolver type incompatibility due to optional arrays with .default() in schema
 		resolver: zodResolver(baseLoanApplicationSchema),
 		mode: "onChange",
 		shouldUnregister: false,
@@ -328,13 +329,6 @@ export function LoanBookingWizard({
 				);
 			}
 
-			if (formData.interestChargedFromDate) {
-				payload.interestChargedFromDate = formatDateStringToFormat(
-					formData.interestChargedFromDate,
-					"dd MMMM yyyy",
-				);
-			}
-
 			// Grace periods
 			if (formData.graceOnPrincipalPayment) {
 				payload.graceOnPrincipalPayment = formData.graceOnPrincipalPayment;
@@ -372,7 +366,7 @@ export function LoanBookingWizard({
 		const steps = [...STEPS];
 		// Could filter out steps based on product capabilities
 		return steps;
-	}, [selectedProduct]);
+	}, []);
 
 	const currency =
 		selectedProduct?.currency?.displaySymbol ||

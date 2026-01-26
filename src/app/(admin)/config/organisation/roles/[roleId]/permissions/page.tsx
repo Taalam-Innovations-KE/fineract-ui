@@ -15,31 +15,16 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fineractFetch } from "@/lib/fineract/client.server";
-import type { GetRolesResponse } from "@/lib/fineract/generated/types.gen";
 import type {
 	MakerCheckerEntry,
 	Permission,
 } from "@/lib/fineract/maker-checker";
 import { getPermissions } from "@/lib/fineract/maker-checker";
-
-async function fetchRole(roleId: string): Promise<GetRolesResponse> {
-	return fineractFetch(`/v1/roles/${roleId}`, { method: "GET" });
-}
-
-async function fetchRolePermissions(roleId: string): Promise<number[]> {
-	return fineractFetch(`/v1/roles/${roleId}/permissions`, { method: "GET" });
-}
-
-async function updateRolePermissions(
-	roleId: number,
-	permissionIds: number[],
-): Promise<void> {
-	await fineractFetch(`/v1/roles/${roleId}/permissions`, {
-		method: "PUT",
-		body: permissionIds,
-	});
-}
+import {
+	fetchRole,
+	fetchRolePermissions,
+	updateRolePermissions,
+} from "./actions";
 
 export default function RolePermissionsPage() {
 	const params = useParams();

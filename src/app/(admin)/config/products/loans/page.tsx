@@ -74,7 +74,7 @@ export default function LoanProductsPage() {
 	} = useQuery({
 		queryKey: ["loanProducts", tenantId],
 		queryFn: () => loanProductsApi.list(tenantId),
-	});
+	}) as { data: LoanProductDisplay[]; isLoading: boolean; error: Error | null };
 
 	const { data: currencyConfig } = useQuery({
 		queryKey: ["currencies", tenantId],
@@ -94,6 +94,12 @@ export default function LoanProductsPage() {
 			setIsDrawerOpen(false);
 		},
 	});
+
+	const handleCreateProduct = async (
+		data: PostLoanProductsRequest,
+	): Promise<void> => {
+		return (await createMutation.mutateAsync(data)) as void;
+	};
 
 	const productColumns = [
 		{
@@ -272,7 +278,7 @@ export default function LoanProductsPage() {
 							<LoanProductWizard
 								currencies={enabledCurrencies}
 								isOpen={isDrawerOpen}
-								onSubmit={(data) => createMutation.mutateAsync(data)}
+								onSubmit={handleCreateProduct}
 								onCancel={() => setIsDrawerOpen(false)}
 							/>
 						</FormErrorBoundary>

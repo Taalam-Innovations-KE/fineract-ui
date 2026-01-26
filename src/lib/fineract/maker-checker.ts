@@ -1,3 +1,5 @@
+"use server";
+
 import { fineractFetch } from "./client.server";
 import type {
 	AppUser,

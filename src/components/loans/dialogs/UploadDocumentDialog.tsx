@@ -8,14 +8,6 @@ import { useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
-import {
 	Form,
 	FormControl,
 	FormField,
@@ -25,6 +17,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadDocument } from "@/lib/fineract/upload";
 import type { DocumentUploadInput } from "@/lib/schemas/loan-metadata";
@@ -242,7 +242,7 @@ export function UploadDocumentDialog({
 							<div className="border rounded-lg p-4">
 								<div className="flex items-start gap-3">
 									{previewUrl ? (
-										// biome-ignore lint/a11y/noImgElement: blob URL preview requires native img element
+										// biome-ignore lint/performance/noImgElement: blob URL preview requires native img element
 										<img
 											src={previewUrl}
 											alt="Preview"

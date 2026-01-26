@@ -167,7 +167,7 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 				</div>
 
 				{/* Documents Table */}
-				<div className="rounded-md border overflow-hidden">
+				<Card className="overflow-hidden">
 					<Table>
 						<TableHeader>
 							<TableRow className="bg-muted/50">
@@ -234,7 +234,7 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 							})}
 						</TableBody>
 					</Table>
-				</div>
+				</Card>
 			</div>
 
 			{/* Upload Dialog */}

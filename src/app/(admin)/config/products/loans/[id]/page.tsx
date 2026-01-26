@@ -739,14 +739,6 @@ export default function LoanProductDetailPage({
 													{product.fixedLength || "—"}
 												</p>
 											</div>
-											<div className="p-3 bg-muted/50 rounded-lg">
-												<p className="text-xs text-muted-foreground mb-1">
-													Grace on Principal
-												</p>
-												<p className="font-medium text-sm">
-													{product.graceOnPrincipalPayment || "—"}
-												</p>
-											</div>
 										</div>
 									</CardContent>
 								</Card>

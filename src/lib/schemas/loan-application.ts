@@ -5,11 +5,8 @@ import type { GetLoanProductsProductIdResponse } from "@/lib/fineract/generated/
  * Step 1: Client & Product Selection
  */
 export const loanClientProductSchema = z.object({
-	clientId: z.number({ required_error: "Client is required" }).int().positive(),
-	productId: z
-		.number({ required_error: "Loan product is required" })
-		.int()
-		.positive(),
+	clientId: z.number().int().positive("Client is required"),
+	productId: z.number().int().positive("Loan product is required"),
 });
 
 /**
@@ -17,11 +14,11 @@ export const loanClientProductSchema = z.object({
  * Validation is dynamic based on product constraints
  */
 export const loanTermsSchema = z.object({
-	principal: z.number({ required_error: "Principal is required" }).positive(),
+	principal: z.number().positive("Principal is required"),
 	numberOfRepayments: z
-		.number({ required_error: "Number of repayments is required" })
+		.number()
 		.int()
-		.positive(),
+		.positive("Number of repayments is required"),
 	interestRatePerPeriod: z.number().min(0).optional(),
 	loanTermFrequency: z.number().int().positive().optional(),
 	loanTermFrequencyType: z.number().int().min(0).optional(),
@@ -81,10 +78,10 @@ export const loanAdvancedSchema = z.object({
  * Step 6: Dates & External Reference
  */
 export const loanDatesSchema = z.object({
-	submittedOnDate: z.string({ required_error: "Submission date is required" }),
-	expectedDisbursementDate: z.string({
-		required_error: "Expected disbursement date is required",
-	}),
+	submittedOnDate: z.string().min(1, "Submission date is required"),
+	expectedDisbursementDate: z
+		.string()
+		.min(1, "Expected disbursement date is required"),
 	repaymentsStartingFromDate: z.string().optional(),
 	interestChargedFromDate: z.string().optional(),
 	externalId: z.string().max(100).optional(),

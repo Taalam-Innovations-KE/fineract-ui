@@ -237,7 +237,7 @@ export function LoanScheduleTab({
 			</div>
 
 			{/* Schedule Table */}
-			<div className="rounded-md border overflow-hidden">
+			<Card className="overflow-hidden">
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-muted/50">
@@ -330,7 +330,7 @@ export function LoanScheduleTab({
 						)}
 					</TableBody>
 				</Table>
-			</div>
+			</Card>
 		</div>
 	);
 }

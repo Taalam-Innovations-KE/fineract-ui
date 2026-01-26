@@ -34,6 +34,12 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
+// Type guard to filter items with defined IDs
+function hasDefinedId<T extends { id?: number | string }>(
+	item: T,
+): item is T & { id: number | string } {
+	return item.id !== undefined;
+}
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
 
 type LoanProduct = GetLoanProductsResponse & {
@@ -208,12 +214,12 @@ export default function LoansPage() {
 	});
 
 	const clients = useMemo(
-		() => (clientsQuery.data?.pageItems || []) as GetClientsPageItemsResponse[],
+		() => (clientsQuery.data?.pageItems || []).filter(hasDefinedId),
 		[clientsQuery.data],
 	);
 
 	const loanProducts = useMemo(
-		() => (productsQuery.data || []) as LoanProduct[],
+		() => (productsQuery.data || []).filter(hasDefinedId),
 		[productsQuery.data],
 	);
 

@@ -1,8 +1,14 @@
 "use client";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -12,7 +18,18 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import type { GetLoansLoanIdLoanChargeData } from "@/lib/fineract/generated/types.gen";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import type {
+	GetLoansLoanIdLoanChargeData,
+	GetLoansLoanIdResponse,
+	GetLoansLoanIdTransactions,
+} from "@/lib/fineract/generated/types.gen";
+import { getFeeSettlementSummary } from "@/lib/fineract/loan-disbursement-utils";
 import { cn } from "@/lib/utils";
 
 interface LoanChargesTabProps {
@@ -21,6 +38,8 @@ interface LoanChargesTabProps {
 	isLoading?: boolean;
 	feesOutstanding?: number;
 	penaltiesOutstanding?: number;
+	loan?: GetLoansLoanIdResponse;
+	transactions?: GetLoansLoanIdTransactions[];
 }
 
 function formatDate(dateInput: string | number[] | undefined): string {
@@ -70,7 +89,12 @@ export function LoanChargesTab({
 	isLoading,
 	feesOutstanding,
 	penaltiesOutstanding,
+	loan,
+	transactions,
 }: LoanChargesTabProps) {
+	// Calculate fee settlement summary
+	const feeSettlement = getFeeSettlementSummary(loan, transactions);
+
 	if (isLoading) {
 		return <LoanChargesTabSkeleton />;
 	}
@@ -92,6 +116,87 @@ export function LoanChargesTab({
 
 	return (
 		<div className="space-y-4">
+			{/* Fees Settlement at Disbursement Card */}
+			{feeSettlement && feeSettlement.settledViaNetOff && (
+				<Card className="border-l-4 border-l-green-500 bg-green-50/30">
+					<CardHeader className="pb-2">
+						<div className="flex items-center gap-2">
+							<CheckCircle2 className="h-5 w-5 text-green-600" />
+							<CardTitle className="text-base">
+								Fees Settlement at Disbursement
+							</CardTitle>
+							<Badge
+								variant="outline"
+								className="text-xs bg-green-100 text-green-800 border-green-300"
+							>
+								Settled via Net-off
+							</Badge>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Info className="h-4 w-4 text-muted-foreground cursor-help" />
+									</TooltipTrigger>
+									<TooltipContent className="max-w-xs">
+										<p className="text-sm">
+											These fees were automatically deducted from the
+											disbursement amount. The customer received the net amount
+											after fee deduction.
+										</p>
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+						<CardDescription>
+							Upfront fees were deducted from the loan disbursement
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="pt-0">
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+							<div>
+								<p className="text-xs text-muted-foreground uppercase tracking-wide">
+									Fees Deducted at Disbursement
+								</p>
+								<p className="font-mono font-medium text-orange-600">
+									{currency}{" "}
+									{formatAmount(feeSettlement.feesDeductedAtDisbursement)}
+								</p>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground uppercase tracking-wide">
+									Total Fees Charged
+								</p>
+								<p className="font-mono font-medium">
+									{currency} {formatAmount(feeSettlement.totalFeesCharged)}
+								</p>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground uppercase tracking-wide">
+									Total Paid
+								</p>
+								<p className="font-mono font-medium text-green-600">
+									{currency} {formatAmount(feeSettlement.totalFeesPaid)}
+								</p>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground uppercase tracking-wide">
+									Outstanding
+								</p>
+								<p
+									className={cn(
+										"font-mono font-medium",
+										feeSettlement.totalFeesOutstanding > 0
+											? "text-red-600"
+											: "text-green-600",
+									)}
+								>
+									{currency} {formatAmount(feeSettlement.totalFeesOutstanding)}
+								</p>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
 			{/* Summary Cards */}
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 				<Card

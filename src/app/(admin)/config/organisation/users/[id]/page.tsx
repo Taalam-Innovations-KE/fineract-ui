@@ -186,16 +186,12 @@ export default function UserDetailPage({
 								</div>
 								<div>
 									<label className="text-sm font-medium">Role</label>
-									<p>{user.roleName || "—"}</p>
+									<p>{user.selectedRoles?.map((r) => r.name).join(", ") || "—"}</p>
 								</div>
 								<div>
 									<label className="text-sm font-medium">Status</label>
 									<p>
-										{user.enabled ? (
-											<Badge variant="success">Enabled</Badge>
-										) : (
-											<Badge variant="destructive">Disabled</Badge>
-										)}
+										<span className="text-muted-foreground">N/A</span>
 									</p>
 								</div>
 							</div>

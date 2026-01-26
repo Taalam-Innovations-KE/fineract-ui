@@ -23,14 +23,14 @@ const baseGuarantorFields = {
 // Existing Client Guarantor
 export const existingClientGuarantorSchema = z.object({
 	guarantorTypeId: z.literal(GUARANTOR_TYPES.EXISTING_CLIENT),
-	entityId: z.number({ required_error: "Select a client" }).int(),
+	entityId: z.number().int().min(1, "Select a client"),
 	...baseGuarantorFields,
 });
 
 // Staff Member Guarantor
 export const staffGuarantorSchema = z.object({
 	guarantorTypeId: z.literal(GUARANTOR_TYPES.STAFF),
-	entityId: z.number({ required_error: "Select a staff member" }).int(),
+	entityId: z.number().int().min(1, "Select a staff member"),
 	...baseGuarantorFields,
 });
 
@@ -67,7 +67,7 @@ export const documentUploadSchema = z.object({
 
 // Collateral schema
 export const collateralSchema = z.object({
-	type: z.number({ required_error: "Select collateral type" }).int(),
+	type: z.number().int().min(1, "Select collateral type"),
 	value: z.number().positive("Value must be positive"),
 	description: z.string().max(500).optional(),
 });

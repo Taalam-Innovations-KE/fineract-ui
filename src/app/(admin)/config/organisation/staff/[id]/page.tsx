@@ -136,16 +136,16 @@ export default function StaffDetailPage({
 								</div>
 								<div>
 									<label className="text-sm font-medium">Office</label>
-									<p>{staff.officeName || "—"}</p>
+									<p>{staff.office?.name || "—"}</p>
 								</div>
 								<div>
 									<label className="text-sm font-medium">Is Loan Officer</label>
-									<p>{staff.isLoanOfficer ? "Yes" : "No"}</p>
+									<p>{staff.loanOfficer ? "Yes" : "No"}</p>
 								</div>
 								<div>
 									<label className="text-sm font-medium">Is Active</label>
 									<p>
-										{staff.isActive ? (
+										{staff.active ? (
 											<Badge variant="success">Active</Badge>
 										) : (
 											<Badge variant="secondary">Inactive</Badge>

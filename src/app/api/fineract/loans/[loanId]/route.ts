@@ -19,7 +19,10 @@ export async function GET(
 		const tenantId = getTenantFromRequest(request);
 		const { loanId } = await params;
 
-		const path = `${FINERACT_ENDPOINTS.loans}/${loanId}`;
+		const searchParams = request.nextUrl.searchParams.toString();
+		const path = `${FINERACT_ENDPOINTS.loans}/${loanId}${
+			searchParams ? `?${searchParams}` : ""
+		}`;
 
 		const loan = await fineractFetch(path, {
 			method: "GET",

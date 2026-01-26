@@ -22,6 +22,8 @@ import {
 import {
 	type CreateLoanProductFormData,
 	createLoanProductSchema,
+	type FeeSelection,
+	type PenaltySelection,
 } from "@/lib/schemas/loan-product";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
@@ -139,24 +141,35 @@ export function LoanProductWizard({
 		[template, currencies],
 	);
 
+	// Build safe default values ensuring no undefined arrays
+	const baseDefaults = {
+		fees: [] as FeeSelection[],
+		penalties: [] as PenaltySelection[],
+		inMultiplesOf: 1,
+		allowPartialPeriodInterestCalculation: false,
+		graceOnArrearsAgeing: 0,
+		inArrearsTolerance: 0,
+		overdueDaysForNPA: 0,
+		daysInYearType: 365,
+		daysInMonthType: 30,
+		isInterestRecalculationEnabled: false,
+	};
+
+	const defaultFormValues = {
+		...baseDefaults,
+		...(initialData ?? {}),
+		// Ensure arrays are never undefined
+		fees: initialData?.fees ?? [],
+		penalties: initialData?.penalties ?? [],
+	} as unknown as CreateLoanProductFormData;
+
 	// Single form instance for the entire wizard
 	const form = useForm<CreateLoanProductFormData>({
+		// @ts-expect-error - Resolver type incompatibility due to optional arrays with .default() in merged schema
 		resolver: zodResolver(createLoanProductSchema),
 		mode: "onChange",
 		shouldUnregister: false, // Preserve values when fields unmount
-		defaultValues: {
-			fees: [],
-			penalties: [],
-			inMultiplesOf: 1,
-			allowPartialPeriodInterestCalculation: false,
-			graceOnArrearsAgeing: 0,
-			inArrearsTolerance: 0,
-			overdueDaysForNPA: 0,
-			daysInYearType: 365,
-			daysInMonthType: 30,
-			isInterestRecalculationEnabled: false,
-			...initialData,
-		},
+		defaultValues: defaultFormValues,
 	});
 
 	const { setValue, getValues, trigger } = form;
@@ -236,11 +249,11 @@ export function LoanProductWizard({
 		// Set daysInMonthType default - prefer 30 if available
 		if (getValues("daysInMonthType") === undefined) {
 			const monthOptions = template.daysInMonthTypeOptions || [];
-			const preferred = monthOptions.find((o) => o.id === 30);
+			const preferred = monthOptions.find((o) => o.id === "30");
 			if (preferred?.id !== undefined) {
-				setValue("daysInMonthType", preferred.id);
+				setValue("daysInMonthType", Number(preferred.id));
 			} else if (monthOptions[0]?.id !== undefined) {
-				setValue("daysInMonthType", monthOptions[0].id);
+				setValue("daysInMonthType", Number(monthOptions[0].id));
 			}
 		}
 

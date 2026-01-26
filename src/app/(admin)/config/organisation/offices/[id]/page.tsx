@@ -81,7 +81,7 @@ export default function OfficeDetailPage({
 							</div>
 							<div>
 								<label className="text-sm font-medium">External ID</label>
-								<p>{office.externalId || "—"}</p>
+								<p>{office.externalId?.value || "—"}</p>
 							</div>
 							<div>
 								<label className="text-sm font-medium">Opening Date</label>

@@ -54,6 +54,11 @@ export const FINERACT_ENDPOINTS = {
 	// Accounting - Journal Entries
 	journalEntries: "/v1/journalentries",
 	glaccounts: "/v1/glaccounts",
+
+	// Reports
+	reports: "/v1/reports",
+	runReports: (reportName: string) =>
+		`/v1/runreports/${encodeURIComponent(reportName)}`,
 } as const;
 
 /**
@@ -112,4 +117,9 @@ export const BFF_ROUTES = {
 	// Accounting - Journal Entries
 	journalEntries: "/api/fineract/journalentries",
 	glaccounts: "/api/fineract/glaccounts",
+
+	// Reports
+	reports: "/api/fineract/reports",
+	runReport: (reportName: string) =>
+		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,
 } as const;

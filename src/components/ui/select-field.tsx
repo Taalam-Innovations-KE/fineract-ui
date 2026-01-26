@@ -15,10 +15,11 @@ interface SelectFieldProps<TFieldValues extends FieldValues = FieldValues> {
 	placeholder?: string;
 	disabled?: boolean;
 	options: Array<{ id?: number; name?: string; value?: string }>;
-	field: ControllerRenderProps<TFieldValues, string>;
+	// biome-ignore lint/suspicious/noExplicitAny: Field accepts any key from form data
+	field: ControllerRenderProps<TFieldValues, any>;
 }
 
-export function SelectField({
+export function SelectField<TFieldValues extends FieldValues = FieldValues>({
 	label,
 	required,
 	error,
@@ -26,7 +27,7 @@ export function SelectField({
 	disabled,
 	options,
 	field,
-}: SelectFieldProps) {
+}: SelectFieldProps<TFieldValues>) {
 	return (
 		<FormField label={label} required={required} error={error}>
 			<Select

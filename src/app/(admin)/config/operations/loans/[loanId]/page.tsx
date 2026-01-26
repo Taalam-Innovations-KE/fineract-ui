@@ -6,11 +6,17 @@ import {
 	ArrowLeft,
 	Banknote,
 	CheckCircle,
+	ChevronDown,
 	DollarSign,
+	Download,
+	FileSpreadsheet,
 	FileText,
 	History,
+	Info,
+	Loader2,
 	Package,
 	Percent,
+	Receipt,
 	Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -38,11 +44,32 @@ import {
 } from "@/components/loans/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetLoansLoanIdResponse } from "@/lib/fineract/generated/types.gen";
+import { getDisbursementSummary } from "@/lib/fineract/loan-disbursement-utils";
 import { useTenantStore } from "@/store/tenant";
 
 interface LoanDetailPageProps {
@@ -89,6 +116,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		type: "approve" | "disburse" | "reject" | "withdraw";
 	}>({ open: false, type: "approve" });
 
+	const [isDownloading, setIsDownloading] = useState(false);
+
 	// Base loan query (no associations for fast initial load)
 	const loanQuery = useQuery({
 		queryKey: ["loan", loanId],
@@ -118,7 +147,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		enabled: !!loanId && activeTab === "schedule",
 	});
 
-	// Transactions query (lazy load when tab is active)
+	// Transactions query (load for overview, transactions, and charges tabs for disbursement/fee summary)
 	const transactionsQuery = useQuery({
 		queryKey: ["loan", loanId, "transactions"],
 		queryFn: async () => {
@@ -131,7 +160,11 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			if (!response.ok) throw new Error("Failed to fetch transactions");
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
-		enabled: !!loanId && activeTab === "transactions",
+		enabled:
+			!!loanId &&
+			(activeTab === "transactions" ||
+				activeTab === "overview" ||
+				activeTab === "charges"),
 	});
 
 	// Audit trail query
@@ -148,6 +181,22 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		enabled: !!loanId && activeTab === "audit",
 	});
 
+	// Charges query (lazy load when tab is active)
+	const chargesQuery = useQuery({
+		queryKey: ["loan", loanId, "charges"],
+		queryFn: async () => {
+			const response = await fetch(
+				`${BFF_ROUTES.loans}/${loanId}?associations=charges`,
+				{
+					headers: { "fineract-platform-tenantid": tenantId },
+				},
+			);
+			if (!response.ok) throw new Error("Failed to fetch charges");
+			return response.json() as Promise<GetLoansLoanIdResponse>;
+		},
+		enabled: !!loanId && activeTab === "charges",
+	});
+
 	const loan = loanQuery.data;
 	const summary = loan?.summary;
 	const currency = loan?.currency?.displaySymbol || "KES";
@@ -158,12 +207,60 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
 	};
 
+	const handleDownloadExport = async (
+		exportType: "schedule" | "statement",
+		format: "pdf" | "xlsx" | "csv",
+	) => {
+		if (!loan) return;
+
+		setIsDownloading(true);
+		try {
+			// Use the new BFF export endpoints (no Pentaho required)
+			const url = `/api/loans/${loanId}/exports/${exportType}.${format}`;
+
+			const response = await fetch(url, {
+				headers: { "fineract-platform-tenantid": tenantId },
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.message || "Failed to download export");
+			}
+
+			// Get the blob and download
+			const blob = await response.blob();
+			const downloadUrl = window.URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = downloadUrl;
+			a.download = `Loan_${loan.accountNo || loanId}_${exportType}_${new Date().toISOString().split("T")[0]}.${format}`;
+			document.body.appendChild(a);
+			a.click();
+			window.URL.revokeObjectURL(downloadUrl);
+			document.body.removeChild(a);
+		} catch (error) {
+			console.error("Download failed:", error);
+			// Could add toast notification here
+		} finally {
+			setIsDownloading(false);
+		}
+	};
+
 	// Calculate total outstanding
 	const totalOutstanding =
 		(summary?.principalOutstanding || 0) +
 		(summary?.interestOutstanding || 0) +
 		(summary?.feeChargesOutstanding || 0) +
 		(summary?.penaltyChargesOutstanding || 0);
+
+	// Calculate disbursement summary (using transactions if available)
+	const disbursementSummary = getDisbursementSummary(
+		loan,
+		transactionsQuery.data?.transactions,
+	);
+
+	// Check if loan is disbursed
+	const isDisbursed =
+		loan?.status?.active || loan?.status?.closedObligationsMet;
 
 	if (loanQuery.isLoading) {
 		return (
@@ -173,11 +270,71 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		);
 	}
 
-	const backButton = (
-		<Button variant="outline" onClick={() => router.back()}>
-			<ArrowLeft className="w-4 h-4 mr-2" />
-			Back to Loans
-		</Button>
+	const headerActions = (
+		<div className="flex items-center gap-2">
+			{/* Download Statement Dropdown */}
+			{isDisbursed && (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" disabled={isDownloading}>
+							{isDownloading ? (
+								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+							) : (
+								<Download className="w-4 h-4 mr-2" />
+							)}
+							Download
+							<ChevronDown className="w-4 h-4 ml-2" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-56">
+						<DropdownMenuLabel>Loan Schedule</DropdownMenuLabel>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("schedule", "pdf")}
+						>
+							<FileText className="w-4 h-4 mr-2" />
+							Download as PDF
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("schedule", "xlsx")}
+						>
+							<FileSpreadsheet className="w-4 h-4 mr-2" />
+							Download as Excel
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("schedule", "csv")}
+						>
+							<FileText className="w-4 h-4 mr-2" />
+							Download as CSV
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuLabel>Transaction Statement</DropdownMenuLabel>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("statement", "pdf")}
+						>
+							<FileText className="w-4 h-4 mr-2" />
+							Download as PDF
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("statement", "xlsx")}
+						>
+							<FileSpreadsheet className="w-4 h-4 mr-2" />
+							Download as Excel
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => handleDownloadExport("statement", "csv")}
+						>
+							<FileText className="w-4 h-4 mr-2" />
+							Download as CSV
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
+
+			<Button variant="outline" onClick={() => router.back()}>
+				<ArrowLeft className="w-4 h-4 mr-2" />
+				Back to Loans
+			</Button>
+		</div>
 	);
 
 	if (loanQuery.error || !loan) {
@@ -185,7 +342,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			<PageShell
 				title="Loan Details"
 				subtitle="Error loading loan"
-				actions={backButton}
+				actions={headerActions}
 			>
 				<Card>
 					<CardContent className="pt-6">
@@ -213,7 +370,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 					<span>{loan.loanProductName || "Unknown Product"}</span>
 				</div>
 			}
-			actions={backButton}
+			actions={headerActions}
 		>
 			<div className="space-y-6">
 				{/* KPI Strip */}
@@ -255,14 +412,23 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						}}
 					/>
 					<KpiCard
-						label="Fees"
-						value={summary?.feeChargesOutstanding}
+						label="Fees Charged"
+						value={summary?.feeChargesCharged}
 						currency={currency}
+						icon={Receipt}
+						variant={
+							(summary?.feeChargesOutstanding || 0) > 0
+								? "warning"
+								: (summary?.feeChargesCharged || 0) > 0
+									? "success"
+									: "default"
+						}
 						breakdown={{
 							charged: summary?.feeChargesCharged,
 							paid: summary?.feeChargesPaid,
 							waived: summary?.feeChargesWaived,
 							writtenOff: summary?.feeChargesWrittenOff,
+							outstanding: summary?.feeChargesOutstanding,
 						}}
 					/>
 					<KpiCard
@@ -289,6 +455,15 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						variant={(summary?.totalOverdue || 0) > 0 ? "danger" : "success"}
 					/>
 				</div>
+
+				{/* Disbursement Summary Card */}
+				{isDisbursed && (
+					<DisbursementSummaryCard
+						summary={disbursementSummary}
+						currency={currency}
+						isLoading={transactionsQuery.isLoading}
+					/>
+				)}
 
 				{/* Actions Card */}
 				{availableActions.length > 0 && (
@@ -404,17 +579,24 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 								<LoanTransactionsTab
 									transactions={transactionsQuery.data?.transactions}
 									currency={currency}
+									loan={loan}
 								/>
 							)}
 						</TabsContent>
 
 						<TabsContent value="charges">
-							<LoanChargesTab
-								charges={loan.charges}
-								currency={currency}
-								feesOutstanding={summary?.feeChargesOutstanding}
-								penaltiesOutstanding={summary?.penaltyChargesOutstanding}
-							/>
+							{chargesQuery.isLoading ? (
+								<LoanChargesTabSkeleton />
+							) : (
+								<LoanChargesTab
+									charges={chargesQuery.data?.charges ?? loan.charges}
+									currency={currency}
+									feesOutstanding={summary?.feeChargesOutstanding}
+									penaltiesOutstanding={summary?.penaltyChargesOutstanding}
+									loan={loan}
+									transactions={transactionsQuery.data?.transactions}
+								/>
+							)}
 						</TabsContent>
 
 						<TabsContent value="collateral">
@@ -455,6 +637,155 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				onSuccess={handleCommandSuccess}
 			/>
 		</PageShell>
+	);
+}
+
+function formatDateArray(dateInput: string | number[] | undefined): string {
+	if (!dateInput) return "—";
+	if (Array.isArray(dateInput)) {
+		const [year, month, day] = dateInput;
+		return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+		});
+	}
+	return new Date(dateInput).toLocaleDateString("en-GB", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	});
+}
+
+function formatMoney(
+	amount: number | undefined,
+	currency: string = "KES",
+): string {
+	if (amount === undefined || amount === null) return "—";
+	return `${currency} ${amount.toLocaleString(undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})}`;
+}
+
+interface DisbursementSummaryCardProps {
+	summary: ReturnType<typeof getDisbursementSummary>;
+	currency: string;
+	isLoading?: boolean;
+}
+
+function DisbursementSummaryCard({
+	summary,
+	currency,
+	isLoading,
+}: DisbursementSummaryCardProps) {
+	if (isLoading) {
+		return (
+			<Card>
+				<CardHeader className="pb-2">
+					<Skeleton className="h-5 w-48" />
+					<Skeleton className="h-4 w-64" />
+				</CardHeader>
+				<CardContent>
+					<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+						{[1, 2, 3, 4, 5].map((i) => (
+							<div key={i} className="space-y-1">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-6 w-28" />
+							</div>
+						))}
+					</div>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	if (!summary) return null;
+
+	return (
+		<Card className="border-l-4 border-l-blue-500">
+			<CardHeader className="pb-2">
+				<div className="flex items-center gap-2">
+					<CardTitle className="text-base">Disbursement Summary</CardTitle>
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Info className="h-4 w-4 text-muted-foreground cursor-help" />
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								<p className="text-sm">
+									Net amount paid to customer after upfront fees were deducted
+									at disbursement.
+								</p>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+					{summary.hasNetOff && (
+						<Badge variant="outline" className="text-xs bg-blue-50">
+							Fees Net-off Applied
+						</Badge>
+					)}
+				</div>
+				<CardDescription>
+					Breakdown of disbursement payout to client
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+					{/* Approved Principal */}
+					<div className="space-y-1">
+						<p className="text-xs text-muted-foreground uppercase tracking-wide">
+							Approved Amount
+						</p>
+						<p className="text-sm font-medium font-mono">
+							{formatMoney(summary.approvedPrincipal, currency)}
+						</p>
+					</div>
+
+					{/* Upfront Fees Deducted */}
+					<div className="space-y-1">
+						<p className="text-xs text-muted-foreground uppercase tracking-wide">
+							Upfront Fees Deducted
+						</p>
+						<p className="text-sm font-medium font-mono text-orange-600">
+							{summary.upfrontFeesDeducted > 0
+								? `- ${formatMoney(summary.upfrontFeesDeducted, currency)}`
+								: formatMoney(0, currency)}
+						</p>
+					</div>
+
+					{/* Net Amount Paid - Emphasized */}
+					<div className="space-y-1 bg-green-50 -m-2 p-2 rounded-md">
+						<p className="text-xs text-green-700 uppercase tracking-wide font-medium">
+							Net Paid to Client
+						</p>
+						<p className="text-lg font-bold font-mono text-green-700">
+							{formatMoney(summary.netPaidToClient, currency)}
+						</p>
+					</div>
+
+					{/* Disbursement Date */}
+					<div className="space-y-1">
+						<p className="text-xs text-muted-foreground uppercase tracking-wide">
+							Disbursement Date
+						</p>
+						<p className="text-sm font-medium">
+							{formatDateArray(summary.disbursementDate)}
+						</p>
+					</div>
+
+					{/* Payment Method */}
+					<div className="space-y-1">
+						<p className="text-xs text-muted-foreground uppercase tracking-wide">
+							Payment Method
+						</p>
+						<p className="text-sm font-medium">
+							{summary.paymentMethod || "Not specified"}
+						</p>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }
 

@@ -16,6 +16,7 @@ interface KpiBreakdown {
 	paid?: number;
 	waived?: number;
 	writtenOff?: number;
+	outstanding?: number;
 }
 
 interface KpiCardProps {
@@ -162,6 +163,23 @@ export function KpiCard({
 										</span>
 									</div>
 								)}
+							{breakdown.outstanding !== undefined && (
+								<div className="flex justify-between gap-4 border-t pt-1 mt-1">
+									<span className="text-muted-foreground font-medium">
+										Outstanding:
+									</span>
+									<span
+										className={cn(
+											"font-mono font-medium",
+											breakdown.outstanding > 0
+												? "text-red-600"
+												: "text-green-600",
+										)}
+									>
+										{formatAmount(breakdown.outstanding, currency)}
+									</span>
+								</div>
+							)}
 						</div>
 					</TooltipContent>
 				</Tooltip>

@@ -54,7 +54,7 @@ export function StaffForm({
 			? {
 					firstname: initialData.firstname || "",
 					lastname: initialData.lastname || "",
-					officeId: initialData.officeId,
+					officeId: initialData.office?.id,
 					mobileNo: initialData.mobileNo || "",
 					externalId: initialData.externalId || "",
 					isLoanOfficer: initialData.loanOfficer ?? false,

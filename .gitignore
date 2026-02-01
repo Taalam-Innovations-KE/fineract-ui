@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 docker/nginx/certs
 docker/nginx/certbot
+docker/traefik/acme.json
 
 # vercel
 .vercel

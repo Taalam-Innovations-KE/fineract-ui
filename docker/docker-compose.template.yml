@@ -3,8 +3,8 @@ services:
     image: taalamke/taalam-fincore-web:latest
     container_name: fineract-ui
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       NODE_ENV: "production"
       AUTH_URL: "https://your-ui-domain.example"
@@ -16,3 +16,25 @@ services:
       AUTH_KEYCLOAK_ID: "your-keycloak-client-id"
       AUTH_KEYCLOAK_SECRET: "your-keycloak-client-secret"
       AUTH_KEYCLOAK_ISSUER: "https://your-keycloak-domain.example/realms/your-realm"
+    networks:
+      - fincore
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: fincore-nginx
+    restart: unless-stopped
+    depends_on:
+      - fineract-ui
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/fincore.conf:/etc/nginx/conf.d/fincore.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/certbot:/var/www/certbot
+    networks:
+      - fincore
+
+networks:
+  fincore:
+    driver: bridge

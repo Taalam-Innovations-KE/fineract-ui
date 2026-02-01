@@ -1,6 +1,6 @@
 services:
   fineract-ui:
-    image: taalam/ke:latest
+    image: taalamke/taalam-fincore-web:latest
     container_name: fineract-ui
     restart: unless-stopped
     ports:

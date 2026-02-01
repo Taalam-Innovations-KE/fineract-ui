@@ -1,0 +1,18 @@
+services:
+  fineract-ui:
+    image: taalam/ke:latest
+    container_name: fineract-ui
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: "production"
+      AUTH_URL: "https://your-ui-domain.example"
+      NEXTAUTH_URL: "https://your-ui-domain.example"
+      AUTH_SECRET: "replace-with-strong-secret"
+      FINERACT_BASE_URL: "https://your-fineract-domain.example/fineract-provider/api"
+      FINERACT_USERNAME: "mifos"
+      FINERACT_PASSWORD: "password"
+      AUTH_KEYCLOAK_ID: "your-keycloak-client-id"
+      AUTH_KEYCLOAK_SECRET: "your-keycloak-client-secret"
+      AUTH_KEYCLOAK_ISSUER: "https://your-keycloak-domain.example/realms/your-realm"

@@ -108,6 +108,25 @@ async function updateAccountNumberFormat(
 	return response.json();
 }
 
+async function deleteAccountNumberFormat(tenantId: string, formatId: number) {
+	const response = await fetch(
+		`${BFF_ROUTES.accountNumberFormats}/${formatId}`,
+		{
+			method: "DELETE",
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.json();
+		throw new Error(error.message || "Failed to delete account number format");
+	}
+
+	return response.json();
+}
+
 export default function AccountNumberFormatsPage() {
 	const { tenantId } = useTenantStore();
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -149,6 +168,18 @@ export default function AccountNumberFormatsPage() {
 	const updateMutation = useMutation({
 		mutationFn: (data: PostAccountNumberFormatsRequest) =>
 			updateAccountNumberFormat(tenantId, selectedFormat!.id!, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["accountNumberFormats", tenantId],
+			});
+			setIsDialogOpen(false);
+			setSelectedFormat(null);
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: () =>
+			deleteAccountNumberFormat(tenantId, Number(selectedFormat?.id)),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["accountNumberFormats", tenantId],
@@ -274,10 +305,7 @@ export default function AccountNumberFormatsPage() {
 								columns={formatColumns}
 								getRowId={(row) => row.id?.toString() ?? "format-row"}
 								onRowClick={handleRowClick}
-								enableActions={true}
-								getViewUrl={(row) =>
-									`/config/organisation/account-number-formats/${row.id}`
-								}
+								enableActions={false}
 							/>
 						)}
 					</CardContent>
@@ -311,6 +339,9 @@ export default function AccountNumberFormatsPage() {
 									isEditing
 										? updateMutation.mutateAsync(data)
 										: createMutation.mutateAsync(data)
+								}
+								onDelete={
+									isEditing ? () => deleteMutation.mutateAsync() : undefined
 								}
 								onCancel={() => handleDialogClose(false)}
 							/>

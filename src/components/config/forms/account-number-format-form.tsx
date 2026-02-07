@@ -4,8 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -28,6 +28,7 @@ interface AccountNumberFormatFormProps {
 	templateData: GetAccountNumberFormatsResponseTemplate;
 	initialData?: GetAccountNumberFormatsIdResponse;
 	onSubmit: (data: PostAccountNumberFormatsRequest) => Promise<void>;
+	onDelete?: () => Promise<void>;
 	onCancel: () => void;
 }
 
@@ -35,9 +36,11 @@ export function AccountNumberFormatForm({
 	templateData,
 	initialData,
 	onSubmit,
+	onDelete,
 	onCancel,
 }: AccountNumberFormatFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [selectedAccountType, setSelectedAccountType] = useState<
 		number | undefined
 	>(initialData?.accountType?.id);
@@ -86,12 +89,45 @@ export function AccountNumberFormatForm({
 
 	const onFormSubmit = async (data: CreateAccountNumberFormatFormData) => {
 		setIsSubmitting(true);
+		setSubmitError(null);
 		try {
 			const requestData: PostAccountNumberFormatsRequest = {
-				accountType: data.accountType,
 				prefixType: data.prefixType,
 			};
+
+			if (!isEditing) {
+				requestData.accountType = data.accountType;
+			}
+
 			await onSubmit(requestData);
+		} catch (error) {
+			setSubmitError(
+				error instanceof Error
+					? error.message
+					: "Failed to save account number format",
+			);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	const handleDelete = async () => {
+		if (!onDelete) return;
+		const confirmed = window.confirm(
+			"Delete this account number format? This action cannot be undone.",
+		);
+		if (!confirmed) return;
+
+		setIsSubmitting(true);
+		setSubmitError(null);
+		try {
+			await onDelete();
+		} catch (error) {
+			setSubmitError(
+				error instanceof Error
+					? error.message
+					: "Failed to delete account number format",
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -101,6 +137,12 @@ export function AccountNumberFormatForm({
 
 	return (
 		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+			{submitError && (
+				<Alert variant="destructive">
+					<AlertTitle>Unable to complete request</AlertTitle>
+					<AlertDescription>{submitError}</AlertDescription>
+				</Alert>
+			)}
 			<div className="space-y-2">
 				<Label htmlFor="accountType">
 					Account Type <span className="text-destructive">*</span>
@@ -110,8 +152,9 @@ export function AccountNumberFormatForm({
 					name="accountType"
 					render={({ field }) => (
 						<Select
-							value={field.value ? String(field.value) : undefined}
+							value={field.value ? String(field.value) : ""}
 							onValueChange={(value) => field.onChange(Number(value))}
+							disabled={isEditing}
 						>
 							<SelectTrigger id="accountType">
 								<SelectValue placeholder="Select account type" />
@@ -142,7 +185,7 @@ export function AccountNumberFormatForm({
 					name="prefixType"
 					render={({ field }) => (
 						<Select
-							value={field.value ? String(field.value) : undefined}
+							value={field.value ? String(field.value) : ""}
 							onValueChange={(value) => field.onChange(Number(value))}
 							disabled={!selectedAccountType || prefixOptions.length === 0}
 						>
@@ -174,26 +217,40 @@ export function AccountNumberFormatForm({
 				)}
 			</div>
 
-			<div className="flex justify-end gap-3 pt-4">
-				<Button
-					type="button"
-					variant="outline"
-					onClick={onCancel}
-					disabled={isSubmitting}
-				>
-					<X className="w-4 h-4 mr-2" />
-					Cancel
-				</Button>
-				<Button type="submit" disabled={isSubmitting}>
-					<Save className="w-4 h-4 mr-2" />
-					{isSubmitting
-						? isEditing
-							? "Updating..."
-							: "Creating..."
-						: isEditing
-							? "Update Format"
-							: "Create Format"}
-				</Button>
+			<div className="flex justify-between gap-3 pt-4">
+				<div>
+					{isEditing && onDelete && (
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={handleDelete}
+							disabled={isSubmitting}
+						>
+							Delete Format
+						</Button>
+					)}
+				</div>
+				<div className="flex gap-3">
+					<Button
+						type="button"
+						variant="outline"
+						onClick={onCancel}
+						disabled={isSubmitting}
+					>
+						<X className="w-4 h-4 mr-2" />
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isSubmitting}>
+						<Save className="w-4 h-4 mr-2" />
+						{isSubmitting
+							? isEditing
+								? "Updating..."
+								: "Creating..."
+							: isEditing
+								? "Update Format"
+								: "Create Format"}
+					</Button>
+				</div>
 			</div>
 		</form>
 	);

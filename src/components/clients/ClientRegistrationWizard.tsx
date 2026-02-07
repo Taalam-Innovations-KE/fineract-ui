@@ -77,6 +77,11 @@ export function ClientRegistrationWizard({
 		}
 	}, [isOpen]);
 
+	const normalizedOfficeOptions = officeOptions.filter(
+		(option): option is { id?: number; name: string; nameDecorated?: string } =>
+			typeof option.name === "string" && option.name.length > 0,
+	);
+
 	const nextStep = async () => {
 		const isValid = await onValidateStep(currentStep);
 		if (!isValid) return;
@@ -148,7 +153,7 @@ export function ClientRegistrationWizard({
 					<ClientBasicStep
 						control={control}
 						errors={errors}
-						officeOptions={officeOptions}
+						officeOptions={normalizedOfficeOptions}
 						legalFormOptions={legalFormOptions}
 						canCreateBusinessClient={canCreateBusinessClient}
 					/>

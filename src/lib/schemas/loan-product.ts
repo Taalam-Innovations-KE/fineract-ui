@@ -26,7 +26,7 @@ export const penaltyChargeFormSchema = z.object({
 	penaltyBasis: z.enum(["totalOverdue", "overduePrincipal", "overdueInterest"]),
 	calculationMethod: z.enum(["flat", "percent"]),
 	amount: z.number().positive("Amount must be greater than 0"),
-	gracePeriodOverride: optionalNumber,
+	gracePeriodOverride: z.number().nonnegative().optional(),
 	currencyCode: z.string().length(3, "Currency code must be 3 characters"),
 });
 
@@ -134,13 +134,7 @@ export const loanProductScheduleSchema = z
 		allowFullTermForTranche: z.boolean().optional(),
 		syncExpectedWithDisbursementDate: z.boolean().optional(),
 		allowApprovedDisbursedAmountsOverApplied: z.boolean().optional(),
-		overAppliedCalculationType: z
-			.enum(["flat", "percentage"], {
-				errorMap: () => ({
-					message: "Over-applied calculation type must be flat or percentage",
-				}),
-			})
-			.optional(),
+		overAppliedCalculationType: z.enum(["flat", "percentage"]).optional(),
 		overAppliedNumber: optionalNumber,
 		graceOnPrincipalPayment: optionalNumber,
 		graceOnInterestPayment: optionalNumber,

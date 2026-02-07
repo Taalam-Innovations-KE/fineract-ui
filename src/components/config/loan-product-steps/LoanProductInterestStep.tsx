@@ -19,7 +19,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { GetLoanProductsTemplateResponse } from "@/lib/fineract/generated/types.gen";
+import type {
+	GetLoanProductsInterestRecalculationData,
+	GetLoanProductsTemplateResponse,
+} from "@/lib/fineract/generated/types.gen";
 import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
 interface LoanProductInterestStepProps {
@@ -73,6 +76,9 @@ export function LoanProductInterestStep({
 	const isMonthlyCompounding =
 		shouldConfigureCompoundingFrequency &&
 		recalculationCompoundingFrequencyType === 4;
+	const templateRecalculation = template?.interestRecalculationData as
+		| GetLoanProductsInterestRecalculationData
+		| undefined;
 
 	useEffect(() => {
 		if (!isInterestRecalculationEnabled) {
@@ -115,8 +121,7 @@ export function LoanProductInterestStep({
 
 		if (getValues("interestRecalculationCompoundingMethod") === undefined) {
 			const compoundingMethod =
-				template?.interestRecalculationData
-					?.interestRecalculationCompoundingType?.id ??
+				templateRecalculation?.interestRecalculationCompoundingType?.id ??
 				template?.interestRecalculationCompoundingTypeOptions?.[0]?.id;
 			if (compoundingMethod !== undefined) {
 				setValue("interestRecalculationCompoundingMethod", compoundingMethod);
@@ -125,7 +130,7 @@ export function LoanProductInterestStep({
 
 		if (getValues("rescheduleStrategyMethod") === undefined) {
 			const rescheduleMethod =
-				template?.interestRecalculationData?.rescheduleStrategyType?.id ??
+				templateRecalculation?.rescheduleStrategyType?.id ??
 				template?.rescheduleStrategyTypeOptions?.[0]?.id;
 			if (rescheduleMethod !== undefined) {
 				setValue("rescheduleStrategyMethod", rescheduleMethod);
@@ -134,8 +139,7 @@ export function LoanProductInterestStep({
 
 		if (getValues("preClosureInterestCalculationStrategy") === undefined) {
 			const preClosureMethod =
-				template?.interestRecalculationData
-					?.preClosureInterestCalculationStrategy?.id ??
+				templateRecalculation?.preClosureInterestCalculationStrategy?.id ??
 				template?.preClosureInterestCalculationStrategyOptions?.[0]?.id;
 			if (preClosureMethod !== undefined) {
 				setValue("preClosureInterestCalculationStrategy", preClosureMethod);
@@ -144,8 +148,8 @@ export function LoanProductInterestStep({
 
 		if (getValues("recalculationRestFrequencyType") === undefined) {
 			const restFrequencyType =
-				template?.interestRecalculationData?.recalculationRestFrequencyType
-					?.id ?? template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
+				templateRecalculation?.recalculationRestFrequencyType?.id ??
+				template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
 			if (restFrequencyType !== undefined) {
 				setValue("recalculationRestFrequencyType", restFrequencyType);
 			}
@@ -154,11 +158,16 @@ export function LoanProductInterestStep({
 		if (getValues("recalculationRestFrequencyInterval") === undefined) {
 			setValue(
 				"recalculationRestFrequencyInterval",
-				template?.interestRecalculationData
-					?.recalculationRestFrequencyInterval ?? 1,
+				templateRecalculation?.recalculationRestFrequencyInterval ?? 1,
 			);
 		}
-	}, [getValues, isInterestRecalculationEnabled, setValue, template]);
+	}, [
+		getValues,
+		isInterestRecalculationEnabled,
+		setValue,
+		template,
+		templateRecalculation,
+	]);
 
 	useEffect(() => {
 		if (!shouldConfigureCompoundingFrequency) {
@@ -180,9 +189,8 @@ export function LoanProductInterestStep({
 
 		if (getValues("recalculationCompoundingFrequencyType") === undefined) {
 			const compoundingFrequencyType =
-				template?.interestRecalculationData
-					?.interestRecalculationCompoundingFrequencyType?.id ??
-				template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
+				templateRecalculation?.interestRecalculationCompoundingFrequencyType
+					?.id ?? template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
 			if (compoundingFrequencyType !== undefined) {
 				setValue(
 					"recalculationCompoundingFrequencyType",
@@ -194,11 +202,16 @@ export function LoanProductInterestStep({
 		if (getValues("recalculationCompoundingFrequencyInterval") === undefined) {
 			setValue(
 				"recalculationCompoundingFrequencyInterval",
-				template?.interestRecalculationData
-					?.recalculationCompoundingFrequencyInterval ?? 1,
+				templateRecalculation?.recalculationCompoundingFrequencyInterval ?? 1,
 			);
 		}
-	}, [getValues, setValue, shouldConfigureCompoundingFrequency, template]);
+	}, [
+		getValues,
+		setValue,
+		shouldConfigureCompoundingFrequency,
+		template,
+		templateRecalculation,
+	]);
 
 	useEffect(() => {
 		if (!isMonthlyCompounding) {

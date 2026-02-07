@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
+	GetLoanProductsInterestRecalculationData,
+	GetLoanProductsProductIdResponse,
 	GetLoanProductsTemplateResponse,
 	PostLoanProductsRequest,
 } from "@/lib/fineract/generated/types.gen";
@@ -175,6 +177,48 @@ function isChargeOffBehaviour(
 	);
 }
 
+type LoanProductTemplateAdvanced = GetLoanProductsTemplateResponse &
+	Partial<GetLoanProductsProductIdResponse> & {
+		overAppliedNumber?: number;
+		syncExpectedWithDisbursementDate?: boolean;
+		graceOnPrincipalPayment?: number;
+		graceOnInterestPayment?: number;
+		principalThresholdForLastInstallment?: number;
+		accountMovesOutOfNPAOnlyOnArrearsCompletion?: boolean;
+		chargeOffBehaviour?: {
+			id?: string;
+		};
+		chargeOffReasonToExpenseAccountMappings?: Array<{
+			reasonCodeValue?: { id?: number };
+			expenseAccount?: { id?: number };
+		}>;
+		writeOffReasonsToExpenseMappings?: Array<{
+			reasonCodeValue?: { id?: number };
+			expenseAccount?: { id?: number };
+		}>;
+		supportedInterestRefundTypes?: Array<{
+			id?: string;
+			code?: string;
+			value?: string;
+		}>;
+		paymentAllocation?: Array<{
+			transactionType?: string;
+			futureInstallmentAllocationRule?: string;
+			paymentAllocationOrder?: Array<{
+				order?: number;
+				paymentAllocationRule?: string;
+			}>;
+		}>;
+		creditAllocation?: Array<{
+			transactionType?: string;
+			creditAllocationOrder?: Array<{
+				order?: number;
+				creditAllocationRule?: string;
+			}>;
+		}>;
+		interestRecalculationData?: GetLoanProductsInterestRecalculationData;
+	};
+
 export function LoanProductWizard({
 	currencies,
 	isOpen,
@@ -274,47 +318,7 @@ export function LoanProductWizard({
 	// Set template defaults when template loads
 	useEffect(() => {
 		if (!template) return;
-		const templateAdvanced = template as GetLoanProductsTemplateResponse & {
-			accountMovesOutOfNPAOnlyOnArrearsCompletion?: boolean;
-			delinquencyBucketOptions?: Array<{ id?: number }>;
-			graceOnPrincipalPayment?: number;
-			graceOnInterestPayment?: number;
-			principalThresholdForLastInstallment?: number;
-			enableIncomeCapitalization?: boolean;
-			enableBuyDownFee?: boolean;
-			merchantBuyDownFee?: boolean;
-			chargeOffBehaviour?: {
-				id?: string;
-			};
-			chargeOffReasonToExpenseAccountMappings?: Array<{
-				reasonCodeValue?: { id?: number };
-				expenseAccount?: { id?: number };
-			}>;
-			writeOffReasonsToExpenseMappings?: Array<{
-				reasonCodeValue?: { id?: number };
-				expenseAccount?: { id?: number };
-			}>;
-			supportedInterestRefundTypes?: Array<{
-				id?: string;
-				code?: string;
-				value?: string;
-			}>;
-			paymentAllocation?: Array<{
-				transactionType?: string;
-				futureInstallmentAllocationRule?: string;
-				paymentAllocationOrder?: Array<{
-					order?: number;
-					paymentAllocationRule?: string;
-				}>;
-			}>;
-			creditAllocation?: Array<{
-				transactionType?: string;
-				creditAllocationOrder?: Array<{
-					order?: number;
-					creditAllocationRule?: string;
-				}>;
-			}>;
-		};
+		const templateAdvanced = template as LoanProductTemplateAdvanced;
 
 		if (!getValues("currencyCode") && currencyOptions[0]?.code) {
 			setValue("currencyCode", currencyOptions[0]?.code);
@@ -339,9 +343,12 @@ export function LoanProductWizard({
 
 		if (
 			getValues("repaymentStartDateType") === undefined &&
-			template.repaymentStartDateType?.id !== undefined
+			templateAdvanced.repaymentStartDateType?.id !== undefined
 		) {
-			setValue("repaymentStartDateType", template.repaymentStartDateType.id);
+			setValue(
+				"repaymentStartDateType",
+				templateAdvanced.repaymentStartDateType.id,
+			);
 		}
 
 		if (
@@ -372,42 +379,45 @@ export function LoanProductWizard({
 		}
 
 		if (getValues("multiDisburseLoan") === undefined) {
-			setValue("multiDisburseLoan", Boolean(template.multiDisburseLoan));
+			setValue(
+				"multiDisburseLoan",
+				Boolean(templateAdvanced.multiDisburseLoan),
+			);
 		}
 
 		if (getValues("disallowExpectedDisbursements") === undefined) {
 			setValue(
 				"disallowExpectedDisbursements",
-				Boolean(template.disallowExpectedDisbursements),
+				Boolean(templateAdvanced.disallowExpectedDisbursements),
 			);
 		}
 
 		if (getValues("allowFullTermForTranche") === undefined) {
 			setValue(
 				"allowFullTermForTranche",
-				Boolean(template.allowFullTermForTranche),
+				Boolean(templateAdvanced.allowFullTermForTranche),
 			);
 		}
 
 		if (getValues("syncExpectedWithDisbursementDate") === undefined) {
 			setValue(
 				"syncExpectedWithDisbursementDate",
-				Boolean(template.syncExpectedWithDisbursementDate),
+				Boolean(templateAdvanced.syncExpectedWithDisbursementDate),
 			);
 		}
 
 		if (getValues("allowApprovedDisbursedAmountsOverApplied") === undefined) {
 			setValue(
 				"allowApprovedDisbursedAmountsOverApplied",
-				Boolean(template.allowApprovedDisbursedAmountsOverApplied),
+				Boolean(templateAdvanced.allowApprovedDisbursedAmountsOverApplied),
 			);
 		}
 
 		if (
-			Boolean(template.allowApprovedDisbursedAmountsOverApplied) &&
+			Boolean(templateAdvanced.allowApprovedDisbursedAmountsOverApplied) &&
 			!getValues("overAppliedCalculationType")
 		) {
-			const templateValue = (template.overAppliedCalculationType || "")
+			const templateValue = (templateAdvanced.overAppliedCalculationType || "")
 				.toLowerCase()
 				.trim();
 			if (templateValue === "flat" || templateValue === "percentage") {
@@ -417,9 +427,9 @@ export function LoanProductWizard({
 
 		if (
 			getValues("overAppliedNumber") === undefined &&
-			template.overAppliedNumber !== undefined
+			templateAdvanced.overAppliedNumber !== undefined
 		) {
-			setValue("overAppliedNumber", template.overAppliedNumber);
+			setValue("overAppliedNumber", templateAdvanced.overAppliedNumber);
 		}
 
 		if (
@@ -515,7 +525,7 @@ export function LoanProductWizard({
 			);
 		}
 
-		const templateRecalculation = template.interestRecalculationData;
+		const templateRecalculation = templateAdvanced.interestRecalculationData;
 
 		if (
 			getValues("interestRecalculationCompoundingMethod") === undefined &&

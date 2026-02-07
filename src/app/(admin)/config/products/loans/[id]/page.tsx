@@ -51,6 +51,7 @@ import type {
 	PostLoanProductsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi, loanProductsApi } from "@/lib/fineract/loan-products";
+import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
 
@@ -113,10 +114,26 @@ function formatBoolean(value: boolean | undefined) {
 	return value ? "Yes" : "No";
 }
 
+function readUnknownBooleanProperty(
+	source: object,
+	property: string,
+	fallback = false,
+) {
+	const record = source as Record<string, unknown>;
+	const value = record[property];
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function readUnknownNumberProperty(source: object, property: string) {
+	const record = source as Record<string, unknown>;
+	const value = record[property];
+	return typeof value === "number" ? value : undefined;
+}
+
 function transformProductToFormData(
 	product: GetLoanProductsProductIdResponse,
 	detailedCharges: GetChargesResponse[],
-) {
+): Partial<CreateLoanProductFormData> {
 	const principal = product.principal ?? 10000;
 	const minPrincipal = product.minPrincipal ?? principal;
 	const maxPrincipal = product.maxPrincipal ?? principal;
@@ -127,6 +144,9 @@ function transformProductToFormData(
 		product.maxNumberOfRepayments ?? numberOfRepayments;
 	const repaymentEvery = product.repaymentEvery ?? 1;
 	const interestRatePerPeriod = product.interestRatePerPeriod ?? 10;
+	const overAppliedCalculationType = product.overAppliedCalculationType
+		?.toLowerCase()
+		.trim();
 
 	// Transform detailed charges into fees and penalties arrays
 	const fees = detailedCharges
@@ -200,24 +220,30 @@ function transformProductToFormData(
 			product.disallowExpectedDisbursements,
 		),
 		allowFullTermForTranche: Boolean(product.allowFullTermForTranche),
-		syncExpectedWithDisbursementDate: Boolean(
-			product.syncExpectedWithDisbursementDate,
+		syncExpectedWithDisbursementDate: readUnknownBooleanProperty(
+			product,
+			"syncExpectedWithDisbursementDate",
 		),
 		allowApprovedDisbursedAmountsOverApplied: Boolean(
 			product.allowApprovedDisbursedAmountsOverApplied,
 		),
-		overAppliedCalculationType:
-			product.overAppliedCalculationType?.toLowerCase() === "percentage"
-				? "percentage"
-				: product.overAppliedCalculationType?.toLowerCase() === "flat"
-					? "flat"
-					: undefined,
-		overAppliedNumber: product.overAppliedNumber,
+		overAppliedCalculationType: (overAppliedCalculationType === "percentage"
+			? "percentage"
+			: overAppliedCalculationType === "flat"
+				? "flat"
+				: undefined) as "flat" | "percentage" | undefined,
+		overAppliedNumber: readUnknownNumberProperty(product, "overAppliedNumber"),
 		repaymentEvery,
 		repaymentFrequencyType: product.repaymentFrequencyType?.id,
 		repaymentStartDateType: product.repaymentStartDateType?.id,
-		graceOnPrincipalPayment: product.graceOnPrincipalPayment,
-		graceOnInterestPayment: product.graceOnInterestPayment,
+		graceOnPrincipalPayment: readUnknownNumberProperty(
+			product,
+			"graceOnPrincipalPayment",
+		),
+		graceOnInterestPayment: readUnknownNumberProperty(
+			product,
+			"graceOnInterestPayment",
+		),
 		principalThresholdForLastInstallment:
 			product.principalThresholdForLastInstalment,
 		interestType: product.interestType?.id,
@@ -264,19 +290,26 @@ function transformProductToFormData(
 			product.interestRecalculationData?.recalculationRestFrequencyInterval,
 		transactionProcessingStrategyCode:
 			product.transactionProcessingStrategyCode,
-		graceOnArrearsAgeing: product.graceOnArrearsAgeing,
+		graceOnArrearsAgeing: readUnknownNumberProperty(
+			product,
+			"graceOnArrearsAgeing",
+		),
 		inArrearsTolerance: product.inArrearsTolerance,
 		overdueDaysForNPA: product.overdueDaysForNPA,
 		delinquencyBucketId: product.delinquencyBucket?.id,
 		accountMovesOutOfNPAOnlyOnArrearsCompletion: Boolean(
-			product.accountMovesOutOfNPAOnlyOnArrearsCompletion,
+			readUnknownBooleanProperty(
+				product,
+				"accountMovesOutOfNPAOnlyOnArrearsCompletion",
+			),
 		),
 		enableIncomeCapitalization: Boolean(product.enableIncomeCapitalization),
 		capitalizedIncomeType:
-			product.capitalizedIncomeType?.id === "FEE" ||
-			product.capitalizedIncomeType?.id === "INTEREST"
-				? product.capitalizedIncomeType.id
-				: undefined,
+			product.capitalizedIncomeType?.id === "FEE"
+				? "FEE"
+				: product.capitalizedIncomeType?.id === "INTEREST"
+					? "INTEREST"
+					: undefined,
 		capitalizedIncomeCalculationType:
 			product.capitalizedIncomeCalculationType?.id === "FLAT"
 				? "FLAT"
@@ -287,10 +320,11 @@ function transformProductToFormData(
 				: undefined,
 		enableBuyDownFee: Boolean(product.enableBuyDownFee),
 		buyDownFeeIncomeType:
-			product.buyDownFeeIncomeType?.id === "FEE" ||
-			product.buyDownFeeIncomeType?.id === "INTEREST"
-				? product.buyDownFeeIncomeType.id
-				: undefined,
+			product.buyDownFeeIncomeType?.id === "FEE"
+				? "FEE"
+				: product.buyDownFeeIncomeType?.id === "INTEREST"
+					? "INTEREST"
+					: undefined,
 		buyDownFeeCalculationType:
 			product.buyDownFeeCalculationType?.id === "FLAT" ? "FLAT" : undefined,
 		buyDownFeeStrategy:
@@ -299,11 +333,13 @@ function transformProductToFormData(
 				: undefined,
 		merchantBuyDownFee: Boolean(product.merchantBuyDownFee),
 		chargeOffBehaviour:
-			product.chargeOffBehaviour?.id === "REGULAR" ||
-			product.chargeOffBehaviour?.id === "ZERO_INTEREST" ||
-			product.chargeOffBehaviour?.id === "ACCELERATE_MATURITY"
-				? product.chargeOffBehaviour.id
-				: undefined,
+			product.chargeOffBehaviour?.id === "REGULAR"
+				? "REGULAR"
+				: product.chargeOffBehaviour?.id === "ZERO_INTEREST"
+					? "ZERO_INTEREST"
+					: product.chargeOffBehaviour?.id === "ACCELERATE_MATURITY"
+						? "ACCELERATE_MATURITY"
+						: undefined,
 		chargeOffReasonToExpenseMappings:
 			product.chargeOffReasonToExpenseAccountMappings
 				?.map((mapping) => ({

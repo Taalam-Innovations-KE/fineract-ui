@@ -237,7 +237,7 @@ export function buildLoanProductRequest(
 				}))
 			: undefined;
 
-	return {
+	const request: PostLoanProductsRequest = {
 		locale: "en",
 		name: data.name,
 		shortName: data.shortName,
@@ -259,7 +259,6 @@ export function buildLoanProductRequest(
 		maxTrancheCount: data.maxTrancheCount,
 		disallowExpectedDisbursements: data.disallowExpectedDisbursements,
 		allowFullTermForTranche: data.allowFullTermForTranche,
-		syncExpectedWithDisbursementDate: data.syncExpectedWithDisbursementDate,
 		allowApprovedDisbursedAmountsOverApplied:
 			data.allowApprovedDisbursedAmountsOverApplied,
 		overAppliedCalculationType: data.overAppliedCalculationType,
@@ -364,4 +363,14 @@ export function buildLoanProductRequest(
 		transfersInSuspenseAccountId: data.transfersInSuspenseAccountId,
 		charges: chargeIds.map((id) => ({ id })),
 	};
+
+	if (data.syncExpectedWithDisbursementDate !== undefined) {
+		(
+			request as PostLoanProductsRequest & {
+				syncExpectedWithDisbursementDate?: boolean;
+			}
+		).syncExpectedWithDisbursementDate = data.syncExpectedWithDisbursementDate;
+	}
+
+	return request;
 }

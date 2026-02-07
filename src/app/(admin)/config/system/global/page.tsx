@@ -29,7 +29,7 @@ async function fetchConfigurations(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch global configurations");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -50,7 +50,7 @@ async function updateConfiguration(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to update configuration");
+		throw (await response.json()) as unknown;
 	}
 }
 

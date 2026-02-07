@@ -13,6 +13,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,7 @@ async function fetchHolidays(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch holidays");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -73,7 +74,7 @@ async function fetchOffices(tenantId: string): Promise<GetOfficesResponse[]> {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch offices");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -93,7 +94,7 @@ async function createHoliday(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to create holiday");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -114,7 +115,7 @@ async function updateHoliday(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to update holiday");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -135,7 +136,7 @@ async function activateHoliday(
 	);
 
 	if (!response.ok) {
-		throw new Error("Failed to activate holiday");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -250,16 +251,22 @@ export default function HolidaysPage() {
 	}, [editingHoliday]);
 
 	const handleSubmit = () => {
+		const effectiveRepaymentRescheduleDate =
+			formData.repaymentsRescheduledTo || formData.toDate || formData.fromDate;
+
+		if (!effectiveRepaymentRescheduleDate) {
+			setToastMessage("Repayments rescheduled to date is required");
+			return;
+		}
+
 		const holidayData = {
 			name: formData.name,
 			fromDate: formatDateStringToFormat(formData.fromDate, "dd MMMM yyyy"),
 			toDate: formatDateStringToFormat(formData.toDate, "dd MMMM yyyy"),
-			repaymentsRescheduledTo: formData.repaymentsRescheduledTo
-				? formatDateStringToFormat(
-						formData.repaymentsRescheduledTo,
-						"dd MMMM yyyy",
-					)
-				: undefined,
+			repaymentsRescheduledTo: formatDateStringToFormat(
+				effectiveRepaymentRescheduleDate,
+				"dd MMMM yyyy",
+			),
 			description: formData.description,
 			offices: formData.offices.map((officeId) => ({ officeId })),
 			locale: "en",
@@ -365,24 +372,26 @@ export default function HolidaysPage() {
 					<div className="space-y-2">
 						<Label htmlFor="office-filter">Filter by Office</Label>
 						<Select
-							value={selectedOffice?.toString() || ""}
+							value={selectedOffice?.toString() || "all-offices"}
 							onValueChange={(value) =>
-								setSelectedOffice(value ? parseInt(value) : null)
+								setSelectedOffice(
+									value === "all-offices" ? null : parseInt(value),
+								)
 							}
 						>
 							<SelectTrigger className="w-64">
 								<SelectValue placeholder="All Offices" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="">All Offices</SelectItem>
-								{offices?.map((office) => (
-									<SelectItem
-										key={office.id}
-										value={office.id?.toString() || ""}
-									>
-										{office.name}
-									</SelectItem>
-								))}
+								<SelectItem value="all-offices">All Offices</SelectItem>
+								{offices?.map(
+									(office) =>
+										office.id !== undefined && (
+											<SelectItem key={office.id} value={office.id.toString()}>
+												{office.name}
+											</SelectItem>
+										),
+								)}
 							</SelectContent>
 						</Select>
 					</div>
@@ -476,6 +485,9 @@ export default function HolidaysPage() {
 									})
 								}
 							/>
+							<p className="text-xs text-muted-foreground">
+								Required by backend. If left empty, To Date will be used.
+							</p>
 						</div>
 
 						<div className="space-y-2">
@@ -493,35 +505,46 @@ export default function HolidaysPage() {
 						<div className="space-y-2">
 							<Label>Applicable Offices</Label>
 							<div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-								{offices?.map((office) => (
-									<div key={office.id} className="flex items-center space-x-2">
-										<input
-											type="checkbox"
-											id={`office-${office.id}`}
-											checked={formData.offices.includes(office.id || 0)}
-											onChange={(e) => {
-												const officeId = office.id || 0;
-												if (e.target.checked) {
-													setFormData({
-														...formData,
-														offices: [...formData.offices, officeId],
-													});
-												} else {
-													setFormData({
-														...formData,
-														offices: formData.offices.filter(
-															(id) => id !== officeId,
-														),
-													});
-												}
-											}}
-											className="rounded border-gray-300"
-										/>
-										<Label htmlFor={`office-${office.id}`} className="text-sm">
-											{office.name}
-										</Label>
-									</div>
-								))}
+								{offices?.map(
+									(office) =>
+										office.id !== undefined && (
+											<div
+												key={office.id}
+												className="flex items-center space-x-2"
+											>
+												<Checkbox
+													id={`office-${office.id}`}
+													checked={formData.offices.includes(office.id)}
+													onCheckedChange={(checked) => {
+														if (checked === true) {
+															if (formData.offices.includes(office.id)) {
+																return;
+															}
+
+															setFormData({
+																...formData,
+																offices: [...formData.offices, office.id],
+															});
+															return;
+														}
+
+														setFormData({
+															...formData,
+															offices: formData.offices.filter(
+																(id) => id !== office.id,
+															),
+														});
+													}}
+												/>
+												<Label
+													htmlFor={`office-${office.id}`}
+													className="text-sm"
+												>
+													{office.name}
+												</Label>
+											</div>
+										),
+								)}
 							</div>
 						</div>
 					</div>

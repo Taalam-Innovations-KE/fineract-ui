@@ -94,16 +94,32 @@ export async function fineractFetch<T = unknown>(
 
 	const response = await fetch(url, requestInit);
 
-	// Handle non-JSON responses (e.g., 204 No Content)
+	// Handle non-JSON and empty responses safely.
 	if (response.status === 204) {
 		return null as T;
 	}
 
-	const data = await response.json();
+	const rawBody = await response.text();
+	let data: unknown = null;
+	if (rawBody) {
+		try {
+			data = JSON.parse(rawBody);
+		} catch {
+			data = { message: rawBody };
+		}
+	}
 
 	if (!response.ok) {
+		if (data && typeof data === "object") {
+			throw {
+				...(data as Record<string, unknown>),
+				httpStatusCode: response.status,
+				statusText: response.statusText,
+			};
+		}
+
 		throw {
-			...data,
+			message: response.statusText || "Request failed",
 			httpStatusCode: response.status,
 			statusText: response.statusText,
 		};

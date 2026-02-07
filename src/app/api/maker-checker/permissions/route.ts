@@ -1,52 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+	fineractFetch,
+	getTenantFromRequest,
+} from "@/lib/fineract/client.server";
+import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
+import { mapFineractError } from "@/lib/fineract/error-mapping";
+import type {
+	GetPermissionsResponse,
+	PutPermissionsRequest,
+} from "@/lib/fineract/generated/types.gen";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
 	try {
-		const response = await fetch(
-			`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/fineract/permissions?makerCheckerable=true`,
+		const tenantId = getTenantFromRequest(request);
+		const permissions = await fineractFetch<GetPermissionsResponse[]>(
+			`${FINERACT_ENDPOINTS.permissions}?makerCheckerable=true`,
+			{
+				method: "GET",
+				tenantId,
+				useBasicAuth: true,
+			},
 		);
 
-		if (!response.ok) {
-			throw new Error("Failed to fetch permissions");
-		}
-
-		const permissions = await response.json();
-		return NextResponse.json(permissions);
-	} catch (error) {
-		console.error("Failed to get permissions:", error);
 		return NextResponse.json(
-			{ error: "Failed to get permissions" },
-			{ status: 500 },
+			permissions.map((permission, index) => ({
+				id: index + 1,
+				code: permission.code || "",
+				grouping: permission.grouping || "",
+				selected: permission.selected || false,
+			})),
 		);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }
 
 export async function PUT(request: NextRequest) {
 	try {
+		const tenantId = getTenantFromRequest(request);
 		const permissions = await request.json();
+		let body: PutPermissionsRequest;
 
-		const response = await fetch(
-			`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/fineract/permissions`,
-			{
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(permissions),
-			},
-		);
-
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.error || "Failed to update permissions");
+		if (Array.isArray(permissions)) {
+			body = {
+				permissions: Object.fromEntries(
+					permissions
+						.filter(
+							(
+								permission,
+							): permission is { code: string; selected: boolean } =>
+								typeof permission?.code === "string" &&
+								typeof permission?.selected === "boolean",
+						)
+						.map((permission) => [permission.code, permission.selected]),
+				),
+			};
+		} else {
+			body = permissions as PutPermissionsRequest;
 		}
+
+		await fineractFetch(FINERACT_ENDPOINTS.permissions, {
+			method: "PUT",
+			tenantId,
+			body,
+			useBasicAuth: true,
+		});
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Failed to update permissions:", error);
-		return NextResponse.json(
-			{ error: "Failed to update permissions" },
-			{ status: 500 },
-		);
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }

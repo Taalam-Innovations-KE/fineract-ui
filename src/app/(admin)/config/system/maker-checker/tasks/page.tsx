@@ -14,18 +14,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import type { Permission } from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
+import { useTenantStore } from "@/store/tenant";
 
 export default function TasksPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [bulkSaving, setBulkSaving] = useState(false);
+	const { tenantId } = useTenantStore();
 	const { permissions, setPermissions, updatePermission } =
 		useMakerCheckerStore();
 
 	useEffect(() => {
 		async function loadPermissions() {
 			try {
-				const response = await fetch("/api/maker-checker/permissions");
+				const response = await fetch("/api/maker-checker/permissions", {
+					headers: {
+						"x-tenant-id": tenantId,
+					},
+				});
 				const perms = await response.json();
 				setPermissions(Array.isArray(perms) ? perms : []);
 			} catch (error) {
@@ -35,7 +41,7 @@ export default function TasksPage() {
 			}
 		}
 		loadPermissions();
-	}, [setPermissions]);
+	}, [setPermissions, tenantId]);
 
 	const handleToggle = (code: string, selected: boolean) => {
 		updatePermission(code, selected);
@@ -52,7 +58,10 @@ export default function TasksPage() {
 			const updates = codes.map((code) => ({ code, selected: true }));
 			const response = await fetch("/api/maker-checker/permissions", {
 				method: "PUT",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					"x-tenant-id": tenantId,
+				},
 				body: JSON.stringify(updates),
 			});
 
@@ -72,7 +81,10 @@ export default function TasksPage() {
 			const updates = codes.map((code) => ({ code, selected: false }));
 			const response = await fetch("/api/maker-checker/permissions", {
 				method: "PUT",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					"x-tenant-id": tenantId,
+				},
 				body: JSON.stringify(updates),
 			});
 
@@ -95,7 +107,10 @@ export default function TasksPage() {
 			}));
 			const response = await fetch("/api/maker-checker/permissions", {
 				method: "PUT",
-				headers: { "Content-Type": "application/json" },
+				headers: {
+					"Content-Type": "application/json",
+					"x-tenant-id": tenantId,
+				},
 				body: JSON.stringify(updates),
 			});
 

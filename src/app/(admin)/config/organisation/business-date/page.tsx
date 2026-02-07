@@ -35,7 +35,7 @@ async function fetchBusinessDates(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch business dates");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -55,7 +55,7 @@ async function updateBusinessDate(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to update business date");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();

@@ -6,7 +6,6 @@ import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -33,7 +32,7 @@ async function fetchWorkingDays(tenantId: string): Promise<WorkingDaysData> {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch working days");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -49,7 +48,7 @@ async function fetchWorkingDaysTemplate(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch working days template");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -59,29 +58,55 @@ async function updateWorkingDays(
 	tenantId: string,
 	updates: PutWorkingDaysRequest,
 ): Promise<void> {
+	const payload = {
+		recurrence: updates.recurrence,
+		extendTermForDailyRepayments: updates.extendTermForDailyRepayments,
+		repaymentRescheduleType: updates.repaymentRescheduleType?.id,
+		locale: "en",
+	};
+
 	const response = await fetch(BFF_ROUTES.workingDays, {
 		method: "PUT",
 		headers: {
 			"x-tenant-id": tenantId,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify(updates),
+		body: JSON.stringify(payload),
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to update working days");
+		throw (await response.json()) as unknown;
 	}
 }
 
 const DAYS_OF_WEEK = [
-	{ value: "MONDAY", label: "Monday" },
-	{ value: "TUESDAY", label: "Tuesday" },
-	{ value: "WEDNESDAY", label: "Wednesday" },
-	{ value: "THURSDAY", label: "Thursday" },
-	{ value: "FRIDAY", label: "Friday" },
-	{ value: "SATURDAY", label: "Saturday" },
-	{ value: "SUNDAY", label: "Sunday" },
+	{ value: "MO", label: "Monday" },
+	{ value: "TU", label: "Tuesday" },
+	{ value: "WE", label: "Wednesday" },
+	{ value: "TH", label: "Thursday" },
+	{ value: "FR", label: "Friday" },
+	{ value: "SA", label: "Saturday" },
+	{ value: "SU", label: "Sunday" },
 ];
+
+function parseRecurrenceDays(recurrence?: string): string[] {
+	if (!recurrence) return [];
+
+	const byDayPart = recurrence
+		.split(";")
+		.find((part) => part.startsWith("BYDAY="));
+	if (!byDayPart) return [];
+
+	return byDayPart.replace("BYDAY=", "").split(",").filter(Boolean);
+}
+
+function buildRecurrence(days: string[]): string {
+	const orderedDays = DAYS_OF_WEEK.map((day) => day.value).filter((day) =>
+		days.includes(day),
+	);
+
+	return `FREQ=WEEKLY;INTERVAL=1;BYDAY=${orderedDays.join(",")}`;
+}
 
 export default function WorkingDaysPage() {
 	const { tenantId } = useTenantStore();
@@ -146,6 +171,8 @@ export default function WorkingDaysPage() {
 		updateMutation.mutate(localConfig as PutWorkingDaysRequest);
 	};
 
+	const selectedDays = parseRecurrenceDays(localConfig.recurrence);
+
 	const hasChanges =
 		localConfig.recurrence !== workingDays?.recurrence ||
 		localConfig.extendTermForDailyRepayments !==
@@ -196,23 +223,24 @@ export default function WorkingDaysPage() {
 								<div key={day.value} className="flex items-center space-x-2">
 									<Checkbox
 										id={day.value}
-										checked={
-											localConfig.recurrence?.includes(day.value) || false
-										}
+										checked={selectedDays.includes(day.value)}
 										onCheckedChange={(checked: boolean) => {
-											const current = localConfig.recurrence || "";
-											const days = current.split(",").filter((d) => d.trim());
-											let newDays: string[];
+											const currentDays = parseRecurrenceDays(
+												localConfig.recurrence,
+											);
+											let nextDays: string[];
 
 											if (checked) {
-												newDays = [...days, day.value];
+												nextDays = Array.from(
+													new Set([...currentDays, day.value]),
+												);
 											} else {
-												newDays = days.filter((d) => d !== day.value);
+												nextDays = currentDays.filter((d) => d !== day.value);
 											}
 
 											setLocalConfig({
 												...localConfig,
-												recurrence: newDays.join(","),
+												recurrence: buildRecurrence(nextDays),
 											});
 										}}
 									/>

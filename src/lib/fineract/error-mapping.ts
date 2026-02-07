@@ -23,9 +23,11 @@ interface FineractApiError {
 	userMessageGlobalisationCode?: string;
 	userMessage?: string;
 	defaultUserMessage?: string;
+	developerMessage?: string;
 	httpStatusCode?: number;
 	code?: string;
 	message?: string;
+	statusText?: string;
 	statusCode?: number;
 	status?: number;
 }
@@ -132,11 +134,23 @@ export function mapFineractError(error: unknown): FineractError {
 		}
 
 		// Generic error with message
-		if (err.message) {
+		if (
+			err.message ||
+			err.defaultUserMessage ||
+			err.userMessage ||
+			err.developerMessage ||
+			err.statusText
+		) {
 			return {
 				code: err.code || "UNKNOWN_ERROR",
-				message: err.message,
-				statusCode: err.statusCode || err.status || 500,
+				message:
+					err.message ||
+					err.defaultUserMessage ||
+					err.userMessage ||
+					err.developerMessage ||
+					err.statusText ||
+					"An unexpected error occurred",
+				statusCode: err.statusCode || err.status || err.httpStatusCode || 500,
 			};
 		}
 	}

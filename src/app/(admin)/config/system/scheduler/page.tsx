@@ -29,7 +29,7 @@ async function fetchJobs(tenantId: string): Promise<GetJobsResponse[]> {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch jobs");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();
@@ -47,7 +47,7 @@ async function runJob(tenantId: string, jobId: number): Promise<unknown> {
 	);
 
 	if (!response.ok) {
-		throw new Error("Failed to run job");
+		throw (await response.json()) as unknown;
 	}
 
 	return response.json();

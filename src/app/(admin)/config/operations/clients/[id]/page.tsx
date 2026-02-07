@@ -6,6 +6,7 @@ import {
 	Banknote,
 	Building2,
 	CreditCard,
+	FilePenLine,
 	Fingerprint,
 	History,
 	Users,
@@ -34,9 +35,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
+	AddressData,
+	ClientDataWritable,
 	GetClientsClientIdAccountsResponse,
 	GetClientsClientIdIdentifiersResponse,
-	GetClientsClientIdResponse,
 	GetClientsClientIdTransactionsResponse,
 	GetClientsLoanAccounts,
 	GetClientsPageItems,
@@ -50,6 +52,61 @@ type ClientStatusChip = {
 	label: string;
 	variant: BadgeProps["variant"];
 };
+
+function titleCaseWords(value: string): string {
+	return value
+		.split(" ")
+		.filter(Boolean)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.join(" ");
+}
+
+function formatCodeLabel(value?: string | null): string {
+	if (!value) {
+		return "N/A";
+	}
+
+	const withoutPrefix = value.includes(".")
+		? value.split(".").pop() || value
+		: value;
+	const normalized = withoutPrefix.replaceAll("_", " ");
+	return titleCaseWords(normalized);
+}
+
+function readEnumLabel(input?: { value?: string; code?: string }): string {
+	if (!input) {
+		return "N/A";
+	}
+
+	if (input.value) {
+		return input.value;
+	}
+
+	return formatCodeLabel(input.code);
+}
+
+function readCodeValueLabel(input?: {
+	name?: string;
+	description?: string;
+}): string {
+	if (!input) {
+		return "N/A";
+	}
+
+	return input.name || input.description || "N/A";
+}
+
+function formatExternalId(value?: string | { value?: string } | null): string {
+	if (!value) {
+		return "N/A";
+	}
+
+	if (typeof value === "string") {
+		return value;
+	}
+
+	return value.value || "N/A";
+}
 
 function formatText(value?: string | number | null): string {
 	if (value === null || value === undefined || value === "") {
@@ -76,12 +133,13 @@ function formatDate(value?: string): string {
 	});
 }
 
-function getClientStatusChip(
-	client: GetClientsClientIdResponse,
-): ClientStatusChip {
+function getClientStatusChip(client: ClientDataWritable): ClientStatusChip {
 	const normalized = (client.status?.code || "").toLowerCase();
-	const statusText =
-		client.status?.description || (client.active ? "Active" : "Pending");
+	const statusText = client.status
+		? readEnumLabel(client.status)
+		: client.active
+			? "Active"
+			: "Pending";
 
 	if (client.active || normalized.includes("active")) {
 		return { label: statusText, variant: "success" };
@@ -99,13 +157,28 @@ function getClientStatusChip(
 async function fetchClient(
 	tenantId: string,
 	id: string,
-): Promise<GetClientsClientIdResponse> {
-	const response = await fetch(`${BFF_ROUTES.clients}/${id}`, {
+): Promise<ClientDataWritable> {
+	const response = await fetch(`${BFF_ROUTES.clients}/${id}?template=true`, {
 		headers: { "x-tenant-id": tenantId },
 	});
 
 	if (!response.ok) {
 		throw new Error("Failed to fetch client details");
+	}
+
+	return response.json();
+}
+
+async function fetchClientAddresses(
+	tenantId: string,
+	id: string,
+): Promise<AddressData[]> {
+	const response = await fetch(BFF_ROUTES.clientAddresses(id), {
+		headers: { "x-tenant-id": tenantId },
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch client addresses");
 	}
 
 	return response.json();
@@ -259,6 +332,11 @@ export default function ClientDetailPage({
 		queryFn: () => fetchClientIdentifiers(tenantId, id),
 		enabled: Boolean(tenantId && id),
 	});
+	const addressesQuery = useQuery({
+		queryKey: ["client-addresses", tenantId, id],
+		queryFn: () => fetchClientAddresses(tenantId, id),
+		enabled: Boolean(tenantId && id),
+	});
 
 	const transactionsQuery = useQuery({
 		queryKey: ["client-transactions", tenantId, id],
@@ -267,12 +345,20 @@ export default function ClientDetailPage({
 	});
 
 	const headerActions = (
-		<Button variant="outline" asChild>
-			<Link href="/config/operations/clients">
-				<ArrowLeft className="h-4 w-4 mr-2" />
-				Back to Clients
-			</Link>
-		</Button>
+		<div className="flex items-center gap-2">
+			<Button variant="outline" asChild>
+				<Link href={`/config/operations/clients?editClientId=${id}`}>
+					<FilePenLine className="h-4 w-4 mr-2" />
+					Edit Client
+				</Link>
+			</Button>
+			<Button variant="outline" asChild>
+				<Link href="/config/operations/clients">
+					<ArrowLeft className="h-4 w-4 mr-2" />
+					Back to Clients
+				</Link>
+			</Button>
+		</div>
 	);
 
 	if (clientQuery.isLoading) {
@@ -309,13 +395,35 @@ export default function ClientDetailPage({
 	const loanAccounts = accountsQuery.data?.loanAccounts || [];
 	const savingsAccounts = accountsQuery.data?.savingsAccounts || [];
 	const identifiers = identifiersQuery.data || [];
+	const addresses = addressesQuery.data || client.address || [];
+	const primaryAddress =
+		addresses.find((address) => address.isActive !== false) || addresses[0];
 	const transactions = transactionsQuery.data?.pageItems || [];
 	const groups = client.groups || [];
 	const linkedAccountsCount = loanAccounts.length + savingsAccounts.length;
 	const hasPartialDataError =
 		accountsQuery.isError ||
 		identifiersQuery.isError ||
+		addressesQuery.isError ||
 		transactionsQuery.isError;
+	const clientNonPersonDetails = (client.clientNonPersonDetails ||
+		{}) as Record<string, unknown>;
+	const clientKindLabel =
+		client.fullname && !client.firstname && !client.lastname
+			? "Business"
+			: "Individual";
+	const mainBusinessLineName = formatText(
+		(
+			clientNonPersonDetails.mainBusinessLine as
+				| { name?: string; description?: string }
+				| undefined
+		)?.name ||
+			(
+				clientNonPersonDetails.mainBusinessLine as
+					| { name?: string; description?: string }
+					| undefined
+			)?.description,
+	);
 
 	const loanColumns = [
 		{
@@ -335,7 +443,9 @@ export default function ClientDetailPage({
 			header: "Status",
 			cell: (row: GetClientsLoanAccounts) => (
 				<Badge variant={row.status?.active ? "success" : "secondary"}>
-					{formatText(row.status?.description || row.status?.code)}
+					{formatText(
+						row.status?.description || formatCodeLabel(row.status?.code),
+					)}
 				</Badge>
 			),
 		},
@@ -359,7 +469,9 @@ export default function ClientDetailPage({
 			header: "Status",
 			cell: (row: GetClientsSavingsAccounts) => (
 				<Badge variant={row.status?.active ? "success" : "secondary"}>
-					{formatText(row.status?.code)}
+					{formatText(
+						row.status?.description || formatCodeLabel(row.status?.code),
+					)}
 				</Badge>
 			),
 		},
@@ -392,7 +504,7 @@ export default function ClientDetailPage({
 		{
 			header: "Type",
 			cell: (row: GetClientsPageItems) =>
-				formatText(row.type?.description || row.type?.code),
+				formatText(row.type?.description || formatCodeLabel(row.type?.code)),
 		},
 		{
 			header: "Amount",
@@ -425,7 +537,13 @@ export default function ClientDetailPage({
 		<PageShell
 			title={
 				<div className="flex items-center gap-2">
-					<span>{formatText(client.displayName)}</span>
+					<span>
+						{formatText(
+							client.displayName ||
+								client.fullname ||
+								`${client.firstname || ""} ${client.lastname || ""}`.trim(),
+						)}
+					</span>
 					<Badge variant={statusChip.variant}>{statusChip.label}</Badge>
 				</div>
 			}
@@ -506,7 +624,12 @@ export default function ClientDetailPage({
 							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 								<Card>
 									<CardHeader className="pb-3">
-										<CardTitle className="text-base">Profile Details</CardTitle>
+										<CardTitle className="text-base">
+											Profile & Contact
+										</CardTitle>
+										<CardDescription>
+											Core onboarding identity and communication details
+										</CardDescription>
 									</CardHeader>
 									<CardContent className="divide-y">
 										<InfoRow
@@ -519,15 +642,23 @@ export default function ClientDetailPage({
 										/>
 										<InfoRow
 											label="External ID"
-											value={formatText(client.externalId)}
+											value={formatExternalId(client.externalId)}
 										/>
 										<InfoRow
-											label="Email"
+											label="Mobile Number"
+											value={formatText(client.mobileNo)}
+										/>
+										<InfoRow
+											label="Email Address"
 											value={formatText(client.emailAddress)}
 										/>
 										<InfoRow
 											label="Office"
 											value={formatText(client.officeName)}
+										/>
+										<InfoRow
+											label="Assigned Staff"
+											value={formatText(client.staffName)}
 										/>
 										<InfoRow
 											label="Default Savings Product"
@@ -539,33 +670,145 @@ export default function ClientDetailPage({
 								<Card>
 									<CardHeader className="pb-3">
 										<CardTitle className="text-base">
-											Personal Details
+											Onboarding Details
 										</CardTitle>
 										<CardDescription>
-											Identity attributes captured during onboarding
+											Client structure and status captured from template fields
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="divide-y">
+										<InfoRow label="Client Kind" value={clientKindLabel} />
 										<InfoRow
 											label="First Name"
 											value={formatText(client.firstname)}
+										/>
+										<InfoRow
+											label="Middle Name"
+											value={formatText(client.middlename)}
 										/>
 										<InfoRow
 											label="Last Name"
 											value={formatText(client.lastname)}
 										/>
 										<InfoRow
+											label="Business Name"
+											value={formatText(client.fullname)}
+										/>
+										<InfoRow
+											label="Date of Birth"
+											value={formatDate(client.dateOfBirth)}
+										/>
+										<InfoRow
+											label="Gender"
+											value={readCodeValueLabel(client.gender)}
+										/>
+										<InfoRow
+											label="Legal Form"
+											value={readEnumLabel(client.legalForm)}
+										/>
+										<InfoRow
+											label="Client Type"
+											value={readCodeValueLabel(client.clientType)}
+										/>
+										<InfoRow
+											label="Client Classification"
+											value={readCodeValueLabel(client.clientClassification)}
+										/>
+										<InfoRow
+											label="Main Business Line"
+											value={mainBusinessLineName}
+										/>
+										<InfoRow
 											label="Activation Date"
 											value={formatDate(client.activationDate)}
 										/>
+										<InfoRow label="Status" value={statusChip.label} />
 										<InfoRow
 											label="Status Code"
-											value={formatText(client.status?.code)}
+											value={formatCodeLabel(client.status?.code)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="text-base">Address</CardTitle>
+										<CardDescription>
+											Primary client address from address records
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="divide-y">
+										<InfoRow
+											label="Address Line 1"
+											value={formatText(primaryAddress?.addressLine1)}
 										/>
 										<InfoRow
-											label="Status Description"
-											value={formatText(client.status?.description)}
+											label="Address Line 2"
+											value={formatText(primaryAddress?.addressLine2)}
 										/>
+										<InfoRow
+											label="Address Line 3"
+											value={formatText(primaryAddress?.addressLine3)}
+										/>
+										<InfoRow
+											label="City / Town"
+											value={formatText(
+												primaryAddress?.city || primaryAddress?.townVillage,
+											)}
+										/>
+										<InfoRow
+											label="District / County"
+											value={formatText(primaryAddress?.countyDistrict)}
+										/>
+										<InfoRow
+											label="State / Province"
+											value={formatText(primaryAddress?.stateName)}
+										/>
+										<InfoRow
+											label="Country"
+											value={formatText(
+												primaryAddress?.countryName ||
+													primaryAddress?.countryId,
+											)}
+										/>
+										<InfoRow
+											label="Postal Code"
+											value={formatText(primaryAddress?.postalCode)}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader className="pb-3">
+										<CardTitle className="text-base">
+											KYC & Identifiers
+										</CardTitle>
+										<CardDescription>
+											Documents captured during onboarding and updates
+										</CardDescription>
+									</CardHeader>
+									<CardContent>
+										{identifiers.length === 0 ? (
+											<p className="text-sm text-muted-foreground">
+												No client identifiers found.
+											</p>
+										) : (
+											<div className="space-y-3">
+												{identifiers.map((identifier) => (
+													<div
+														key={identifier.id || identifier.documentKey}
+														className="flex items-start justify-between gap-3 border-b pb-2 last:border-b-0"
+													>
+														<span className="text-sm text-muted-foreground">
+															{formatText(identifier.documentType?.name)}
+														</span>
+														<span className="text-sm font-medium text-right">
+															{formatText(identifier.documentKey)}
+														</span>
+													</div>
+												))}
+											</div>
+										)}
 									</CardContent>
 								</Card>
 

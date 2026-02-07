@@ -87,8 +87,14 @@ export const BFF_ROUTES = {
 	clientsTemplate: "/api/fineract/clients/template",
 	clientAccounts: (clientId: number | string) =>
 		`/api/fineract/clients/${clientId}/accounts`,
+	clientAddresses: (clientId: number | string) =>
+		`/api/fineract/clients/${clientId}/addresses`,
 	clientIdentifiers: (clientId: number | string) =>
 		`/api/fineract/clients/${clientId}/identifiers`,
+	clientIdentifierById: (
+		clientId: number | string,
+		identifierId: number | string,
+	) => `/api/fineract/clients/${clientId}/identifiers/${identifierId}`,
 	clientTransactions: (clientId: number | string) =>
 		`/api/fineract/clients/${clientId}/transactions`,
 

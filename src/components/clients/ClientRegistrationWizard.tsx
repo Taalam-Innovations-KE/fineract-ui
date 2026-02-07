@@ -32,6 +32,9 @@ interface ClientRegistrationWizardProps {
 	isSubmitting?: boolean;
 	submissionError?: string | null;
 	submissionErrorDetails?: string[];
+	submissionErrorTitle?: string;
+	submitLabel?: string;
+	submittingLabel?: string;
 	onValidateStep: (step: number) => Promise<boolean> | boolean;
 	onSubmit: () => Promise<number | null> | number | null;
 	onCancel: () => void;
@@ -64,6 +67,9 @@ export function ClientRegistrationWizard({
 	isSubmitting = false,
 	submissionError,
 	submissionErrorDetails = [],
+	submissionErrorTitle = "Failed to create client",
+	submitLabel = "Submit Client",
+	submittingLabel = "Submitting...",
 	onValidateStep,
 	onSubmit,
 	onCancel,
@@ -191,7 +197,7 @@ export function ClientRegistrationWizard({
 
 			{submissionError && (
 				<Alert variant="destructive">
-					<AlertTitle>Failed to create client</AlertTitle>
+					<AlertTitle>{submissionErrorTitle}</AlertTitle>
 					<AlertDescription className="space-y-1">
 						<p>{submissionError}</p>
 						{submissionErrorDetails.map((detail) => (
@@ -224,7 +230,7 @@ export function ClientRegistrationWizard({
 							disabled={isSubmitting}
 							onClick={handleFinalSubmit}
 						>
-							{isSubmitting ? "Submitting..." : "Submit Client"}
+							{isSubmitting ? submittingLabel : submitLabel}
 						</Button>
 					)}
 				</div>

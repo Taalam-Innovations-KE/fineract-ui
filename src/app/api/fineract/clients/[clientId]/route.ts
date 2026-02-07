@@ -5,7 +5,10 @@ import {
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
-import type { GetClientsClientIdResponse } from "@/lib/fineract/generated/types.gen";
+import type {
+	ClientDataWritable,
+	PutClientsClientIdResponse,
+} from "@/lib/fineract/generated/types.gen";
 
 /**
  * GET /api/fineract/clients/[clientId]
@@ -18,16 +21,48 @@ export async function GET(
 	try {
 		const tenantId = getTenantFromRequest(request);
 		const { clientId } = await params;
+		const queryString = request.nextUrl.searchParams.toString();
+		const path = queryString
+			? `${FINERACT_ENDPOINTS.clients}/${clientId}?${queryString}`
+			: `${FINERACT_ENDPOINTS.clients}/${clientId}`;
 
-		const client = await fineractFetch<GetClientsClientIdResponse>(
+		const client = await fineractFetch<ClientDataWritable>(path, {
+			method: "GET",
+			tenantId,
+		});
+
+		return NextResponse.json(client);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+/**
+ * PUT /api/fineract/clients/[clientId]
+ * Updates editable client attributes
+ */
+export async function PUT(
+	request: NextRequest,
+	{ params }: { params: Promise<{ clientId: string }> },
+) {
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const { clientId } = await params;
+		const body = (await request.json()) as Record<string, unknown>;
+
+		const result = await fineractFetch<PutClientsClientIdResponse>(
 			`${FINERACT_ENDPOINTS.clients}/${clientId}`,
 			{
-				method: "GET",
+				method: "PUT",
+				body,
 				tenantId,
 			},
 		);
 
-		return NextResponse.json(client);
+		return NextResponse.json(result);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format as formatDate, parse as parseDate } from "date-fns";
 import { Plus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { ClientRegistrationWizard } from "@/components/clients/ClientRegistrationWizard";
@@ -42,13 +44,18 @@ import {
 	fetchClients,
 	fetchClientTemplate,
 } from "@/lib/fineract/client";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
+	AddressData,
 	ClientAddressRequest,
+	ClientDataWritable,
+	GetClientsClientIdIdentifiersResponse,
 	GetClientsPageItemsResponse,
 	GetCodeValuesDataResponse,
 	OfficeData,
 	PostClientsRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { ClientFormData } from "@/lib/schemas/client";
 import { useTenantStore } from "@/store/tenant";
 
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
@@ -76,42 +83,9 @@ type LookupOption = GetCodeValuesDataResponse & {
 	isDefault?: boolean;
 	value?: string;
 };
-type ClientKind = "individual" | "business";
 
 type ClientNonPersonDetails = {
 	mainBusinessLineId?: number;
-};
-
-type ClientFormData = {
-	clientKind: ClientKind;
-	firstname: string;
-	middlename?: string;
-	lastname: string;
-	fullname: string;
-	officeId?: number;
-	genderId?: number;
-	clientTypeId?: number;
-	clientClassificationId?: number;
-	legalFormId?: number;
-	businessTypeId?: number;
-	mobileNo?: string;
-	emailAddress?: string;
-	externalId?: string;
-	active?: boolean;
-	activationDate?: string;
-	dateOfBirth?: string;
-	addressLine1?: string;
-	city?: string;
-	countryId?: number;
-	nationalId?: string;
-	passportNo?: string;
-	taxId?: string;
-	businessLicenseNo?: string;
-	registrationNo?: string;
-	groupId?: number;
-	savingsProductId?: number;
-	staffId?: number;
-	datatables?: Array<Record<string, unknown>>;
 };
 
 type ClientCreatePayload = PostClientsRequest & {
@@ -133,6 +107,14 @@ type IdentifierInput = {
 type ClientSubmission = {
 	payload: ClientCreatePayload;
 	identifiers: IdentifierInput[];
+};
+
+type UpdateClientSubmission = ClientSubmission & {
+	clientId: number;
+	address?: ClientAddressRequest;
+	existingIdentifiers: GetClientsClientIdIdentifiersResponse[];
+	existingAddresses: AddressData[];
+	addressTypeId?: number;
 };
 
 type ClientValidationStep = 1 | 2 | 3 | 4;
@@ -219,6 +201,213 @@ function flattenErrorDetails(details?: Record<string, string[]>) {
 		.filter(Boolean);
 }
 
+function toInputDate(value?: string): string {
+	if (!value) {
+		return "";
+	}
+
+	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+
+	try {
+		const parsed = parseDate(value, "dd MMMM yyyy", new Date());
+		if (Number.isNaN(parsed.getTime())) {
+			return "";
+		}
+		return formatDate(parsed, "yyyy-MM-dd");
+	} catch {
+		return "";
+	}
+}
+
+function includesMatch(value: string | undefined, matches: string[]) {
+	const normalized = (value || "").toLowerCase();
+	return matches.some((match) => normalized.includes(match.toLowerCase()));
+}
+
+function findIdentifierValueByMatches(
+	identifiers: GetClientsClientIdIdentifiersResponse[],
+	matches: string[],
+) {
+	const found = identifiers.find((identifier) => {
+		return (
+			includesMatch(identifier.documentType?.name, matches) ||
+			includesMatch(identifier.description, matches)
+		);
+	});
+
+	return found?.documentKey || "";
+}
+
+function getClientKindFromDetail(
+	client: ClientDataWritable,
+): "individual" | "business" {
+	const legalFormText = (
+		client.legalForm?.value ||
+		client.legalForm?.code ||
+		""
+	).toLowerCase();
+
+	if (legalFormText.includes("entity") || legalFormText.includes("business")) {
+		return "business";
+	}
+
+	if (client.fullname && !client.firstname && !client.lastname) {
+		return "business";
+	}
+
+	return "individual";
+}
+
+async function fetchClientById(tenantId: string, clientId: number) {
+	const response = await fetch(
+		`${BFF_ROUTES.clients}/${clientId}?template=true`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch client details");
+	}
+
+	return response.json() as Promise<ClientDataWritable>;
+}
+
+async function fetchClientIdentifiers(
+	tenantId: string,
+	clientId: number,
+): Promise<GetClientsClientIdIdentifiersResponse[]> {
+	const response = await fetch(BFF_ROUTES.clientIdentifiers(clientId), {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch client identifiers");
+	}
+
+	return response.json();
+}
+
+async function fetchClientAddresses(tenantId: string, clientId: number) {
+	const response = await fetch(BFF_ROUTES.clientAddresses(clientId), {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch client addresses");
+	}
+
+	return response.json() as Promise<AddressData[]>;
+}
+
+async function updateClient(
+	tenantId: string,
+	clientId: number,
+	payload: Record<string, unknown>,
+) {
+	const response = await fetch(`${BFF_ROUTES.clients}/${clientId}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	const data = await response.json();
+	if (!response.ok) {
+		const error = new Error(
+			data.message || "Failed to update client",
+		) as FineractRequestError;
+		error.code = data.code;
+		error.details = data.details;
+		error.statusCode = data.statusCode;
+		throw error;
+	}
+
+	return data;
+}
+
+async function createClientAddress(
+	tenantId: string,
+	clientId: number,
+	payload: ClientAddressRequest,
+) {
+	const response = await fetch(BFF_ROUTES.clientAddresses(clientId), {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		throw (await response.json()) as unknown;
+	}
+
+	return response.json();
+}
+
+async function updateClientAddress(
+	tenantId: string,
+	clientId: number,
+	payload: ClientAddressRequest,
+) {
+	const response = await fetch(BFF_ROUTES.clientAddresses(clientId), {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		throw (await response.json()) as unknown;
+	}
+
+	return response.json();
+}
+
+async function updateClientIdentifier(
+	tenantId: string,
+	clientId: number,
+	identifierId: number,
+	payload: {
+		documentTypeId: number;
+		documentKey: string;
+		status?: string;
+		description?: string;
+	},
+) {
+	const response = await fetch(
+		BFF_ROUTES.clientIdentifierById(clientId, identifierId),
+		{
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(payload),
+		},
+	);
+
+	if (!response.ok) {
+		throw (await response.json()) as unknown;
+	}
+
+	return response.json();
+}
+
 function ClientTableSkeleton() {
 	return (
 		<div className="space-y-2">
@@ -269,9 +458,49 @@ function ClientTableSkeleton() {
 
 export default function ClientsPage() {
 	const { tenantId } = useTenantStore();
+	const router = useRouter();
+	const searchParams = useSearchParams();
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
+	const editClientIdParam = searchParams.get("editClientId");
+	const editClientId = editClientIdParam ? Number(editClientIdParam) : null;
+	const isEditMode = editClientId !== null && !Number.isNaN(editClientId);
+
+	const clearEditClientQueryParam = () => {
+		if (!isEditMode) {
+			return;
+		}
+
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("editClientId");
+		const query = params.toString();
+		router.replace(
+			query
+				? `/config/operations/clients?${query}`
+				: "/config/operations/clients",
+			{ scroll: false },
+		);
+	};
+
+	const closeDrawer = () => {
+		setIsDrawerOpen(false);
+		clearEditClientQueryParam();
+	};
+
+	const openCreateDrawer = () => {
+		clearEditClientQueryParam();
+		setIsDrawerOpen(true);
+	};
+
+	const handleDrawerOpenChange = (open: boolean) => {
+		if (open) {
+			setIsDrawerOpen(true);
+			return;
+		}
+
+		closeDrawer();
+	};
 
 	const clientsQuery = useQuery({
 		queryKey: ["clients", tenantId],
@@ -284,6 +513,27 @@ export default function ClientsPage() {
 		enabled: isDrawerOpen,
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
+	});
+
+	const editClientQuery = useQuery({
+		queryKey: ["client-edit", tenantId, editClientId],
+		queryFn: () => fetchClientById(tenantId, editClientId as number),
+		enabled: isDrawerOpen && isEditMode,
+		staleTime: DEFAULT_STALE_TIME,
+	});
+
+	const editIdentifiersQuery = useQuery({
+		queryKey: ["client-edit-identifiers", tenantId, editClientId],
+		queryFn: () => fetchClientIdentifiers(tenantId, editClientId as number),
+		enabled: isDrawerOpen && isEditMode,
+		staleTime: DEFAULT_STALE_TIME,
+	});
+
+	const editAddressesQuery = useQuery({
+		queryKey: ["client-edit-addresses", tenantId, editClientId],
+		queryFn: () => fetchClientAddresses(tenantId, editClientId as number),
+		enabled: isDrawerOpen && isEditMode,
+		staleTime: DEFAULT_STALE_TIME,
 	});
 
 	const createMutation = useMutation({
@@ -332,11 +582,101 @@ export default function ClientsPage() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-			setIsDrawerOpen(false);
+			closeDrawer();
 			setToastMessage("Client created successfully");
 		},
 	});
+	const updateMutation = useMutation({
+		mutationFn: async ({
+			clientId,
+			payload,
+			identifiers,
+			address,
+			existingIdentifiers,
+			existingAddresses,
+			addressTypeId,
+		}: UpdateClientSubmission) => {
+			await updateClient(
+				tenantId,
+				clientId,
+				payload as Record<string, unknown>,
+			);
+
+			if (address) {
+				const existingAddress = existingAddresses[0];
+				if (existingAddress?.addressId) {
+					await updateClientAddress(tenantId, clientId, {
+						addressId: existingAddress.addressId,
+						addressTypeId:
+							existingAddress.addressTypeId || address.addressTypeId,
+						addressLine1: address.addressLine1,
+						city: address.city,
+						countryId: address.countryId,
+						isActive: true,
+					});
+				} else {
+					await createClientAddress(tenantId, clientId, {
+						addressTypeId: address.addressTypeId || addressTypeId,
+						addressLine1: address.addressLine1,
+						city: address.city,
+						countryId: address.countryId,
+						isActive: true,
+					});
+				}
+			}
+
+			const identifierTemplate = await fetchClientIdentifierTemplate(
+				tenantId,
+				clientId,
+			);
+			const allowedDocumentTypes = (identifierTemplate.allowedDocumentTypes ||
+				[]) as LookupOption[];
+
+			for (const identifier of identifiers) {
+				const documentTypeId = resolveDocumentTypeId(
+					allowedDocumentTypes,
+					identifier.matches,
+				);
+				if (!documentTypeId) {
+					continue;
+				}
+
+				const existingIdentifier = existingIdentifiers.find(
+					(item) => item.documentType?.id === documentTypeId,
+				);
+
+				const identifierPayload = {
+					documentTypeId,
+					documentKey: identifier.value,
+					status: "Active",
+					description: `${identifier.label} captured during onboarding`,
+				};
+
+				if (existingIdentifier?.id) {
+					await updateClientIdentifier(
+						tenantId,
+						clientId,
+						existingIdentifier.id,
+						identifierPayload,
+					);
+				} else {
+					await createClientIdentifier(tenantId, clientId, identifierPayload);
+				}
+			}
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
+			if (editClientId !== null) {
+				queryClient.invalidateQueries({
+					queryKey: ["client", tenantId, String(editClientId)],
+				});
+			}
+			closeDrawer();
+			setToastMessage("Client updated successfully");
+		},
+	});
 	const resetCreateMutation = createMutation.reset;
+	const resetUpdateMutation = updateMutation.reset;
 
 	const {
 		control,
@@ -413,18 +753,40 @@ export default function ClientsPage() {
 		() => (addressOptions.countryIdOptions || []) as LookupOption[],
 		[addressOptions.countryIdOptions],
 	);
+	const addressTypeOptions = useMemo(
+		() => (addressOptions.addressTypeIdOptions || []) as LookupOption[],
+		[addressOptions.addressTypeIdOptions],
+	);
 
-	const isLookupsLoading = isDrawerOpen && templateQuery.isLoading;
+	const isEditLoading =
+		isDrawerOpen &&
+		isEditMode &&
+		(editClientQuery.isLoading ||
+			editIdentifiersQuery.isLoading ||
+			editAddressesQuery.isLoading);
+	const isLookupsLoading =
+		isDrawerOpen && (templateQuery.isLoading || isEditLoading);
 
-	const lookupErrors = [templateQuery.error].filter(Boolean) as Error[];
+	const lookupErrors = [
+		templateQuery.error,
+		isEditMode ? editClientQuery.error : null,
+		isEditMode ? editIdentifiersQuery.error : null,
+		isEditMode ? editAddressesQuery.error : null,
+	].filter(Boolean) as Error[];
 
 	const isAddressEnabled = Boolean(clientTemplate?.isAddressEnabled);
 	const clientKind = watch("clientKind");
 	const isBusiness = clientKind === "business";
 	const hasMissingCountry = isAddressEnabled && !countryOptions.length;
 	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
-	const submissionError = createMutation.isError
-		? (createMutation.error as FineractRequestError)
+	const activeMutationError = isEditMode
+		? updateMutation.error
+		: createMutation.error;
+	const isMutationError = isEditMode
+		? updateMutation.isError
+		: createMutation.isError;
+	const submissionError = isMutationError
+		? (activeMutationError as FineractRequestError)
 		: null;
 	const submissionErrorDetails = flattenErrorDetails(submissionError?.details);
 
@@ -463,8 +825,16 @@ export default function ClientsPage() {
 	];
 
 	useEffect(() => {
+		if (isEditMode) {
+			setIsDrawerOpen(true);
+		}
+	}, [isEditMode]);
+
+	useEffect(() => {
 		if (!isDrawerOpen) return;
 		resetCreateMutation();
+		resetUpdateMutation();
+		if (isEditMode) return;
 		reset({
 			clientKind: "individual",
 			fullname: "",
@@ -492,7 +862,87 @@ export default function ClientsPage() {
 			businessLicenseNo: "",
 			registrationNo: "",
 		});
-	}, [isDrawerOpen, reset, resetCreateMutation]);
+	}, [
+		isDrawerOpen,
+		isEditMode,
+		reset,
+		resetCreateMutation,
+		resetUpdateMutation,
+	]);
+
+	useEffect(() => {
+		if (!isDrawerOpen || !isEditMode) return;
+		if (!editClientQuery.data || !templateQuery.data) return;
+
+		const clientData = editClientQuery.data;
+		const identifierData = editIdentifiersQuery.data || [];
+		const addressData = editAddressesQuery.data || [];
+		const primaryAddress =
+			addressData.find((address) => address.isActive !== false) ||
+			addressData[0];
+		const clientKindValue = getClientKindFromDetail(clientData);
+		const clientNonPersonDetails = (clientData.clientNonPersonDetails ||
+			{}) as Record<string, unknown>;
+		const mainBusinessLineId = (
+			clientNonPersonDetails.mainBusinessLine as { id?: number } | undefined
+		)?.id;
+
+		reset({
+			clientKind: clientKindValue,
+			fullname: clientData.fullname || clientData.displayName || "",
+			firstname: clientData.firstname || "",
+			middlename: clientData.middlename || "",
+			lastname: clientData.lastname || "",
+			officeId: clientData.officeId,
+			genderId: clientData.genderId,
+			clientTypeId: clientData.clientTypeId,
+			clientClassificationId: clientData.clientClassificationId,
+			legalFormId: clientData.legalFormId,
+			businessTypeId: mainBusinessLineId,
+			mobileNo: clientData.mobileNo || "",
+			emailAddress: clientData.emailAddress || "",
+			externalId:
+				typeof clientData.externalId === "string"
+					? clientData.externalId
+					: (clientData.externalId?.value ?? ""),
+			active: Boolean(clientData.active),
+			activationDate: toInputDate(clientData.activationDate),
+			dateOfBirth: toInputDate(clientData.dateOfBirth),
+			addressLine1: primaryAddress?.addressLine1 || "",
+			city: primaryAddress?.city || primaryAddress?.townVillage || "",
+			countryId: primaryAddress?.countryId,
+			nationalId: findIdentifierValueByMatches(
+				identifierData,
+				DOCUMENT_TYPE_MATCHES.nationalId,
+			),
+			passportNo: findIdentifierValueByMatches(
+				identifierData,
+				DOCUMENT_TYPE_MATCHES.passport,
+			),
+			taxId: findIdentifierValueByMatches(
+				identifierData,
+				DOCUMENT_TYPE_MATCHES.taxId,
+			),
+			businessLicenseNo: findIdentifierValueByMatches(
+				identifierData,
+				DOCUMENT_TYPE_MATCHES.businessLicense,
+			),
+			registrationNo: findIdentifierValueByMatches(
+				identifierData,
+				DOCUMENT_TYPE_MATCHES.registration,
+			),
+			savingsProductId: clientData.savingsProductId,
+			staffId: clientData.staffId,
+		});
+	}, [
+		isDrawerOpen,
+		isEditMode,
+		editClientQuery.data,
+		editIdentifiersQuery.data,
+		editAddressesQuery.data,
+		templateQuery.data,
+		reset,
+	]);
 
 	useEffect(() => {
 		if (!genderOptions.length) return;
@@ -699,6 +1149,7 @@ export default function ClientsPage() {
 
 	const handleClientSubmit = () => {
 		createMutation.reset();
+		updateMutation.reset();
 		const data = getValues();
 		const invalidStep = validateClientData(data, 4);
 
@@ -750,13 +1201,18 @@ export default function ClientsPage() {
 			payload.dateFormat = "dd MMMM yyyy";
 		}
 
-		if (isAddressEnabled) {
-			const address: ClientAddressRequest = {
-				addressLine1: data.addressLine1?.trim() || undefined,
-				city: data.city?.trim() || undefined,
-				countryId: data.countryId,
-			};
-			payload.address = [address];
+		const hasAddressValues = Boolean(
+			data.addressLine1?.trim() || data.city?.trim() || data.countryId,
+		);
+
+		if (isAddressEnabled && hasAddressValues) {
+			payload.address = [
+				{
+					addressLine1: data.addressLine1?.trim() || undefined,
+					city: data.city?.trim() || undefined,
+					countryId: data.countryId,
+				},
+			];
 		}
 
 		const identifiers: IdentifierInput[] = [];
@@ -802,7 +1258,33 @@ export default function ClientsPage() {
 			});
 		}
 
-		createMutation.mutate({ payload, identifiers });
+		if (isEditMode && editClientId !== null) {
+			const updatePayload: ClientCreatePayload = { ...payload };
+			delete updatePayload.address;
+
+			const updateAddress =
+				isAddressEnabled && hasAddressValues
+					? {
+							addressLine1: data.addressLine1?.trim() || undefined,
+							city: data.city?.trim() || undefined,
+							countryId: data.countryId,
+						}
+					: undefined;
+
+			updateMutation.mutate({
+				clientId: editClientId,
+				payload: updatePayload,
+				identifiers,
+				address: updateAddress,
+				existingIdentifiers: editIdentifiersQuery.data || [],
+				existingAddresses: editAddressesQuery.data || [],
+				addressTypeId: getDefaultOptionId(addressTypeOptions, {
+					fallbackToFirst: true,
+				}),
+			});
+		} else {
+			createMutation.mutate({ payload, identifiers });
+		}
 
 		return null;
 	};
@@ -813,7 +1295,7 @@ export default function ClientsPage() {
 				title="Clients"
 				subtitle="Onboard clients with preloaded system lookups"
 				actions={
-					<Button onClick={() => setIsDrawerOpen(true)}>
+					<Button onClick={openCreateDrawer}>
 						<Plus className="w-4 h-4 mr-2" />
 						New Client
 					</Button>
@@ -849,16 +1331,19 @@ export default function ClientsPage() {
 				</Card>
 			</PageShell>
 
-			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+			<Sheet open={isDrawerOpen} onOpenChange={handleDrawerOpenChange}>
 				<SheetContent
 					side="right"
 					className="w-full overflow-y-auto sm:max-w-[80vw]"
 				>
 					<SheetHeader>
-						<SheetTitle>Client Onboarding</SheetTitle>
+						<SheetTitle>
+							{isEditMode ? "Edit Client" : "Client Onboarding"}
+						</SheetTitle>
 						<SheetDescription>
-							Create individual or business clients with structured KYC and
-							activation workflows.
+							{isEditMode
+								? "Update client profile, contact, KYC, and activation details."
+								: "Create individual or business clients with structured KYC and activation workflows."}
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mb-4 mt-2 flex justify-end">
@@ -904,12 +1389,25 @@ export default function ClientsPage() {
 								canCreateBusinessClient={businessLineOptions.length > 0}
 								hasBusinessTypeConfiguration={businessLineOptions.length > 0}
 								isOpen={isDrawerOpen}
-								isSubmitting={createMutation.isPending}
+								isSubmitting={
+									isEditMode
+										? updateMutation.isPending
+										: createMutation.isPending
+								}
 								submissionError={submissionError?.message || null}
 								submissionErrorDetails={submissionErrorDetails}
+								submissionErrorTitle={
+									isEditMode
+										? "Failed to update client"
+										: "Failed to create client"
+								}
+								submitLabel={isEditMode ? "Save Changes" : "Submit Client"}
+								submittingLabel={
+									isEditMode ? "Saving changes..." : "Submitting..."
+								}
 								onValidateStep={handleStepValidation}
 								onSubmit={handleClientSubmit}
-								onCancel={() => setIsDrawerOpen(false)}
+								onCancel={closeDrawer}
 							/>
 						)}
 

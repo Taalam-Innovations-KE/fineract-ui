@@ -31,6 +31,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
@@ -44,6 +45,12 @@ import type {
 	PutHolidaysHolidayIdResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
+
+type HolidayReschedulingOption = {
+	id?: number;
+	code?: string;
+	value?: string;
+};
 
 async function fetchHolidays(
 	tenantId: string,
@@ -78,6 +85,25 @@ async function fetchOffices(tenantId: string): Promise<GetOfficesResponse[]> {
 	}
 
 	return response.json();
+}
+
+async function fetchHolidayTemplate(
+	tenantId: string,
+): Promise<HolidayReschedulingOption[]> {
+	const response = await fetch(`${BFF_ROUTES.holidays}/template`, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw (await response.json()) as unknown;
+	}
+
+	const template = (await response.json()) as unknown;
+	return Array.isArray(template)
+		? (template as HolidayReschedulingOption[])
+		: [];
 }
 
 async function createHoliday(
@@ -164,6 +190,14 @@ export default function HolidaysPage() {
 		queryKey: ["offices", tenantId],
 		queryFn: () => fetchOffices(tenantId),
 	});
+	const {
+		data: reschedulingTypeOptions,
+		isLoading: isLoadingTemplate,
+		error: templateError,
+	} = useQuery({
+		queryKey: ["holidays-template", tenantId],
+		queryFn: () => fetchHolidayTemplate(tenantId),
+	});
 
 	const createMutation = useMutation({
 		mutationFn: (holiday: PostHolidaysRequest) =>
@@ -222,6 +256,7 @@ export default function HolidaysPage() {
 		fromDate: "",
 		toDate: "",
 		repaymentsRescheduledTo: "",
+		reschedulingType: "",
 		description: "",
 		offices: [] as number[],
 	});
@@ -232,6 +267,7 @@ export default function HolidaysPage() {
 			fromDate: "",
 			toDate: "",
 			repaymentsRescheduledTo: "",
+			reschedulingType: "",
 			description: "",
 			offices: [],
 		});
@@ -244,22 +280,47 @@ export default function HolidaysPage() {
 				fromDate: editingHoliday.fromDate || "",
 				toDate: editingHoliday.toDate || "",
 				repaymentsRescheduledTo: editingHoliday.repaymentsRescheduledTo || "",
+				reschedulingType:
+					reschedulingTypeOptions?.[0]?.id !== undefined
+						? String(reschedulingTypeOptions[0].id)
+						: "",
 				description: "",
 				offices: editingHoliday.officeId ? [editingHoliday.officeId] : [],
 			});
 		}
-	}, [editingHoliday]);
+	}, [editingHoliday, reschedulingTypeOptions]);
+
+	useEffect(() => {
+		if (editingHoliday || formData.reschedulingType) {
+			return;
+		}
+
+		const defaultOption = reschedulingTypeOptions?.[0];
+		if (defaultOption?.id === undefined) {
+			return;
+		}
+
+		setFormData((current) => ({
+			...current,
+			reschedulingType: String(defaultOption.id),
+		}));
+	}, [editingHoliday, formData.reschedulingType, reschedulingTypeOptions]);
 
 	const handleSubmit = () => {
 		const effectiveRepaymentRescheduleDate =
 			formData.repaymentsRescheduledTo || formData.toDate || formData.fromDate;
+		const parsedReschedulingType = Number(formData.reschedulingType);
 
 		if (!effectiveRepaymentRescheduleDate) {
 			setToastMessage("Repayments rescheduled to date is required");
 			return;
 		}
+		if (!Number.isInteger(parsedReschedulingType)) {
+			setToastMessage("Repayment reschedule type is required");
+			return;
+		}
 
-		const holidayData = {
+		const holidayData: PostHolidaysRequest & { reschedulingType: number } = {
 			name: formData.name,
 			fromDate: formatDateStringToFormat(formData.fromDate, "dd MMMM yyyy"),
 			toDate: formatDateStringToFormat(formData.toDate, "dd MMMM yyyy"),
@@ -267,6 +328,7 @@ export default function HolidaysPage() {
 				effectiveRepaymentRescheduleDate,
 				"dd MMMM yyyy",
 			),
+			reschedulingType: parsedReschedulingType,
 			description: formData.description,
 			offices: formData.offices.map((officeId) => ({ officeId })),
 			locale: "en",
@@ -336,14 +398,39 @@ export default function HolidaysPage() {
 		},
 	];
 
-	const isLoading = isLoadingHolidays || isLoadingOffices;
-	const error = holidaysError;
+	const isLoading = isLoadingHolidays || isLoadingOffices || isLoadingTemplate;
+	const error = holidaysError || templateError;
 
 	if (isLoading) {
 		return (
-			<PageShell title="Holidays" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell title="Holidays" subtitle="Loading holiday configuration...">
+				<div className="space-y-6">
+					<div className="flex items-end justify-between">
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-28" />
+							<Skeleton className="h-10 w-64" />
+						</div>
+						<Skeleton className="h-10 w-32" />
+					</div>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-24" />
+							<Skeleton className="h-4 w-72" />
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-3">
+								{Array.from({ length: 8 }).map((_, index) => (
+									<div key={index} className="grid grid-cols-5 gap-3">
+										<Skeleton className="h-8 w-full" />
+										<Skeleton className="h-8 w-full" />
+										<Skeleton className="h-8 w-full" />
+										<Skeleton className="h-8 w-full" />
+										<Skeleton className="h-8 w-full" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);
@@ -396,7 +483,13 @@ export default function HolidaysPage() {
 						</Select>
 					</div>
 
-					<Button onClick={() => setIsSheetOpen(true)}>
+					<Button
+						onClick={() => {
+							setEditingHoliday(null);
+							resetForm();
+							setIsSheetOpen(true);
+						}}
+					>
 						<Plus className="h-4 w-4 mr-2" />
 						Add Holiday
 					</Button>
@@ -488,6 +581,31 @@ export default function HolidaysPage() {
 							<p className="text-xs text-muted-foreground">
 								Required by backend. If left empty, To Date will be used.
 							</p>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="reschedulingType">
+								Repayment Reschedule Type
+							</Label>
+							<Select
+								value={formData.reschedulingType}
+								onValueChange={(value) =>
+									setFormData({ ...formData, reschedulingType: value })
+								}
+							>
+								<SelectTrigger id="reschedulingType">
+									<SelectValue placeholder="Select repayment reschedule type" />
+								</SelectTrigger>
+								<SelectContent>
+									{reschedulingTypeOptions
+										?.filter((option) => option.id !== undefined)
+										.map((option) => (
+											<SelectItem key={option.id} value={String(option.id)}>
+												{option.value || option.code || option.id}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
 						</div>
 
 						<div className="space-y-2">

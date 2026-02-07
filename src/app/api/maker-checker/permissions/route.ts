@@ -49,9 +49,7 @@ export async function PUT(request: NextRequest) {
 				permissions: Object.fromEntries(
 					permissions
 						.filter(
-							(
-								permission,
-							): permission is { code: string; selected: boolean } =>
+							(permission): permission is { code: string; selected: boolean } =>
 								typeof permission?.code === "string" &&
 								typeof permission?.selected === "boolean",
 						)

@@ -623,46 +623,44 @@ export default function HolidaysPage() {
 						<div className="space-y-2">
 							<Label>Applicable Offices</Label>
 							<div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-								{offices?.map(
-									(office) =>
-										office.id !== undefined && (
-											<div
-												key={office.id}
-												className="flex items-center space-x-2"
-											>
-												<Checkbox
-													id={`office-${office.id}`}
-													checked={formData.offices.includes(office.id)}
-													onCheckedChange={(checked) => {
-														if (checked === true) {
-															if (formData.offices.includes(office.id)) {
-																return;
-															}
+								{offices?.map((office) => {
+									const officeId = office.id;
+									if (officeId === undefined) {
+										return null;
+									}
 
-															setFormData({
-																...formData,
-																offices: [...formData.offices, office.id],
-															});
+									return (
+										<div key={officeId} className="flex items-center space-x-2">
+											<Checkbox
+												id={`office-${officeId}`}
+												checked={formData.offices.includes(officeId)}
+												onCheckedChange={(checked) => {
+													if (checked === true) {
+														if (formData.offices.includes(officeId)) {
 															return;
 														}
 
 														setFormData({
 															...formData,
-															offices: formData.offices.filter(
-																(id) => id !== office.id,
-															),
+															offices: [...formData.offices, officeId],
 														});
-													}}
-												/>
-												<Label
-													htmlFor={`office-${office.id}`}
-													className="text-sm"
-												>
-													{office.name}
-												</Label>
-											</div>
-										),
-								)}
+														return;
+													}
+
+													setFormData({
+														...formData,
+														offices: formData.offices.filter(
+															(id) => id !== officeId,
+														),
+													});
+												}}
+											/>
+											<Label htmlFor={`office-${officeId}`} className="text-sm">
+												{office.name}
+											</Label>
+										</div>
+									);
+								})}
 							</div>
 						</div>
 					</div>

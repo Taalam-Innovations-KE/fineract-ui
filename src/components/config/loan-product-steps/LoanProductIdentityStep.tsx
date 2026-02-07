@@ -156,7 +156,7 @@ export function LoanProductIdentityStep({
 								name="currencyCode"
 								render={({ field }) => (
 									<Select
-										value={field.value || undefined}
+										value={field.value ?? ""}
 										onValueChange={field.onChange}
 									>
 										<SelectTrigger id="currencyCode">

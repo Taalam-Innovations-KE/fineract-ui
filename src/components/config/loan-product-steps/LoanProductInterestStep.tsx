@@ -71,7 +71,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -107,7 +107,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -167,7 +167,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -207,7 +207,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -250,7 +250,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -289,7 +289,7 @@ export function LoanProductInterestStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>

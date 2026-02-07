@@ -238,10 +238,7 @@ export function LoanProductAccountingStep({
 						control={control}
 						name="transactionProcessingStrategyCode"
 						render={({ field }) => (
-							<Select
-								value={field.value || undefined}
-								onValueChange={field.onChange}
-							>
+							<Select value={field.value ?? ""} onValueChange={field.onChange}>
 								<SelectTrigger id="transactionProcessingStrategyCode">
 									<SelectValue placeholder="Select strategy" />
 								</SelectTrigger>
@@ -286,7 +283,7 @@ export function LoanProductAccountingStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>
@@ -331,7 +328,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -372,7 +369,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -416,7 +413,7 @@ export function LoanProductAccountingStep({
 																field.value !== undefined &&
 																field.value !== null
 																	? String(field.value)
-																	: undefined
+																	: ""
 															}
 															onValueChange={(value) =>
 																field.onChange(Number(value))
@@ -458,7 +455,7 @@ export function LoanProductAccountingStep({
 																field.value !== undefined &&
 																field.value !== null
 																	? String(field.value)
-																	: undefined
+																	: ""
 															}
 															onValueChange={(value) =>
 																field.onChange(Number(value))
@@ -500,7 +497,7 @@ export function LoanProductAccountingStep({
 																field.value !== undefined &&
 																field.value !== null
 																	? String(field.value)
-																	: undefined
+																	: ""
 															}
 															onValueChange={(value) =>
 																field.onChange(Number(value))
@@ -552,7 +549,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -593,7 +590,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -634,7 +631,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -675,7 +672,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -725,7 +722,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -775,7 +772,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))
@@ -816,7 +813,7 @@ export function LoanProductAccountingStep({
 													value={
 														field.value !== undefined && field.value !== null
 															? String(field.value)
-															: undefined
+															: ""
 													}
 													onValueChange={(value) =>
 														field.onChange(Number(value))

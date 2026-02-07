@@ -186,7 +186,9 @@ export default function UserDetailPage({
 								</div>
 								<div>
 									<label className="text-sm font-medium">Role</label>
-									<p>{user.selectedRoles?.map((r) => r.name).join(", ") || "—"}</p>
+									<p>
+										{user.selectedRoles?.map((r) => r.name).join(", ") || "—"}
+									</p>
 								</div>
 								<div>
 									<label className="text-sm font-medium">Status</label>

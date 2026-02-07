@@ -26,7 +26,7 @@ with existing patterns and avoid editing generated files.
 ## Build, Lint, and Dev Commands
 All scripts are in `package.json`; use pnpm.
 
-**IMPORTANT**: Do not run test, build, or dev commands at all.
+**IMPORTANT**: Do not run test or build commands. You may run `pnpm dev` only when performing Playwright MCP end-to-end testing and debugging.
 
 ### Code Quality
 - `pnpm lint`: Biome lint + auto-fix (run after changes, before committing)

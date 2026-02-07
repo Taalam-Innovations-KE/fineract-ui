@@ -158,7 +158,7 @@ export function LoanProductScheduleStep({
 									value={
 										field.value !== undefined && field.value !== null
 											? String(field.value)
-											: undefined
+											: ""
 									}
 									onValueChange={(value) => field.onChange(Number(value))}
 								>

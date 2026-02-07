@@ -469,9 +469,7 @@ export default function ClientDetailPage({
 			header: "Status",
 			cell: (row: GetClientsSavingsAccounts) => (
 				<Badge variant={row.status?.active ? "success" : "secondary"}>
-					{formatText(
-						row.status?.description || formatCodeLabel(row.status?.code),
-					)}
+					{formatText(formatCodeLabel(row.status?.code))}
 				</Badge>
 			),
 		},

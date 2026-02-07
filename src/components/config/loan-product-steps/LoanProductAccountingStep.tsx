@@ -9,6 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,6 +39,11 @@ function optionLabel(option?: {
 		option?.code ||
 		"Unknown"
 	);
+}
+
+function optionId(option?: { id?: number | string }) {
+	if (option?.id === undefined || option.id === null) return "";
+	return String(option.id);
 }
 
 function waterfallLabel(option?: { code?: string; name?: string }) {
@@ -75,12 +81,218 @@ export function LoanProductAccountingStep({
 		template?.accountingMappingOptions?.expenseAccountOptions || [];
 	const liabilityOptions =
 		template?.accountingMappingOptions?.liabilityAccountOptions || [];
+	const delinquencyBucketOptions =
+		(
+			template as GetLoanProductsTemplateResponse & {
+				delinquencyBucketOptions?: Array<{
+					id?: number;
+					code?: string;
+					description?: string;
+					name?: string;
+					value?: string;
+				}>;
+			}
+		)?.delinquencyBucketOptions || [];
+	const supportedInterestRefundTypeOptions =
+		template?.supportedInterestRefundTypesOptions || [];
+	const advancedPaymentAllocationTransactionTypeOptions =
+		template?.advancedPaymentAllocationTransactionTypes || [];
+	const advancedPaymentAllocationTypeOptions =
+		template?.advancedPaymentAllocationTypes || [];
+	const advancedPaymentAllocationFutureInstallmentRuleOptions =
+		template?.advancedPaymentAllocationFutureInstallmentAllocationRules || [];
+	const creditAllocationTransactionTypeOptions =
+		template?.creditAllocationTransactionTypes || [];
+	const creditAllocationTypeOptions =
+		template?.creditAllocationAllocationTypes || [];
+	const capitalizedIncomeTypeOptions =
+		template?.capitalizedIncomeTypeOptions || [];
+	const capitalizedIncomeCalculationTypeOptions =
+		template?.capitalizedIncomeCalculationTypeOptions || [];
+	const capitalizedIncomeStrategyOptions =
+		template?.capitalizedIncomeStrategyOptions || [];
+	const buyDownFeeIncomeTypeOptions =
+		template?.buyDownFeeIncomeTypeOptions || [];
+	const buyDownFeeCalculationTypeOptions =
+		template?.buyDownFeeCalculationTypeOptions || [];
+	const buyDownFeeStrategyOptions = template?.buyDownFeeStrategyOptions || [];
+	const chargeOffBehaviourOptions = template?.chargeOffBehaviourOptions || [];
+	const chargeOffReasonOptions = template?.chargeOffReasonOptions || [];
+	const writeOffReasonOptions = template?.writeOffReasonOptions || [];
+
+	const selectedSupportedInterestRefundTypes =
+		watch("supportedInterestRefundTypes") || [];
+	const selectedPaymentAllocationTransactionTypes =
+		watch("paymentAllocationTransactionTypes") || [];
+	const selectedPaymentAllocationRules = watch("paymentAllocationRules") || [];
+	const selectedCreditAllocationTransactionTypes =
+		watch("creditAllocationTransactionTypes") || [];
+	const selectedCreditAllocationRules = watch("creditAllocationRules") || [];
+	const isIncomeCapitalizationEnabled = Boolean(
+		watch("enableIncomeCapitalization"),
+	);
+	const isBuyDownFeeEnabled = Boolean(watch("enableBuyDownFee"));
 
 	const accountingRule = watch("accountingRule");
 
 	// Determine which fields are required based on accounting rule
 	const isAccountingEnabled = accountingRule && accountingRule !== 1;
 	const isAccrualAccounting = accountingRule === 3 || accountingRule === 4;
+
+	function toggleArrayField(
+		field:
+			| "supportedInterestRefundTypes"
+			| "paymentAllocationTransactionTypes"
+			| "paymentAllocationRules"
+			| "creditAllocationTransactionTypes"
+			| "creditAllocationRules",
+		value: string,
+		checked: boolean,
+	) {
+		const currentValues = getValues(field) || [];
+		if (checked) {
+			if (!currentValues.includes(value)) {
+				setValue(field, [...currentValues, value]);
+			}
+			return;
+		}
+		setValue(
+			field,
+			currentValues.filter((item) => item !== value),
+		);
+	}
+
+	function getReasonMappingExpenseId(
+		field:
+			| "chargeOffReasonToExpenseMappings"
+			| "writeOffReasonToExpenseMappings",
+		reasonCodeValueId: number,
+	) {
+		const mappings = getValues(field) || [];
+		const match = mappings.find(
+			(mapping) => mapping.reasonCodeValueId === reasonCodeValueId,
+		);
+		return match?.expenseAccountId;
+	}
+
+	function setReasonExpenseMapping(
+		field:
+			| "chargeOffReasonToExpenseMappings"
+			| "writeOffReasonToExpenseMappings",
+		reasonCodeValueId: number,
+		expenseAccountId: number | undefined,
+	) {
+		const mappings = getValues(field) || [];
+		const nextMappings = mappings.filter(
+			(mapping) => mapping.reasonCodeValueId !== reasonCodeValueId,
+		);
+
+		if (expenseAccountId !== undefined) {
+			nextMappings.push({ reasonCodeValueId, expenseAccountId });
+		}
+
+		setValue(field, nextMappings);
+	}
+
+	useEffect(() => {
+		if (!isIncomeCapitalizationEnabled) {
+			if (getValues("capitalizedIncomeType") !== undefined) {
+				setValue("capitalizedIncomeType", undefined);
+			}
+			if (getValues("capitalizedIncomeCalculationType") !== undefined) {
+				setValue("capitalizedIncomeCalculationType", undefined);
+			}
+			if (getValues("capitalizedIncomeStrategy") !== undefined) {
+				setValue("capitalizedIncomeStrategy", undefined);
+			}
+			return;
+		}
+
+		if (getValues("capitalizedIncomeType") === undefined) {
+			const defaultType = capitalizedIncomeTypeOptions[0]?.id;
+			if (defaultType === "FEE" || defaultType === "INTEREST") {
+				setValue("capitalizedIncomeType", defaultType);
+			}
+		}
+		if (getValues("capitalizedIncomeCalculationType") === undefined) {
+			const defaultType = capitalizedIncomeCalculationTypeOptions[0]?.id;
+			if (defaultType === "FLAT") {
+				setValue("capitalizedIncomeCalculationType", defaultType);
+			}
+		}
+		if (getValues("capitalizedIncomeStrategy") === undefined) {
+			const defaultStrategy = capitalizedIncomeStrategyOptions[0]?.id;
+			if (defaultStrategy === "EQUAL_AMORTIZATION") {
+				setValue("capitalizedIncomeStrategy", defaultStrategy);
+			}
+		}
+	}, [
+		capitalizedIncomeCalculationTypeOptions,
+		capitalizedIncomeStrategyOptions,
+		capitalizedIncomeTypeOptions,
+		getValues,
+		isIncomeCapitalizationEnabled,
+		setValue,
+	]);
+
+	useEffect(() => {
+		if (!isBuyDownFeeEnabled) {
+			if (getValues("buyDownFeeIncomeType") !== undefined) {
+				setValue("buyDownFeeIncomeType", undefined);
+			}
+			if (getValues("buyDownFeeCalculationType") !== undefined) {
+				setValue("buyDownFeeCalculationType", undefined);
+			}
+			if (getValues("buyDownFeeStrategy") !== undefined) {
+				setValue("buyDownFeeStrategy", undefined);
+			}
+			if (getValues("merchantBuyDownFee") !== false) {
+				setValue("merchantBuyDownFee", false);
+			}
+			return;
+		}
+
+		if (getValues("buyDownFeeIncomeType") === undefined) {
+			const defaultType = buyDownFeeIncomeTypeOptions[0]?.id;
+			if (defaultType === "FEE" || defaultType === "INTEREST") {
+				setValue("buyDownFeeIncomeType", defaultType);
+			}
+		}
+		if (getValues("buyDownFeeCalculationType") === undefined) {
+			const defaultType = buyDownFeeCalculationTypeOptions[0]?.id;
+			if (defaultType === "FLAT") {
+				setValue("buyDownFeeCalculationType", defaultType);
+			}
+		}
+		if (getValues("buyDownFeeStrategy") === undefined) {
+			const defaultStrategy = buyDownFeeStrategyOptions[0]?.id;
+			if (defaultStrategy === "EQUAL_AMORTIZATION") {
+				setValue("buyDownFeeStrategy", defaultStrategy);
+			}
+		}
+	}, [
+		buyDownFeeCalculationTypeOptions,
+		buyDownFeeIncomeTypeOptions,
+		buyDownFeeStrategyOptions,
+		getValues,
+		isBuyDownFeeEnabled,
+		setValue,
+	]);
+
+	useEffect(() => {
+		if (getValues("chargeOffBehaviour") !== undefined) {
+			return;
+		}
+
+		const defaultBehaviour = chargeOffBehaviourOptions[0]?.id;
+		if (
+			defaultBehaviour === "REGULAR" ||
+			defaultBehaviour === "ZERO_INTEREST" ||
+			defaultBehaviour === "ACCELERATE_MATURITY"
+		) {
+			setValue("chargeOffBehaviour", defaultBehaviour);
+		}
+	}, [chargeOffBehaviourOptions, getValues, setValue]);
 
 	// Set default accounts when accounting rule requires them
 	useEffect(() => {
@@ -165,6 +377,8 @@ export function LoanProductAccountingStep({
 		liabilityOptions,
 	]);
 
+	const unassignedExpenseValue = "__UNASSIGNED_EXPENSE__";
+
 	return (
 		<div className="space-y-4">
 			<Card>
@@ -174,50 +388,114 @@ export function LoanProductAccountingStep({
 						Control delinquency behavior and NPA thresholds.
 					</CardDescription>
 				</CardHeader>
-				<CardContent className="grid gap-4 md:grid-cols-3">
-					<div className="space-y-2">
-						<Label htmlFor="graceOnArrearsAgeing">
-							Grace on Arrears Ageing (days)
-						</Label>
-						<Input
-							id="graceOnArrearsAgeing"
-							type="number"
-							{...register("graceOnArrearsAgeing", {
-								valueAsNumber: true,
-							})}
-							placeholder="0"
-						/>
-						<p className="text-xs text-muted-foreground">
-							Days before arrears ageing starts. Example: 3 days.
-						</p>
+				<CardContent className="space-y-4">
+					<div className="grid gap-4 md:grid-cols-3">
+						<div className="space-y-2">
+							<Label htmlFor="graceOnArrearsAgeing">
+								Grace on Arrears Ageing (days)
+							</Label>
+							<Input
+								id="graceOnArrearsAgeing"
+								type="number"
+								{...register("graceOnArrearsAgeing", {
+									valueAsNumber: true,
+								})}
+								placeholder="0"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Days before arrears ageing starts. Example: 3 days.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="inArrearsTolerance">In Arrears Tolerance</Label>
+							<Input
+								id="inArrearsTolerance"
+								type="number"
+								{...register("inArrearsTolerance", {
+									valueAsNumber: true,
+								})}
+								placeholder="0"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Tolerance amount before marking in arrears. Example: 100.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="overdueDaysForNPA">Overdue Days for NPA</Label>
+							<Input
+								id="overdueDaysForNPA"
+								type="number"
+								{...register("overdueDaysForNPA", {
+									valueAsNumber: true,
+								})}
+								placeholder="90"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Days overdue to classify NPA. Example: 90 days.
+							</p>
+						</div>
 					</div>
-					<div className="space-y-2">
-						<Label htmlFor="inArrearsTolerance">In Arrears Tolerance</Label>
-						<Input
-							id="inArrearsTolerance"
-							type="number"
-							{...register("inArrearsTolerance", {
-								valueAsNumber: true,
-							})}
-							placeholder="0"
-						/>
-						<p className="text-xs text-muted-foreground">
-							Tolerance amount before marking in arrears. Example: 100.
-						</p>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="overdueDaysForNPA">Overdue Days for NPA</Label>
-						<Input
-							id="overdueDaysForNPA"
-							type="number"
-							{...register("overdueDaysForNPA", {
-								valueAsNumber: true,
-							})}
-							placeholder="90"
-						/>
-						<p className="text-xs text-muted-foreground">
-							Days overdue to classify NPA. Example: 90 days.
-						</p>
+
+					<div className="grid gap-4 border-t pt-4 md:grid-cols-2">
+						<div className="space-y-2">
+							<Label htmlFor="delinquencyBucketId">Delinquency Bucket</Label>
+							<Controller
+								control={control}
+								name="delinquencyBucketId"
+								render={({ field }) => (
+									<Select
+										value={
+											field.value !== undefined && field.value !== null
+												? String(field.value)
+												: ""
+										}
+										onValueChange={(value) => field.onChange(Number(value))}
+									>
+										<SelectTrigger id="delinquencyBucketId">
+											<SelectValue placeholder="Select delinquency bucket" />
+										</SelectTrigger>
+										<SelectContent>
+											{delinquencyBucketOptions
+												.filter((option) => option.id !== undefined)
+												.map((option) => (
+													<SelectItem key={option.id} value={String(option.id)}>
+														{optionLabel(option)}
+													</SelectItem>
+												))}
+										</SelectContent>
+									</Select>
+								)}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Assign a bucket policy for delinquency classification.
+							</p>
+						</div>
+						<div className="space-y-2 rounded-sm border border-border/60 p-3">
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="accountMovesOutOfNPAOnlyOnArrearsCompletion"
+									render={({ field }) => (
+										<Checkbox
+											id="accountMovesOutOfNPAOnlyOnArrearsCompletion"
+											checked={Boolean(field.value)}
+											onCheckedChange={(value) =>
+												field.onChange(Boolean(value))
+											}
+										/>
+									)}
+								/>
+								<Label
+									htmlFor="accountMovesOutOfNPAOnlyOnArrearsCompletion"
+									className="cursor-pointer"
+								>
+									Move out of NPA only on arrears completion
+								</Label>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								Prevents NPA status reset until arrears are fully cleared.
+							</p>
+						</div>
 					</div>
 				</CardContent>
 			</Card>
@@ -259,6 +537,722 @@ export function LoanProductAccountingStep({
 							{String(errors.transactionProcessingStrategyCode.message)}
 						</p>
 					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Capitalized Income & Buy-down Fee</CardTitle>
+					<CardDescription>
+						Configure capitalization and buy-down fee behavior for eligible
+						products.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					<div className="space-y-4 rounded-sm border border-border/60 p-3">
+						<div className="flex items-center gap-2">
+							<Controller
+								control={control}
+								name="enableIncomeCapitalization"
+								render={({ field }) => (
+									<Checkbox
+										id="enableIncomeCapitalization"
+										checked={Boolean(field.value)}
+										onCheckedChange={(value) => field.onChange(Boolean(value))}
+									/>
+								)}
+							/>
+							<Label
+								htmlFor="enableIncomeCapitalization"
+								className="cursor-pointer"
+							>
+								Enable income capitalization
+							</Label>
+						</div>
+						{isIncomeCapitalizationEnabled && (
+							<div className="grid gap-4 md:grid-cols-3">
+								<div className="space-y-2">
+									<Label htmlFor="capitalizedIncomeType">
+										Capitalized Income Type{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="capitalizedIncomeType"
+										render={({ field }) => (
+											<Select
+												value={field.value || ""}
+												onValueChange={(value) => field.onChange(value)}
+											>
+												<SelectTrigger id="capitalizedIncomeType">
+													<SelectValue placeholder="Select income type" />
+												</SelectTrigger>
+												<SelectContent>
+													{capitalizedIncomeTypeOptions.map((option) => {
+														const value = optionId(option);
+														if (!value) return null;
+														return (
+															<SelectItem key={value} value={value}>
+																{optionLabel(option)}
+															</SelectItem>
+														);
+													})}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.capitalizedIncomeType && (
+										<p className="text-sm text-destructive">
+											{String(errors.capitalizedIncomeType.message)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="capitalizedIncomeCalculationType">
+										Calculation Type <span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="capitalizedIncomeCalculationType"
+										render={({ field }) => (
+											<Select
+												value={field.value || ""}
+												onValueChange={(value) => field.onChange(value)}
+											>
+												<SelectTrigger id="capitalizedIncomeCalculationType">
+													<SelectValue placeholder="Select calculation type" />
+												</SelectTrigger>
+												<SelectContent>
+													{capitalizedIncomeCalculationTypeOptions.map(
+														(option) => {
+															const value = optionId(option);
+															if (!value) return null;
+															return (
+																<SelectItem key={value} value={value}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														},
+													)}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.capitalizedIncomeCalculationType && (
+										<p className="text-sm text-destructive">
+											{String(errors.capitalizedIncomeCalculationType.message)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="capitalizedIncomeStrategy">
+										Strategy <span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="capitalizedIncomeStrategy"
+										render={({ field }) => (
+											<Select
+												value={field.value || ""}
+												onValueChange={(value) => field.onChange(value)}
+											>
+												<SelectTrigger id="capitalizedIncomeStrategy">
+													<SelectValue placeholder="Select strategy" />
+												</SelectTrigger>
+												<SelectContent>
+													{capitalizedIncomeStrategyOptions.map((option) => {
+														const value = optionId(option);
+														if (!value) return null;
+														return (
+															<SelectItem key={value} value={value}>
+																{optionLabel(option)}
+															</SelectItem>
+														);
+													})}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.capitalizedIncomeStrategy && (
+										<p className="text-sm text-destructive">
+											{String(errors.capitalizedIncomeStrategy.message)}
+										</p>
+									)}
+								</div>
+							</div>
+						)}
+					</div>
+
+					<div className="space-y-4 rounded-sm border border-border/60 p-3">
+						<div className="flex items-center gap-2">
+							<Controller
+								control={control}
+								name="enableBuyDownFee"
+								render={({ field }) => (
+									<Checkbox
+										id="enableBuyDownFee"
+										checked={Boolean(field.value)}
+										onCheckedChange={(value) => field.onChange(Boolean(value))}
+									/>
+								)}
+							/>
+							<Label htmlFor="enableBuyDownFee" className="cursor-pointer">
+								Enable buy-down fee
+							</Label>
+						</div>
+						{isBuyDownFeeEnabled && (
+							<div className="space-y-4">
+								<div className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="buyDownFeeIncomeType">
+											Buy-down Income Type{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Controller
+											control={control}
+											name="buyDownFeeIncomeType"
+											render={({ field }) => (
+												<Select
+													value={field.value || ""}
+													onValueChange={(value) => field.onChange(value)}
+												>
+													<SelectTrigger id="buyDownFeeIncomeType">
+														<SelectValue placeholder="Select income type" />
+													</SelectTrigger>
+													<SelectContent>
+														{buyDownFeeIncomeTypeOptions.map((option) => {
+															const value = optionId(option);
+															if (!value) return null;
+															return (
+																<SelectItem key={value} value={value}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														})}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors.buyDownFeeIncomeType && (
+											<p className="text-sm text-destructive">
+												{String(errors.buyDownFeeIncomeType.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="buyDownFeeCalculationType">
+											Calculation Type{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Controller
+											control={control}
+											name="buyDownFeeCalculationType"
+											render={({ field }) => (
+												<Select
+													value={field.value || ""}
+													onValueChange={(value) => field.onChange(value)}
+												>
+													<SelectTrigger id="buyDownFeeCalculationType">
+														<SelectValue placeholder="Select calculation type" />
+													</SelectTrigger>
+													<SelectContent>
+														{buyDownFeeCalculationTypeOptions.map((option) => {
+															const value = optionId(option);
+															if (!value) return null;
+															return (
+																<SelectItem key={value} value={value}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														})}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors.buyDownFeeCalculationType && (
+											<p className="text-sm text-destructive">
+												{String(errors.buyDownFeeCalculationType.message)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="buyDownFeeStrategy">
+											Strategy <span className="text-destructive">*</span>
+										</Label>
+										<Controller
+											control={control}
+											name="buyDownFeeStrategy"
+											render={({ field }) => (
+												<Select
+													value={field.value || ""}
+													onValueChange={(value) => field.onChange(value)}
+												>
+													<SelectTrigger id="buyDownFeeStrategy">
+														<SelectValue placeholder="Select strategy" />
+													</SelectTrigger>
+													<SelectContent>
+														{buyDownFeeStrategyOptions.map((option) => {
+															const value = optionId(option);
+															if (!value) return null;
+															return (
+																<SelectItem key={value} value={value}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														})}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors.buyDownFeeStrategy && (
+											<p className="text-sm text-destructive">
+												{String(errors.buyDownFeeStrategy.message)}
+											</p>
+										)}
+									</div>
+								</div>
+								<div className="flex items-center gap-2">
+									<Controller
+										control={control}
+										name="merchantBuyDownFee"
+										render={({ field }) => (
+											<Checkbox
+												id="merchantBuyDownFee"
+												checked={Boolean(field.value)}
+												onCheckedChange={(value) =>
+													field.onChange(Boolean(value))
+												}
+											/>
+										)}
+									/>
+									<Label
+										htmlFor="merchantBuyDownFee"
+										className="cursor-pointer"
+									>
+										Merchant-funded buy-down fee
+									</Label>
+								</div>
+							</div>
+						)}
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Charge-off Behavior & Expense Mapping</CardTitle>
+					<CardDescription>
+						Configure charge-off behavior and map charge-off/write-off reasons
+						to expense accounts.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					<div className="space-y-2">
+						<Label htmlFor="chargeOffBehaviour">Charge-off Behaviour</Label>
+						<Controller
+							control={control}
+							name="chargeOffBehaviour"
+							render={({ field }) => (
+								<Select
+									value={field.value || ""}
+									onValueChange={(value) => field.onChange(value)}
+								>
+									<SelectTrigger id="chargeOffBehaviour">
+										<SelectValue placeholder="Select charge-off behaviour" />
+									</SelectTrigger>
+									<SelectContent>
+										{chargeOffBehaviourOptions.map((option) => {
+											const value = optionId(option);
+											if (!value) return null;
+											return (
+												<SelectItem key={value} value={value}>
+													{option.value || optionLabel(option)}
+												</SelectItem>
+											);
+										})}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+					</div>
+
+					<div className="grid gap-4 md:grid-cols-2">
+						<div className="space-y-3 rounded-sm border border-border/60 p-3">
+							<h4 className="text-sm font-medium text-muted-foreground">
+								Charge-off Reason to Expense Account
+							</h4>
+							{chargeOffReasonOptions.length === 0 && (
+								<p className="text-xs text-muted-foreground">
+									No charge-off reasons available in this tenant.
+								</p>
+							)}
+							<div className="space-y-2">
+								{chargeOffReasonOptions
+									.filter((reason) => reason.id !== undefined)
+									.map((reason) => {
+										const reasonId = reason.id!;
+										const selectedExpense = getReasonMappingExpenseId(
+											"chargeOffReasonToExpenseMappings",
+											reasonId,
+										);
+										return (
+											<div key={reasonId} className="space-y-2">
+												<Label htmlFor={`chargeOffReason-${reasonId}`}>
+													{optionLabel(reason)}
+												</Label>
+												<Select
+													value={
+														selectedExpense !== undefined
+															? String(selectedExpense)
+															: unassignedExpenseValue
+													}
+													onValueChange={(value) =>
+														setReasonExpenseMapping(
+															"chargeOffReasonToExpenseMappings",
+															reasonId,
+															value === unassignedExpenseValue
+																? undefined
+																: Number(value),
+														)
+													}
+												>
+													<SelectTrigger id={`chargeOffReason-${reasonId}`}>
+														<SelectValue placeholder="Select expense account" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={unassignedExpenseValue}>
+															Not mapped
+														</SelectItem>
+														{expenseOptions.map((account) => (
+															<SelectItem
+																key={account.id}
+																value={String(account.id)}
+															>
+																{optionLabel(account)}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										);
+									})}
+							</div>
+						</div>
+
+						<div className="space-y-3 rounded-sm border border-border/60 p-3">
+							<h4 className="text-sm font-medium text-muted-foreground">
+								Write-off Reason to Expense Account
+							</h4>
+							{writeOffReasonOptions.length === 0 && (
+								<p className="text-xs text-muted-foreground">
+									No write-off reasons available in this tenant.
+								</p>
+							)}
+							<div className="space-y-2">
+								{writeOffReasonOptions
+									.filter((reason) => reason.id !== undefined)
+									.map((reason) => {
+										const reasonId = reason.id!;
+										const selectedExpense = getReasonMappingExpenseId(
+											"writeOffReasonToExpenseMappings",
+											reasonId,
+										);
+										return (
+											<div key={reasonId} className="space-y-2">
+												<Label htmlFor={`writeOffReason-${reasonId}`}>
+													{optionLabel(reason)}
+												</Label>
+												<Select
+													value={
+														selectedExpense !== undefined
+															? String(selectedExpense)
+															: unassignedExpenseValue
+													}
+													onValueChange={(value) =>
+														setReasonExpenseMapping(
+															"writeOffReasonToExpenseMappings",
+															reasonId,
+															value === unassignedExpenseValue
+																? undefined
+																: Number(value),
+														)
+													}
+												>
+													<SelectTrigger id={`writeOffReason-${reasonId}`}>
+														<SelectValue placeholder="Select expense account" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={unassignedExpenseValue}>
+															Not mapped
+														</SelectItem>
+														{expenseOptions.map((account) => (
+															<SelectItem
+																key={account.id}
+																value={String(account.id)}
+															>
+																{optionLabel(account)}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										);
+									})}
+							</div>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Advanced Allocation & Refunds</CardTitle>
+					<CardDescription>
+						Configure supported interest refund types and advanced allocation
+						rules.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-6">
+					<div className="space-y-3">
+						<h4 className="text-sm font-medium text-muted-foreground">
+							Supported Interest Refund Types
+						</h4>
+						<div className="grid gap-2 md:grid-cols-2">
+							{supportedInterestRefundTypeOptions.map((option) => {
+								const value = option.id || option.code;
+								if (!value) return null;
+								return (
+									<div key={value} className="flex items-center gap-2">
+										<Checkbox
+											id={`supportedInterestRefundTypes-${value}`}
+											checked={selectedSupportedInterestRefundTypes.includes(
+												value,
+											)}
+											onCheckedChange={(checked) =>
+												toggleArrayField(
+													"supportedInterestRefundTypes",
+													value,
+													Boolean(checked),
+												)
+											}
+										/>
+										<Label
+											htmlFor={`supportedInterestRefundTypes-${value}`}
+											className="cursor-pointer"
+										>
+											{option.value || optionLabel(option)}
+										</Label>
+									</div>
+								);
+							})}
+						</div>
+					</div>
+
+					<div className="space-y-4 border-t pt-4">
+						<h4 className="text-sm font-medium text-muted-foreground">
+							Payment Allocation
+						</h4>
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label>Transaction Types</Label>
+								<div className="space-y-2 rounded-sm border border-border/60 p-3">
+									{advancedPaymentAllocationTransactionTypeOptions.map(
+										(option) => {
+											const value = option.code;
+											if (!value) return null;
+											return (
+												<div key={value} className="flex items-center gap-2">
+													<Checkbox
+														id={`paymentAllocationTransactionTypes-${value}`}
+														checked={selectedPaymentAllocationTransactionTypes.includes(
+															value,
+														)}
+														onCheckedChange={(checked) =>
+															toggleArrayField(
+																"paymentAllocationTransactionTypes",
+																value,
+																Boolean(checked),
+															)
+														}
+													/>
+													<Label
+														htmlFor={`paymentAllocationTransactionTypes-${value}`}
+														className="cursor-pointer"
+													>
+														{optionLabel(option)}
+													</Label>
+												</div>
+											);
+										},
+									)}
+								</div>
+								{errors.paymentAllocationTransactionTypes && (
+									<p className="text-sm text-destructive">
+										{String(errors.paymentAllocationTransactionTypes.message)}
+									</p>
+								)}
+							</div>
+							<div className="space-y-2">
+								<Label>Allocation Rule Priority (top to bottom)</Label>
+								<div className="space-y-2 rounded-sm border border-border/60 p-3">
+									{advancedPaymentAllocationTypeOptions.map((option) => {
+										const value = option.code;
+										if (!value) return null;
+										return (
+											<div key={value} className="flex items-center gap-2">
+												<Checkbox
+													id={`paymentAllocationRules-${value}`}
+													checked={selectedPaymentAllocationRules.includes(
+														value,
+													)}
+													onCheckedChange={(checked) =>
+														toggleArrayField(
+															"paymentAllocationRules",
+															value,
+															Boolean(checked),
+														)
+													}
+												/>
+												<Label
+													htmlFor={`paymentAllocationRules-${value}`}
+													className="cursor-pointer"
+												>
+													{optionLabel(option)}
+												</Label>
+											</div>
+										);
+									})}
+								</div>
+								{errors.paymentAllocationRules && (
+									<p className="text-sm text-destructive">
+										{String(errors.paymentAllocationRules.message)}
+									</p>
+								)}
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="paymentAllocationFutureInstallmentAllocationRule">
+								Future Installment Allocation Rule
+							</Label>
+							<Controller
+								control={control}
+								name="paymentAllocationFutureInstallmentAllocationRule"
+								render={({ field }) => (
+									<Select
+										value={field.value || ""}
+										onValueChange={(value) => field.onChange(value)}
+									>
+										<SelectTrigger id="paymentAllocationFutureInstallmentAllocationRule">
+											<SelectValue placeholder="Select future installment rule" />
+										</SelectTrigger>
+										<SelectContent>
+											{advancedPaymentAllocationFutureInstallmentRuleOptions.map(
+												(option) => {
+													const value = option.code;
+													if (!value) return null;
+													return (
+														<SelectItem key={value} value={value}>
+															{optionLabel(option)}
+														</SelectItem>
+													);
+												},
+											)}
+										</SelectContent>
+									</Select>
+								)}
+							/>
+							{errors.paymentAllocationFutureInstallmentAllocationRule && (
+								<p className="text-sm text-destructive">
+									{String(
+										errors.paymentAllocationFutureInstallmentAllocationRule
+											.message,
+									)}
+								</p>
+							)}
+						</div>
+					</div>
+
+					<div className="space-y-4 border-t pt-4">
+						<h4 className="text-sm font-medium text-muted-foreground">
+							Credit Allocation
+						</h4>
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label>Transaction Types</Label>
+								<div className="space-y-2 rounded-sm border border-border/60 p-3">
+									{creditAllocationTransactionTypeOptions.map((option) => {
+										const value = option.code;
+										if (!value) return null;
+										return (
+											<div key={value} className="flex items-center gap-2">
+												<Checkbox
+													id={`creditAllocationTransactionTypes-${value}`}
+													checked={selectedCreditAllocationTransactionTypes.includes(
+														value,
+													)}
+													onCheckedChange={(checked) =>
+														toggleArrayField(
+															"creditAllocationTransactionTypes",
+															value,
+															Boolean(checked),
+														)
+													}
+												/>
+												<Label
+													htmlFor={`creditAllocationTransactionTypes-${value}`}
+													className="cursor-pointer"
+												>
+													{optionLabel(option)}
+												</Label>
+											</div>
+										);
+									})}
+								</div>
+								{errors.creditAllocationTransactionTypes && (
+									<p className="text-sm text-destructive">
+										{String(errors.creditAllocationTransactionTypes.message)}
+									</p>
+								)}
+							</div>
+							<div className="space-y-2">
+								<Label>Allocation Rule Priority (top to bottom)</Label>
+								<div className="space-y-2 rounded-sm border border-border/60 p-3">
+									{creditAllocationTypeOptions.map((option) => {
+										const value = option.code;
+										if (!value) return null;
+										return (
+											<div key={value} className="flex items-center gap-2">
+												<Checkbox
+													id={`creditAllocationRules-${value}`}
+													checked={selectedCreditAllocationRules.includes(
+														value,
+													)}
+													onCheckedChange={(checked) =>
+														toggleArrayField(
+															"creditAllocationRules",
+															value,
+															Boolean(checked),
+														)
+													}
+												/>
+												<Label
+													htmlFor={`creditAllocationRules-${value}`}
+													className="cursor-pointer"
+												>
+													{optionLabel(option)}
+												</Label>
+											</div>
+										);
+									})}
+								</div>
+								{errors.creditAllocationRules && (
+									<p className="text-sm text-destructive">
+										{String(errors.creditAllocationRules.message)}
+									</p>
+								)}
+							</div>
+						</div>
+					</div>
 				</CardContent>
 			</Card>
 

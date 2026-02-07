@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import {
 	Card,
@@ -40,14 +41,170 @@ function optionLabel(option?: {
 	);
 }
 
+function optionId(option?: { id?: number | string }) {
+	if (option?.id === undefined || option.id === null) return "";
+	return String(option.id);
+}
+
 export function LoanProductInterestStep({
 	template,
 }: LoanProductInterestStepProps) {
 	const {
 		register,
 		control,
+		watch,
+		getValues,
+		setValue,
 		formState: { errors },
 	} = useFormContext<CreateLoanProductFormData>();
+	const isInterestRecalculationEnabled = Boolean(
+		watch("isInterestRecalculationEnabled"),
+	);
+	const recalculationCompoundingMethod = watch(
+		"interestRecalculationCompoundingMethod",
+	);
+	const recalculationCompoundingFrequencyType = watch(
+		"recalculationCompoundingFrequencyType",
+	);
+	const shouldConfigureCompoundingFrequency =
+		isInterestRecalculationEnabled &&
+		recalculationCompoundingMethod !== undefined &&
+		recalculationCompoundingMethod !== 0;
+	const isMonthlyCompounding =
+		shouldConfigureCompoundingFrequency &&
+		recalculationCompoundingFrequencyType === 4;
+
+	useEffect(() => {
+		if (!isInterestRecalculationEnabled) {
+			if (getValues("interestRecalculationCompoundingMethod") !== undefined) {
+				setValue("interestRecalculationCompoundingMethod", undefined);
+			}
+			if (getValues("rescheduleStrategyMethod") !== undefined) {
+				setValue("rescheduleStrategyMethod", undefined);
+			}
+			if (getValues("preClosureInterestCalculationStrategy") !== undefined) {
+				setValue("preClosureInterestCalculationStrategy", undefined);
+			}
+			if (getValues("isArrearsBasedOnOriginalSchedule") !== false) {
+				setValue("isArrearsBasedOnOriginalSchedule", false);
+			}
+			if (getValues("disallowInterestCalculationOnPastDue") !== false) {
+				setValue("disallowInterestCalculationOnPastDue", false);
+			}
+			if (getValues("recalculationCompoundingFrequencyType") !== undefined) {
+				setValue("recalculationCompoundingFrequencyType", undefined);
+			}
+			if (
+				getValues("recalculationCompoundingFrequencyInterval") !== undefined
+			) {
+				setValue("recalculationCompoundingFrequencyInterval", undefined);
+			}
+			if (
+				getValues("recalculationCompoundingFrequencyOnDayType") !== undefined
+			) {
+				setValue("recalculationCompoundingFrequencyOnDayType", undefined);
+			}
+			if (getValues("recalculationRestFrequencyType") !== undefined) {
+				setValue("recalculationRestFrequencyType", undefined);
+			}
+			if (getValues("recalculationRestFrequencyInterval") !== undefined) {
+				setValue("recalculationRestFrequencyInterval", undefined);
+			}
+			return;
+		}
+
+		if (getValues("interestRecalculationCompoundingMethod") === undefined) {
+			const compoundingMethod =
+				template?.interestRecalculationData
+					?.interestRecalculationCompoundingType?.id ??
+				template?.interestRecalculationCompoundingTypeOptions?.[0]?.id;
+			if (compoundingMethod !== undefined) {
+				setValue("interestRecalculationCompoundingMethod", compoundingMethod);
+			}
+		}
+
+		if (getValues("rescheduleStrategyMethod") === undefined) {
+			const rescheduleMethod =
+				template?.interestRecalculationData?.rescheduleStrategyType?.id ??
+				template?.rescheduleStrategyTypeOptions?.[0]?.id;
+			if (rescheduleMethod !== undefined) {
+				setValue("rescheduleStrategyMethod", rescheduleMethod);
+			}
+		}
+
+		if (getValues("preClosureInterestCalculationStrategy") === undefined) {
+			const preClosureMethod =
+				template?.interestRecalculationData
+					?.preClosureInterestCalculationStrategy?.id ??
+				template?.preClosureInterestCalculationStrategyOptions?.[0]?.id;
+			if (preClosureMethod !== undefined) {
+				setValue("preClosureInterestCalculationStrategy", preClosureMethod);
+			}
+		}
+
+		if (getValues("recalculationRestFrequencyType") === undefined) {
+			const restFrequencyType =
+				template?.interestRecalculationData?.recalculationRestFrequencyType
+					?.id ?? template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
+			if (restFrequencyType !== undefined) {
+				setValue("recalculationRestFrequencyType", restFrequencyType);
+			}
+		}
+
+		if (getValues("recalculationRestFrequencyInterval") === undefined) {
+			setValue(
+				"recalculationRestFrequencyInterval",
+				template?.interestRecalculationData
+					?.recalculationRestFrequencyInterval ?? 1,
+			);
+		}
+	}, [getValues, isInterestRecalculationEnabled, setValue, template]);
+
+	useEffect(() => {
+		if (!shouldConfigureCompoundingFrequency) {
+			if (getValues("recalculationCompoundingFrequencyType") !== undefined) {
+				setValue("recalculationCompoundingFrequencyType", undefined);
+			}
+			if (
+				getValues("recalculationCompoundingFrequencyInterval") !== undefined
+			) {
+				setValue("recalculationCompoundingFrequencyInterval", undefined);
+			}
+			if (
+				getValues("recalculationCompoundingFrequencyOnDayType") !== undefined
+			) {
+				setValue("recalculationCompoundingFrequencyOnDayType", undefined);
+			}
+			return;
+		}
+
+		if (getValues("recalculationCompoundingFrequencyType") === undefined) {
+			const compoundingFrequencyType =
+				template?.interestRecalculationData
+					?.interestRecalculationCompoundingFrequencyType?.id ??
+				template?.interestRecalculationFrequencyTypeOptions?.[0]?.id;
+			if (compoundingFrequencyType !== undefined) {
+				setValue(
+					"recalculationCompoundingFrequencyType",
+					compoundingFrequencyType,
+				);
+			}
+		}
+
+		if (getValues("recalculationCompoundingFrequencyInterval") === undefined) {
+			setValue(
+				"recalculationCompoundingFrequencyInterval",
+				template?.interestRecalculationData
+					?.recalculationCompoundingFrequencyInterval ?? 1,
+			);
+		}
+	}, [getValues, setValue, shouldConfigureCompoundingFrequency, template]);
+
+	useEffect(() => {
+		if (!isMonthlyCompounding) {
+			setValue("recalculationCompoundingFrequencyOnDayType", undefined);
+		}
+	}, [isMonthlyCompounding, setValue]);
 
 	return (
 		<Card>
@@ -359,6 +516,358 @@ export function LoanProductInterestStep({
 							Enable interest recalculation on early/late repayments
 						</Label>
 					</div>
+
+					{isInterestRecalculationEnabled && (
+						<div className="space-y-4 rounded-sm border border-border/60 p-4">
+							<div className="grid gap-4 md:grid-cols-3">
+								<div className="space-y-2">
+									<Label htmlFor="interestRecalculationCompoundingMethod">
+										Compounding Method{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="interestRecalculationCompoundingMethod"
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: ""
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+											>
+												<SelectTrigger id="interestRecalculationCompoundingMethod">
+													<SelectValue placeholder="Select compounding method" />
+												</SelectTrigger>
+												<SelectContent>
+													{template?.interestRecalculationCompoundingTypeOptions?.map(
+														(option) => {
+															const id = optionId(option);
+															if (!id) return null;
+															return (
+																<SelectItem key={id} value={id}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														},
+													)}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.interestRecalculationCompoundingMethod && (
+										<p className="text-sm text-destructive">
+											{String(
+												errors.interestRecalculationCompoundingMethod.message,
+											)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="rescheduleStrategyMethod">
+										Reschedule Strategy{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="rescheduleStrategyMethod"
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: ""
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+											>
+												<SelectTrigger id="rescheduleStrategyMethod">
+													<SelectValue placeholder="Select strategy" />
+												</SelectTrigger>
+												<SelectContent>
+													{template?.rescheduleStrategyTypeOptions?.map(
+														(option) => {
+															const id = optionId(option);
+															if (!id) return null;
+															return (
+																<SelectItem key={id} value={id}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														},
+													)}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.rescheduleStrategyMethod && (
+										<p className="text-sm text-destructive">
+											{String(errors.rescheduleStrategyMethod.message)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="preClosureInterestCalculationStrategy">
+										Pre-Closure Strategy{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="preClosureInterestCalculationStrategy"
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: ""
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+											>
+												<SelectTrigger id="preClosureInterestCalculationStrategy">
+													<SelectValue placeholder="Select pre-closure strategy" />
+												</SelectTrigger>
+												<SelectContent>
+													{template?.preClosureInterestCalculationStrategyOptions?.map(
+														(option) => {
+															const id = optionId(option);
+															if (!id) return null;
+															return (
+																<SelectItem key={id} value={id}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														},
+													)}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.preClosureInterestCalculationStrategy && (
+										<p className="text-sm text-destructive">
+											{String(
+												errors.preClosureInterestCalculationStrategy.message,
+											)}
+										</p>
+									)}
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="recalculationRestFrequencyType">
+										Rest Frequency Type{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Controller
+										control={control}
+										name="recalculationRestFrequencyType"
+										render={({ field }) => (
+											<Select
+												value={
+													field.value !== undefined && field.value !== null
+														? String(field.value)
+														: ""
+												}
+												onValueChange={(value) => field.onChange(Number(value))}
+											>
+												<SelectTrigger id="recalculationRestFrequencyType">
+													<SelectValue placeholder="Select rest frequency type" />
+												</SelectTrigger>
+												<SelectContent>
+													{template?.interestRecalculationFrequencyTypeOptions?.map(
+														(option) => {
+															const id = optionId(option);
+															if (!id) return null;
+															return (
+																<SelectItem key={id} value={id}>
+																	{optionLabel(option)}
+																</SelectItem>
+															);
+														},
+													)}
+												</SelectContent>
+											</Select>
+										)}
+									/>
+									{errors.recalculationRestFrequencyType && (
+										<p className="text-sm text-destructive">
+											{String(errors.recalculationRestFrequencyType.message)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="recalculationRestFrequencyInterval">
+										Rest Frequency Interval{" "}
+										<span className="text-destructive">*</span>
+									</Label>
+									<Input
+										id="recalculationRestFrequencyInterval"
+										type="number"
+										min={1}
+										{...register("recalculationRestFrequencyInterval", {
+											valueAsNumber: true,
+										})}
+									/>
+									{errors.recalculationRestFrequencyInterval && (
+										<p className="text-sm text-destructive">
+											{String(
+												errors.recalculationRestFrequencyInterval.message,
+											)}
+										</p>
+									)}
+								</div>
+							</div>
+
+							{shouldConfigureCompoundingFrequency && (
+								<div className="grid gap-4 md:grid-cols-3">
+									<div className="space-y-2">
+										<Label htmlFor="recalculationCompoundingFrequencyType">
+											Compounding Frequency Type{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Controller
+											control={control}
+											name="recalculationCompoundingFrequencyType"
+											render={({ field }) => (
+												<Select
+													value={
+														field.value !== undefined && field.value !== null
+															? String(field.value)
+															: ""
+													}
+													onValueChange={(value) =>
+														field.onChange(Number(value))
+													}
+												>
+													<SelectTrigger id="recalculationCompoundingFrequencyType">
+														<SelectValue placeholder="Select compounding frequency" />
+													</SelectTrigger>
+													<SelectContent>
+														{template?.interestRecalculationFrequencyTypeOptions?.map(
+															(option) => {
+																const id = optionId(option);
+																if (!id) return null;
+																return (
+																	<SelectItem key={id} value={id}>
+																		{optionLabel(option)}
+																	</SelectItem>
+																);
+															},
+														)}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors.recalculationCompoundingFrequencyType && (
+											<p className="text-sm text-destructive">
+												{String(
+													errors.recalculationCompoundingFrequencyType.message,
+												)}
+											</p>
+										)}
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="recalculationCompoundingFrequencyInterval">
+											Compounding Interval{" "}
+											<span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id="recalculationCompoundingFrequencyInterval"
+											type="number"
+											min={1}
+											{...register(
+												"recalculationCompoundingFrequencyInterval",
+												{
+													valueAsNumber: true,
+												},
+											)}
+										/>
+										{errors.recalculationCompoundingFrequencyInterval && (
+											<p className="text-sm text-destructive">
+												{String(
+													errors.recalculationCompoundingFrequencyInterval
+														.message,
+												)}
+											</p>
+										)}
+									</div>
+									{isMonthlyCompounding && (
+										<div className="space-y-2">
+											<Label htmlFor="recalculationCompoundingFrequencyOnDayType">
+												Compounding Day of Month{" "}
+												<span className="text-destructive">*</span>
+											</Label>
+											<Input
+												id="recalculationCompoundingFrequencyOnDayType"
+												type="number"
+												min={1}
+												max={31}
+												{...register(
+													"recalculationCompoundingFrequencyOnDayType",
+													{
+														valueAsNumber: true,
+													},
+												)}
+											/>
+											{errors.recalculationCompoundingFrequencyOnDayType && (
+												<p className="text-sm text-destructive">
+													{String(
+														errors.recalculationCompoundingFrequencyOnDayType
+															.message,
+													)}
+												</p>
+											)}
+										</div>
+									)}
+								</div>
+							)}
+
+							<div className="grid gap-3 md:grid-cols-2">
+								<div className="flex items-center gap-2">
+									<Controller
+										control={control}
+										name="isArrearsBasedOnOriginalSchedule"
+										render={({ field }) => (
+											<Checkbox
+												id="isArrearsBasedOnOriginalSchedule"
+												checked={Boolean(field.value)}
+												onCheckedChange={(value) =>
+													field.onChange(Boolean(value))
+												}
+											/>
+										)}
+									/>
+									<Label
+										htmlFor="isArrearsBasedOnOriginalSchedule"
+										className="cursor-pointer"
+									>
+										Arrears based on original schedule
+									</Label>
+								</div>
+								<div className="flex items-center gap-2">
+									<Controller
+										control={control}
+										name="disallowInterestCalculationOnPastDue"
+										render={({ field }) => (
+											<Checkbox
+												id="disallowInterestCalculationOnPastDue"
+												checked={Boolean(field.value)}
+												onCheckedChange={(value) =>
+													field.onChange(Boolean(value))
+												}
+											/>
+										)}
+									/>
+									<Label
+										htmlFor="disallowInterestCalculationOnPastDue"
+										className="cursor-pointer"
+									>
+										Disallow interest calculation on past due
+									</Label>
+								</div>
+							</div>
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>

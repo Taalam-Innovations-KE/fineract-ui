@@ -117,6 +117,17 @@ function transformProductToFormData(
 	product: GetLoanProductsProductIdResponse,
 	detailedCharges: GetChargesResponse[],
 ) {
+	const principal = product.principal ?? 10000;
+	const minPrincipal = product.minPrincipal ?? principal;
+	const maxPrincipal = product.maxPrincipal ?? principal;
+	const numberOfRepayments = product.numberOfRepayments ?? 1;
+	const minNumberOfRepayments =
+		product.minNumberOfRepayments ?? numberOfRepayments;
+	const maxNumberOfRepayments =
+		product.maxNumberOfRepayments ?? numberOfRepayments;
+	const repaymentEvery = product.repaymentEvery ?? 1;
+	const interestRatePerPeriod = product.interestRatePerPeriod ?? 10;
+
 	// Transform detailed charges into fees and penalties arrays
 	const fees = detailedCharges
 		.filter((charge) => !charge.penalty)
@@ -171,27 +182,190 @@ function transformProductToFormData(
 		name: product.name || "",
 		shortName: product.shortName || "",
 		description: product.description || "",
+		includeInBorrowerCycle: Boolean(product.includeInBorrowerCycle),
+		useBorrowerCycle: Boolean(product.useBorrowerCycle),
 		currencyCode: product.currency?.code || "",
 		digitsAfterDecimal: product.currency?.decimalPlaces || 2,
-		minPrincipal: product.minPrincipal,
-		principal: product.principal,
-		maxPrincipal: product.maxPrincipal,
-		numberOfRepayments: product.numberOfRepayments,
-		minNumberOfRepayments: product.minNumberOfRepayments,
-		maxNumberOfRepayments: product.maxNumberOfRepayments,
-		repaymentEvery: product.repaymentEvery,
+		minPrincipal,
+		principal,
+		maxPrincipal,
+		numberOfRepayments,
+		minNumberOfRepayments,
+		maxNumberOfRepayments,
+		loanScheduleType: product.loanScheduleType?.code,
+		loanScheduleProcessingType: product.loanScheduleProcessingType?.code,
+		multiDisburseLoan: Boolean(product.multiDisburseLoan),
+		maxTrancheCount: product.maxTrancheCount,
+		disallowExpectedDisbursements: Boolean(
+			product.disallowExpectedDisbursements,
+		),
+		allowFullTermForTranche: Boolean(product.allowFullTermForTranche),
+		syncExpectedWithDisbursementDate: Boolean(
+			product.syncExpectedWithDisbursementDate,
+		),
+		allowApprovedDisbursedAmountsOverApplied: Boolean(
+			product.allowApprovedDisbursedAmountsOverApplied,
+		),
+		overAppliedCalculationType:
+			product.overAppliedCalculationType?.toLowerCase() === "percentage"
+				? "percentage"
+				: product.overAppliedCalculationType?.toLowerCase() === "flat"
+					? "flat"
+					: undefined,
+		overAppliedNumber: product.overAppliedNumber,
+		repaymentEvery,
 		repaymentFrequencyType: product.repaymentFrequencyType?.id,
+		repaymentStartDateType: product.repaymentStartDateType?.id,
+		graceOnPrincipalPayment: product.graceOnPrincipalPayment,
+		graceOnInterestPayment: product.graceOnInterestPayment,
+		principalThresholdForLastInstallment:
+			product.principalThresholdForLastInstalment,
 		interestType: product.interestType?.id,
 		amortizationType: product.amortizationType?.id,
-		interestRatePerPeriod: product.interestRatePerPeriod,
+		interestRatePerPeriod,
 		interestRateFrequencyType: product.interestRateFrequencyType?.id,
 		interestCalculationPeriodType: product.interestCalculationPeriodType?.id,
 		allowPartialPeriodInterestCalculation:
 			product.allowPartialPeriodInterestCalculation,
+		daysInYearType: product.daysInYearType?.id,
+		daysInMonthType:
+			product.daysInMonthType?.id !== undefined
+				? Number(product.daysInMonthType.id)
+				: undefined,
+		isInterestRecalculationEnabled: Boolean(
+			product.isInterestRecalculationEnabled,
+		),
+		interestRecalculationCompoundingMethod:
+			product.interestRecalculationData?.interestRecalculationCompoundingType
+				?.id,
+		rescheduleStrategyMethod:
+			product.interestRecalculationData?.rescheduleStrategyType?.id,
+		preClosureInterestCalculationStrategy:
+			product.interestRecalculationData?.preClosureInterestCalculationStrategy
+				?.id,
+		isArrearsBasedOnOriginalSchedule: Boolean(
+			product.interestRecalculationData?.isArrearsBasedOnOriginalSchedule,
+		),
+		disallowInterestCalculationOnPastDue: Boolean(
+			product.interestRecalculationData?.disallowInterestCalculationOnPastDue,
+		),
+		recalculationCompoundingFrequencyType:
+			product.interestRecalculationData
+				?.interestRecalculationCompoundingFrequencyType?.id,
+		recalculationCompoundingFrequencyInterval:
+			product.interestRecalculationData
+				?.recalculationCompoundingFrequencyInterval,
+		recalculationCompoundingFrequencyOnDayType:
+			product.interestRecalculationData
+				?.recalculationCompoundingFrequencyOnDayType,
+		recalculationRestFrequencyType:
+			product.interestRecalculationData?.recalculationRestFrequencyType?.id,
+		recalculationRestFrequencyInterval:
+			product.interestRecalculationData?.recalculationRestFrequencyInterval,
 		transactionProcessingStrategyCode:
 			product.transactionProcessingStrategyCode,
+		graceOnArrearsAgeing: product.graceOnArrearsAgeing,
 		inArrearsTolerance: product.inArrearsTolerance,
 		overdueDaysForNPA: product.overdueDaysForNPA,
+		delinquencyBucketId: product.delinquencyBucket?.id,
+		accountMovesOutOfNPAOnlyOnArrearsCompletion: Boolean(
+			product.accountMovesOutOfNPAOnlyOnArrearsCompletion,
+		),
+		enableIncomeCapitalization: Boolean(product.enableIncomeCapitalization),
+		capitalizedIncomeType:
+			product.capitalizedIncomeType?.id === "FEE" ||
+			product.capitalizedIncomeType?.id === "INTEREST"
+				? product.capitalizedIncomeType.id
+				: undefined,
+		capitalizedIncomeCalculationType:
+			product.capitalizedIncomeCalculationType?.id === "FLAT"
+				? "FLAT"
+				: undefined,
+		capitalizedIncomeStrategy:
+			product.capitalizedIncomeStrategy?.id === "EQUAL_AMORTIZATION"
+				? "EQUAL_AMORTIZATION"
+				: undefined,
+		enableBuyDownFee: Boolean(product.enableBuyDownFee),
+		buyDownFeeIncomeType:
+			product.buyDownFeeIncomeType?.id === "FEE" ||
+			product.buyDownFeeIncomeType?.id === "INTEREST"
+				? product.buyDownFeeIncomeType.id
+				: undefined,
+		buyDownFeeCalculationType:
+			product.buyDownFeeCalculationType?.id === "FLAT" ? "FLAT" : undefined,
+		buyDownFeeStrategy:
+			product.buyDownFeeStrategy?.id === "EQUAL_AMORTIZATION"
+				? "EQUAL_AMORTIZATION"
+				: undefined,
+		merchantBuyDownFee: Boolean(product.merchantBuyDownFee),
+		chargeOffBehaviour:
+			product.chargeOffBehaviour?.id === "REGULAR" ||
+			product.chargeOffBehaviour?.id === "ZERO_INTEREST" ||
+			product.chargeOffBehaviour?.id === "ACCELERATE_MATURITY"
+				? product.chargeOffBehaviour.id
+				: undefined,
+		chargeOffReasonToExpenseMappings:
+			product.chargeOffReasonToExpenseAccountMappings
+				?.map((mapping) => ({
+					reasonCodeValueId: mapping.reasonCodeValue?.id,
+					expenseAccountId: mapping.expenseAccount?.id,
+				}))
+				.filter(
+					(
+						mapping,
+					): mapping is {
+						reasonCodeValueId: number;
+						expenseAccountId: number;
+					} =>
+						typeof mapping.reasonCodeValueId === "number" &&
+						mapping.reasonCodeValueId > 0 &&
+						typeof mapping.expenseAccountId === "number" &&
+						mapping.expenseAccountId > 0,
+				) || [],
+		writeOffReasonToExpenseMappings:
+			product.writeOffReasonsToExpenseMappings
+				?.map((mapping) => ({
+					reasonCodeValueId: mapping.reasonCodeValue?.id,
+					expenseAccountId: mapping.expenseAccount?.id,
+				}))
+				.filter(
+					(
+						mapping,
+					): mapping is {
+						reasonCodeValueId: number;
+						expenseAccountId: number;
+					} =>
+						typeof mapping.reasonCodeValueId === "number" &&
+						mapping.reasonCodeValueId > 0 &&
+						typeof mapping.expenseAccountId === "number" &&
+						mapping.expenseAccountId > 0,
+				) || [],
+		supportedInterestRefundTypes:
+			product.supportedInterestRefundTypes
+				?.map((entry) => entry.id || entry.code)
+				.filter((value): value is string => Boolean(value)) || [],
+		paymentAllocationTransactionTypes:
+			product.paymentAllocation
+				?.map((entry) => entry.transactionType)
+				.filter((value): value is string => Boolean(value)) || [],
+		paymentAllocationRules:
+			product.paymentAllocation?.[0]?.paymentAllocationOrder
+				?.slice()
+				.sort((a, b) => (a.order || 0) - (b.order || 0))
+				.map((entry) => entry.paymentAllocationRule)
+				.filter((value): value is string => Boolean(value)) || [],
+		paymentAllocationFutureInstallmentAllocationRule:
+			product.paymentAllocation?.[0]?.futureInstallmentAllocationRule,
+		creditAllocationTransactionTypes:
+			product.creditAllocation
+				?.map((entry) => entry.transactionType)
+				.filter((value): value is string => Boolean(value)) || [],
+		creditAllocationRules:
+			product.creditAllocation?.[0]?.creditAllocationOrder
+				?.slice()
+				.sort((a, b) => (a.order || 0) - (b.order || 0))
+				.map((entry) => entry.creditAllocationRule)
+				.filter((value): value is string => Boolean(value)) || [],
 		accountingRule: product.accountingRule?.id,
 		interestOnLoanAccountId:
 			product.accountingMappings?.interestOnLoanAccount?.id,
@@ -214,6 +388,162 @@ function transformProductToFormData(
 			product.accountingMappings?.transfersInSuspenseAccount?.id,
 		fees,
 		penalties,
+	};
+}
+
+function mapClassificationToIncomeAccountMappings(
+	mappings: GetLoanProductsProductIdResponse["buydownFeeClassificationToIncomeAccountMappings"],
+) {
+	if (!mappings?.length) return undefined;
+
+	const normalized = mappings
+		.map((mapping) => {
+			const classificationCodeValueId = mapping.classificationCodeValue?.id;
+			const incomeAccountId = mapping.incomeAccount?.id;
+			if (
+				typeof classificationCodeValueId !== "number" ||
+				typeof incomeAccountId !== "number"
+			) {
+				return null;
+			}
+			return {
+				classificationCodeValueId,
+				incomeAccountId,
+			};
+		})
+		.filter(
+			(
+				item,
+			): item is {
+				classificationCodeValueId: number;
+				incomeAccountId: number;
+			} => item !== null,
+		);
+
+	return normalized.length > 0 ? normalized : undefined;
+}
+
+function mapFeeToIncomeAccountMappings(
+	mappings: GetLoanProductsProductIdResponse["feeToIncomeAccountMappings"],
+) {
+	if (!mappings?.length) return undefined;
+
+	const normalized = mappings
+		.map((mapping) => {
+			const chargeId = mapping.chargeId ?? mapping.charge?.id;
+			const incomeAccountId =
+				mapping.incomeAccountId ?? mapping.incomeAccount?.id;
+			if (typeof chargeId !== "number" || typeof incomeAccountId !== "number") {
+				return null;
+			}
+			return {
+				charge: { id: chargeId },
+				incomeAccount: { id: incomeAccountId },
+			};
+		})
+		.filter(
+			(
+				item,
+			): item is { charge: { id: number }; incomeAccount: { id: number } } =>
+				item !== null,
+		);
+
+	return normalized.length > 0 ? normalized : undefined;
+}
+
+function buildPreservedLoanProductUpdatePayload(
+	product: GetLoanProductsProductIdResponse,
+): Partial<PostLoanProductsRequest> {
+	const enableDownPayment = Boolean(product.enableDownPayment);
+	const daysInYearCustomStrategy =
+		product.daysInYearCustomStrategy?.id ||
+		product.daysInYearCustomStrategy?.code;
+	const preservedPaymentChannelMappings = product
+		.paymentChannelToFundSourceMappings?.length
+		? product.paymentChannelToFundSourceMappings
+		: undefined;
+
+	return {
+		allowVariableInstallments: product.allowVariableInstallments,
+		canDefineInstallmentAmount: product.canDefineInstallmentAmount,
+		canUseForTopup: product.canUseForTopup,
+		daysInYearCustomStrategy,
+		disbursedAmountPercentageForDownPayment: enableDownPayment
+			? product.disbursedAmountPercentageForDownPayment
+			: undefined,
+		dueDaysForRepaymentEvent: product.dueDaysForRepaymentEvent,
+		enableAccrualActivityPosting: product.enableAccrualActivityPosting,
+		enableAutoRepaymentForDownPayment: enableDownPayment
+			? product.enableAutoRepaymentForDownPayment
+			: undefined,
+		enableDownPayment,
+		enableInstallmentLevelDelinquency:
+			product.enableInstallmentLevelDelinquency,
+		fixedLength: product.fixedLength,
+		fixedPrincipalPercentagePerInstallment:
+			product.fixedPrincipalPercentagePerInstallment,
+		interestRateVariationsForBorrowerCycle:
+			product.interestRateVariationsForBorrowerCycle,
+		interestRecognitionOnDisbursementDate:
+			product.interestRecognitionOnDisbursementDate,
+		isLinkedToFloatingInterestRates: product.isLinkedToFloatingInterestRates,
+		maxInterestRatePerPeriod: product.maxInterestRatePerPeriod,
+		minInterestRatePerPeriod: product.minInterestRatePerPeriod,
+		numberOfRepaymentVariationsForBorrowerCycle:
+			product.numberOfRepaymentVariationsForBorrowerCycle,
+		outstandingLoanBalance: product.outstandingLoanBalance,
+		overDueDaysForRepaymentEvent: product.overDueDaysForRepaymentEvent,
+		buydownfeeClassificationToIncomeAccountMappings:
+			mapClassificationToIncomeAccountMappings(
+				product.buydownFeeClassificationToIncomeAccountMappings,
+			),
+		capitalizedIncomeClassificationToIncomeAccountMappings:
+			mapClassificationToIncomeAccountMappings(
+				product.capitalizedIncomeClassificationToIncomeAccountMappings,
+			),
+		feeToIncomeAccountMappings: mapFeeToIncomeAccountMappings(
+			product.feeToIncomeAccountMappings,
+		),
+		paymentChannelToFundSourceMappings: preservedPaymentChannelMappings,
+		buyDownExpenseAccountId:
+			product.accountingMappings?.buyDownExpenseAccount?.id,
+		chargeOffExpenseAccountId:
+			product.accountingMappings?.chargeOffExpenseAccount?.id,
+		chargeOffFraudExpenseAccountId:
+			product.accountingMappings?.chargeOffFraudExpenseAccount?.id,
+		deferredIncomeLiabilityAccountId:
+			product.accountingMappings?.deferredIncomeLiabilityAccount?.id,
+		goodwillCreditAccountId:
+			product.accountingMappings?.goodwillCreditAccount?.id,
+		incomeFromBuyDownAccountId:
+			product.accountingMappings?.incomeFromBuyDownAccount?.id,
+		incomeFromCapitalizationAccountId:
+			product.accountingMappings?.incomeFromCapitalizationAccount?.id,
+		incomeFromChargeOffFeesAccountId:
+			product.accountingMappings?.incomeFromChargeOffFeesAccount?.id,
+		incomeFromChargeOffInterestAccountId:
+			product.accountingMappings?.incomeFromChargeOffInterestAccount?.id,
+		incomeFromChargeOffPenaltyAccountId:
+			product.accountingMappings?.incomeFromChargeOffPenaltyAccount?.id,
+		incomeFromGoodwillCreditFeesAccountId:
+			product.accountingMappings?.incomeFromGoodwillCreditFeesAccount?.id,
+		incomeFromGoodwillCreditInterestAccountId:
+			product.accountingMappings?.incomeFromGoodwillCreditInterestAccount?.id,
+		incomeFromGoodwillCreditPenaltyAccountId:
+			product.accountingMappings?.incomeFromGoodwillCreditPenaltyAccount?.id,
+	};
+}
+
+function mergeLoanProductUpdatePayload(
+	product: GetLoanProductsProductIdResponse,
+	payload: PostLoanProductsRequest,
+): PostLoanProductsRequest {
+	const preserved = buildPreservedLoanProductUpdatePayload(product);
+
+	return {
+		...preserved,
+		...payload,
+		charges: payload.charges ?? product.charges,
 	};
 }
 
@@ -1286,7 +1616,11 @@ export default function LoanProductDetailPage({
 							isEditMode={true}
 							initialData={transformProductToFormData(product, detailedCharges)}
 							onUpdate={async (data) => {
-								await updateMutation.mutateAsync(data);
+								const mergedPayload = mergeLoanProductUpdatePayload(
+									product,
+									data,
+								);
+								await updateMutation.mutateAsync(mergedPayload);
 							}}
 						/>
 					</div>

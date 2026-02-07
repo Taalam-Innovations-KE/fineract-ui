@@ -70,7 +70,7 @@ export function LoanAdvancedStep({
 							control={form.control}
 							name="enableDownPayment"
 							render={({ field }) => (
-								<FormItem className="flex flex-row items-start space-x-3 space-y-0">
+								<FormItem className="flex flex-row items-start space-x-3">
 									<FormControl>
 										<Checkbox
 											checked={field.value}
@@ -130,7 +130,7 @@ export function LoanAdvancedStep({
 									control={form.control}
 									name="enableAutoRepaymentForDownPayment"
 									render={({ field }) => (
-										<FormItem className="flex flex-row items-start space-x-3 space-y-0">
+										<FormItem className="flex flex-row items-start space-x-3">
 											<FormControl>
 												<Checkbox
 													checked={field.value}
@@ -160,7 +160,7 @@ export function LoanAdvancedStep({
 							control={form.control}
 							name="isMultiTrancheEnabled"
 							render={({ field }) => (
-								<FormItem className="flex flex-row items-start space-x-3 space-y-0">
+								<FormItem className="flex flex-row items-start space-x-3">
 									<FormControl>
 										<Checkbox
 											checked={field.value}

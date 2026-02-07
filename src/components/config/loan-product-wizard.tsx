@@ -57,7 +57,15 @@ const steps = [
 
 // Field names for each step - used for partial validation on Next click
 const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
-	1: ["name", "shortName", "description", "currencyCode", "digitsAfterDecimal"],
+	1: [
+		"name",
+		"shortName",
+		"description",
+		"currencyCode",
+		"digitsAfterDecimal",
+		"includeInBorrowerCycle",
+		"useBorrowerCycle",
+	],
 	2: ["minPrincipal", "principal", "maxPrincipal", "inMultiplesOf"],
 	3: [
 		"minNumberOfRepayments",
@@ -65,6 +73,20 @@ const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
 		"maxNumberOfRepayments",
 		"repaymentEvery",
 		"repaymentFrequencyType",
+		"repaymentStartDateType",
+		"loanScheduleType",
+		"loanScheduleProcessingType",
+		"multiDisburseLoan",
+		"maxTrancheCount",
+		"disallowExpectedDisbursements",
+		"allowFullTermForTranche",
+		"syncExpectedWithDisbursementDate",
+		"allowApprovedDisbursedAmountsOverApplied",
+		"overAppliedCalculationType",
+		"overAppliedNumber",
+		"graceOnPrincipalPayment",
+		"graceOnInterestPayment",
+		"principalThresholdForLastInstallment",
 		"minimumDaysBetweenDisbursalAndFirstRepayment",
 	],
 	4: [
@@ -77,6 +99,16 @@ const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
 		"daysInYearType",
 		"daysInMonthType",
 		"isInterestRecalculationEnabled",
+		"interestRecalculationCompoundingMethod",
+		"rescheduleStrategyMethod",
+		"preClosureInterestCalculationStrategy",
+		"isArrearsBasedOnOriginalSchedule",
+		"disallowInterestCalculationOnPastDue",
+		"recalculationCompoundingFrequencyType",
+		"recalculationCompoundingFrequencyInterval",
+		"recalculationCompoundingFrequencyOnDayType",
+		"recalculationRestFrequencyType",
+		"recalculationRestFrequencyInterval",
 	],
 	5: ["fees"],
 	6: ["penalties"],
@@ -85,6 +117,26 @@ const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
 		"graceOnArrearsAgeing",
 		"inArrearsTolerance",
 		"overdueDaysForNPA",
+		"delinquencyBucketId",
+		"accountMovesOutOfNPAOnlyOnArrearsCompletion",
+		"enableIncomeCapitalization",
+		"capitalizedIncomeType",
+		"capitalizedIncomeCalculationType",
+		"capitalizedIncomeStrategy",
+		"enableBuyDownFee",
+		"buyDownFeeIncomeType",
+		"buyDownFeeCalculationType",
+		"buyDownFeeStrategy",
+		"merchantBuyDownFee",
+		"chargeOffBehaviour",
+		"chargeOffReasonToExpenseMappings",
+		"writeOffReasonToExpenseMappings",
+		"supportedInterestRefundTypes",
+		"paymentAllocationTransactionTypes",
+		"paymentAllocationRules",
+		"paymentAllocationFutureInstallmentAllocationRule",
+		"creditAllocationTransactionTypes",
+		"creditAllocationRules",
 		"accountingRule",
 		"fundSourceAccountId",
 		"loanPortfolioAccountId",
@@ -110,6 +162,16 @@ function getTemplateCurrencyOptions(
 
 	return options.filter(
 		(option) => option.code && allowedCurrencies.includes(option.code),
+	);
+}
+
+function isChargeOffBehaviour(
+	value: string | undefined,
+): value is "REGULAR" | "ZERO_INTEREST" | "ACCELERATE_MATURITY" {
+	return (
+		value === "REGULAR" ||
+		value === "ZERO_INTEREST" ||
+		value === "ACCELERATE_MATURITY"
 	);
 }
 
@@ -146,6 +208,13 @@ export function LoanProductWizard({
 		fees: [] as FeeSelection[],
 		penalties: [] as PenaltySelection[],
 		inMultiplesOf: 1,
+		includeInBorrowerCycle: false,
+		useBorrowerCycle: false,
+		multiDisburseLoan: false,
+		disallowExpectedDisbursements: false,
+		allowFullTermForTranche: false,
+		syncExpectedWithDisbursementDate: false,
+		allowApprovedDisbursedAmountsOverApplied: false,
 		allowPartialPeriodInterestCalculation: false,
 		graceOnArrearsAgeing: 0,
 		inArrearsTolerance: 0,
@@ -153,6 +222,25 @@ export function LoanProductWizard({
 		daysInYearType: 365,
 		daysInMonthType: 30,
 		isInterestRecalculationEnabled: false,
+		isArrearsBasedOnOriginalSchedule: false,
+		disallowInterestCalculationOnPastDue: false,
+		accountMovesOutOfNPAOnlyOnArrearsCompletion: false,
+		enableIncomeCapitalization: false,
+		enableBuyDownFee: false,
+		merchantBuyDownFee: false,
+		chargeOffReasonToExpenseMappings: [] as Array<{
+			reasonCodeValueId: number;
+			expenseAccountId: number;
+		}>,
+		writeOffReasonToExpenseMappings: [] as Array<{
+			reasonCodeValueId: number;
+			expenseAccountId: number;
+		}>,
+		supportedInterestRefundTypes: [] as string[],
+		paymentAllocationTransactionTypes: [] as string[],
+		paymentAllocationRules: [] as string[],
+		creditAllocationTransactionTypes: [] as string[],
+		creditAllocationRules: [] as string[],
 	};
 
 	const defaultFormValues = {
@@ -173,12 +261,60 @@ export function LoanProductWizard({
 	});
 
 	const { setValue, getValues, trigger } = form;
+	const submitActionLabel = isEditMode
+		? "Update Loan Product"
+		: "Submit Loan Product";
+	const submittingLabel = isEditMode ? "Updating..." : "Submitting...";
+	const submitErrorTitle = isEditMode
+		? "Failed to update loan product"
+		: "Failed to create loan product";
 
 	const currencyCode = form.watch("currencyCode");
 
 	// Set template defaults when template loads
 	useEffect(() => {
 		if (!template) return;
+		const templateAdvanced = template as GetLoanProductsTemplateResponse & {
+			accountMovesOutOfNPAOnlyOnArrearsCompletion?: boolean;
+			delinquencyBucketOptions?: Array<{ id?: number }>;
+			graceOnPrincipalPayment?: number;
+			graceOnInterestPayment?: number;
+			principalThresholdForLastInstallment?: number;
+			enableIncomeCapitalization?: boolean;
+			enableBuyDownFee?: boolean;
+			merchantBuyDownFee?: boolean;
+			chargeOffBehaviour?: {
+				id?: string;
+			};
+			chargeOffReasonToExpenseAccountMappings?: Array<{
+				reasonCodeValue?: { id?: number };
+				expenseAccount?: { id?: number };
+			}>;
+			writeOffReasonsToExpenseMappings?: Array<{
+				reasonCodeValue?: { id?: number };
+				expenseAccount?: { id?: number };
+			}>;
+			supportedInterestRefundTypes?: Array<{
+				id?: string;
+				code?: string;
+				value?: string;
+			}>;
+			paymentAllocation?: Array<{
+				transactionType?: string;
+				futureInstallmentAllocationRule?: string;
+				paymentAllocationOrder?: Array<{
+					order?: number;
+					paymentAllocationRule?: string;
+				}>;
+			}>;
+			creditAllocation?: Array<{
+				transactionType?: string;
+				creditAllocationOrder?: Array<{
+					order?: number;
+					creditAllocationRule?: string;
+				}>;
+			}>;
+		};
 
 		if (!getValues("currencyCode") && currencyOptions[0]?.code) {
 			setValue("currencyCode", currencyOptions[0]?.code);
@@ -198,6 +334,121 @@ export function LoanProductWizard({
 			setValue(
 				"repaymentFrequencyType",
 				template.repaymentFrequencyTypeOptions[0].id,
+			);
+		}
+
+		if (
+			getValues("repaymentStartDateType") === undefined &&
+			template.repaymentStartDateType?.id !== undefined
+		) {
+			setValue("repaymentStartDateType", template.repaymentStartDateType.id);
+		}
+
+		if (
+			getValues("repaymentStartDateType") === undefined &&
+			template.repaymentStartDateTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"repaymentStartDateType",
+				template.repaymentStartDateTypeOptions[0].id,
+			);
+		}
+
+		if (
+			!getValues("loanScheduleType") &&
+			template.loanScheduleTypeOptions?.[0]?.code
+		) {
+			setValue("loanScheduleType", template.loanScheduleTypeOptions[0].code);
+		}
+
+		if (
+			!getValues("loanScheduleProcessingType") &&
+			template.loanScheduleProcessingTypeOptions?.[0]?.code
+		) {
+			setValue(
+				"loanScheduleProcessingType",
+				template.loanScheduleProcessingTypeOptions[0].code,
+			);
+		}
+
+		if (getValues("multiDisburseLoan") === undefined) {
+			setValue("multiDisburseLoan", Boolean(template.multiDisburseLoan));
+		}
+
+		if (getValues("disallowExpectedDisbursements") === undefined) {
+			setValue(
+				"disallowExpectedDisbursements",
+				Boolean(template.disallowExpectedDisbursements),
+			);
+		}
+
+		if (getValues("allowFullTermForTranche") === undefined) {
+			setValue(
+				"allowFullTermForTranche",
+				Boolean(template.allowFullTermForTranche),
+			);
+		}
+
+		if (getValues("syncExpectedWithDisbursementDate") === undefined) {
+			setValue(
+				"syncExpectedWithDisbursementDate",
+				Boolean(template.syncExpectedWithDisbursementDate),
+			);
+		}
+
+		if (getValues("allowApprovedDisbursedAmountsOverApplied") === undefined) {
+			setValue(
+				"allowApprovedDisbursedAmountsOverApplied",
+				Boolean(template.allowApprovedDisbursedAmountsOverApplied),
+			);
+		}
+
+		if (
+			Boolean(template.allowApprovedDisbursedAmountsOverApplied) &&
+			!getValues("overAppliedCalculationType")
+		) {
+			const templateValue = (template.overAppliedCalculationType || "")
+				.toLowerCase()
+				.trim();
+			if (templateValue === "flat" || templateValue === "percentage") {
+				setValue("overAppliedCalculationType", templateValue);
+			}
+		}
+
+		if (
+			getValues("overAppliedNumber") === undefined &&
+			template.overAppliedNumber !== undefined
+		) {
+			setValue("overAppliedNumber", template.overAppliedNumber);
+		}
+
+		if (
+			getValues("graceOnPrincipalPayment") === undefined &&
+			templateAdvanced.graceOnPrincipalPayment !== undefined
+		) {
+			setValue(
+				"graceOnPrincipalPayment",
+				templateAdvanced.graceOnPrincipalPayment,
+			);
+		}
+
+		if (
+			getValues("graceOnInterestPayment") === undefined &&
+			templateAdvanced.graceOnInterestPayment !== undefined
+		) {
+			setValue(
+				"graceOnInterestPayment",
+				templateAdvanced.graceOnInterestPayment,
+			);
+		}
+
+		if (
+			getValues("principalThresholdForLastInstallment") === undefined &&
+			templateAdvanced.principalThresholdForLastInstallment !== undefined
+		) {
+			setValue(
+				"principalThresholdForLastInstallment",
+				templateAdvanced.principalThresholdForLastInstallment,
 			);
 		}
 
@@ -257,6 +508,515 @@ export function LoanProductWizard({
 			}
 		}
 
+		if (getValues("isInterestRecalculationEnabled") === undefined) {
+			setValue(
+				"isInterestRecalculationEnabled",
+				Boolean(template.isInterestRecalculationEnabled),
+			);
+		}
+
+		const templateRecalculation = template.interestRecalculationData;
+
+		if (
+			getValues("interestRecalculationCompoundingMethod") === undefined &&
+			templateRecalculation?.interestRecalculationCompoundingType?.id !==
+				undefined
+		) {
+			setValue(
+				"interestRecalculationCompoundingMethod",
+				templateRecalculation.interestRecalculationCompoundingType.id,
+			);
+		}
+
+		if (
+			getValues("interestRecalculationCompoundingMethod") === undefined &&
+			template.interestRecalculationCompoundingTypeOptions?.[0]?.id !==
+				undefined
+		) {
+			setValue(
+				"interestRecalculationCompoundingMethod",
+				template.interestRecalculationCompoundingTypeOptions[0].id,
+			);
+		}
+
+		if (
+			getValues("rescheduleStrategyMethod") === undefined &&
+			templateRecalculation?.rescheduleStrategyType?.id !== undefined
+		) {
+			setValue(
+				"rescheduleStrategyMethod",
+				templateRecalculation.rescheduleStrategyType.id,
+			);
+		}
+
+		if (
+			getValues("rescheduleStrategyMethod") === undefined &&
+			template.rescheduleStrategyTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"rescheduleStrategyMethod",
+				template.rescheduleStrategyTypeOptions[0].id,
+			);
+		}
+
+		if (
+			getValues("preClosureInterestCalculationStrategy") === undefined &&
+			templateRecalculation?.preClosureInterestCalculationStrategy?.id !==
+				undefined
+		) {
+			setValue(
+				"preClosureInterestCalculationStrategy",
+				templateRecalculation.preClosureInterestCalculationStrategy.id,
+			);
+		}
+
+		if (
+			getValues("preClosureInterestCalculationStrategy") === undefined &&
+			template.preClosureInterestCalculationStrategyOptions?.[0]?.id !==
+				undefined
+		) {
+			setValue(
+				"preClosureInterestCalculationStrategy",
+				template.preClosureInterestCalculationStrategyOptions[0].id,
+			);
+		}
+
+		if (getValues("isArrearsBasedOnOriginalSchedule") === undefined) {
+			setValue(
+				"isArrearsBasedOnOriginalSchedule",
+				Boolean(templateRecalculation?.isArrearsBasedOnOriginalSchedule),
+			);
+		}
+
+		if (getValues("disallowInterestCalculationOnPastDue") === undefined) {
+			setValue(
+				"disallowInterestCalculationOnPastDue",
+				Boolean(templateRecalculation?.disallowInterestCalculationOnPastDue),
+			);
+		}
+
+		if (
+			getValues("accountMovesOutOfNPAOnlyOnArrearsCompletion") === undefined
+		) {
+			setValue(
+				"accountMovesOutOfNPAOnlyOnArrearsCompletion",
+				Boolean(templateAdvanced.accountMovesOutOfNPAOnlyOnArrearsCompletion),
+			);
+		}
+
+		if (
+			getValues("delinquencyBucketId") === undefined &&
+			templateAdvanced.delinquencyBucketOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"delinquencyBucketId",
+				templateAdvanced.delinquencyBucketOptions[0].id,
+			);
+		}
+
+		if (getValues("enableIncomeCapitalization") === undefined) {
+			setValue(
+				"enableIncomeCapitalization",
+				Boolean(templateAdvanced.enableIncomeCapitalization),
+			);
+		}
+
+		if (
+			getValues("capitalizedIncomeType") === undefined &&
+			template.capitalizedIncomeType?.id !== undefined
+		) {
+			if (
+				template.capitalizedIncomeType.id === "FEE" ||
+				template.capitalizedIncomeType.id === "INTEREST"
+			) {
+				setValue("capitalizedIncomeType", template.capitalizedIncomeType.id);
+			}
+		}
+
+		if (
+			getValues("capitalizedIncomeType") === undefined &&
+			template.capitalizedIncomeTypeOptions?.[0]?.id !== undefined
+		) {
+			const templateValue = template.capitalizedIncomeTypeOptions[0].id;
+			if (templateValue === "FEE" || templateValue === "INTEREST") {
+				setValue("capitalizedIncomeType", templateValue);
+			}
+		}
+
+		if (
+			getValues("capitalizedIncomeCalculationType") === undefined &&
+			template.capitalizedIncomeCalculationType?.id !== undefined
+		) {
+			if (template.capitalizedIncomeCalculationType.id === "FLAT") {
+				setValue(
+					"capitalizedIncomeCalculationType",
+					template.capitalizedIncomeCalculationType.id,
+				);
+			}
+		}
+
+		if (
+			getValues("capitalizedIncomeCalculationType") === undefined &&
+			template.capitalizedIncomeCalculationTypeOptions?.[0]?.id !== undefined
+		) {
+			if (template.capitalizedIncomeCalculationTypeOptions[0].id === "FLAT") {
+				setValue(
+					"capitalizedIncomeCalculationType",
+					template.capitalizedIncomeCalculationTypeOptions[0].id,
+				);
+			}
+		}
+
+		if (
+			getValues("capitalizedIncomeStrategy") === undefined &&
+			template.capitalizedIncomeStrategy?.id !== undefined
+		) {
+			if (template.capitalizedIncomeStrategy.id === "EQUAL_AMORTIZATION") {
+				setValue(
+					"capitalizedIncomeStrategy",
+					template.capitalizedIncomeStrategy.id,
+				);
+			}
+		}
+
+		if (
+			getValues("capitalizedIncomeStrategy") === undefined &&
+			template.capitalizedIncomeStrategyOptions?.[0]?.id !== undefined
+		) {
+			if (
+				template.capitalizedIncomeStrategyOptions[0].id === "EQUAL_AMORTIZATION"
+			) {
+				setValue(
+					"capitalizedIncomeStrategy",
+					template.capitalizedIncomeStrategyOptions[0].id,
+				);
+			}
+		}
+
+		if (getValues("enableBuyDownFee") === undefined) {
+			setValue("enableBuyDownFee", Boolean(templateAdvanced.enableBuyDownFee));
+		}
+
+		if (
+			getValues("buyDownFeeIncomeType") === undefined &&
+			template.buyDownFeeIncomeType?.id !== undefined
+		) {
+			if (
+				template.buyDownFeeIncomeType.id === "FEE" ||
+				template.buyDownFeeIncomeType.id === "INTEREST"
+			) {
+				setValue("buyDownFeeIncomeType", template.buyDownFeeIncomeType.id);
+			}
+		}
+
+		if (
+			getValues("buyDownFeeIncomeType") === undefined &&
+			template.buyDownFeeIncomeTypeOptions?.[0]?.id !== undefined
+		) {
+			const templateValue = template.buyDownFeeIncomeTypeOptions[0].id;
+			if (templateValue === "FEE" || templateValue === "INTEREST") {
+				setValue("buyDownFeeIncomeType", templateValue);
+			}
+		}
+
+		if (
+			getValues("buyDownFeeCalculationType") === undefined &&
+			template.buyDownFeeCalculationType?.id !== undefined
+		) {
+			if (template.buyDownFeeCalculationType.id === "FLAT") {
+				setValue(
+					"buyDownFeeCalculationType",
+					template.buyDownFeeCalculationType.id,
+				);
+			}
+		}
+
+		if (
+			getValues("buyDownFeeCalculationType") === undefined &&
+			template.buyDownFeeCalculationTypeOptions?.[0]?.id !== undefined
+		) {
+			if (template.buyDownFeeCalculationTypeOptions[0].id === "FLAT") {
+				setValue(
+					"buyDownFeeCalculationType",
+					template.buyDownFeeCalculationTypeOptions[0].id,
+				);
+			}
+		}
+
+		if (
+			getValues("buyDownFeeStrategy") === undefined &&
+			template.buyDownFeeStrategy?.id !== undefined
+		) {
+			if (template.buyDownFeeStrategy.id === "EQUAL_AMORTIZATION") {
+				setValue("buyDownFeeStrategy", template.buyDownFeeStrategy.id);
+			}
+		}
+
+		if (
+			getValues("buyDownFeeStrategy") === undefined &&
+			template.buyDownFeeStrategyOptions?.[0]?.id !== undefined
+		) {
+			if (template.buyDownFeeStrategyOptions[0].id === "EQUAL_AMORTIZATION") {
+				setValue(
+					"buyDownFeeStrategy",
+					template.buyDownFeeStrategyOptions[0].id,
+				);
+			}
+		}
+
+		if (getValues("merchantBuyDownFee") === undefined) {
+			setValue(
+				"merchantBuyDownFee",
+				Boolean(templateAdvanced.merchantBuyDownFee),
+			);
+		}
+
+		if (getValues("chargeOffBehaviour") === undefined) {
+			const configuredBehaviour = templateAdvanced.chargeOffBehaviour?.id;
+			if (isChargeOffBehaviour(configuredBehaviour)) {
+				setValue("chargeOffBehaviour", configuredBehaviour);
+			} else {
+				const defaultBehaviour = template.chargeOffBehaviourOptions?.[0]?.id;
+				if (isChargeOffBehaviour(defaultBehaviour)) {
+					setValue("chargeOffBehaviour", defaultBehaviour);
+				}
+			}
+		}
+
+		if (getValues("chargeOffReasonToExpenseMappings").length === 0) {
+			const configuredMappings =
+				templateAdvanced.chargeOffReasonToExpenseAccountMappings
+					?.map((mapping) => ({
+						reasonCodeValueId: mapping.reasonCodeValue?.id,
+						expenseAccountId: mapping.expenseAccount?.id,
+					}))
+					.filter(
+						(
+							mapping,
+						): mapping is {
+							reasonCodeValueId: number;
+							expenseAccountId: number;
+						} =>
+							typeof mapping.reasonCodeValueId === "number" &&
+							mapping.reasonCodeValueId > 0 &&
+							typeof mapping.expenseAccountId === "number" &&
+							mapping.expenseAccountId > 0,
+					) || [];
+
+			if (configuredMappings.length > 0) {
+				setValue("chargeOffReasonToExpenseMappings", configuredMappings);
+			}
+		}
+
+		if (getValues("writeOffReasonToExpenseMappings").length === 0) {
+			const configuredMappings =
+				templateAdvanced.writeOffReasonsToExpenseMappings
+					?.map((mapping) => ({
+						reasonCodeValueId: mapping.reasonCodeValue?.id,
+						expenseAccountId: mapping.expenseAccount?.id,
+					}))
+					.filter(
+						(
+							mapping,
+						): mapping is {
+							reasonCodeValueId: number;
+							expenseAccountId: number;
+						} =>
+							typeof mapping.reasonCodeValueId === "number" &&
+							mapping.reasonCodeValueId > 0 &&
+							typeof mapping.expenseAccountId === "number" &&
+							mapping.expenseAccountId > 0,
+					) || [];
+
+			if (configuredMappings.length > 0) {
+				setValue("writeOffReasonToExpenseMappings", configuredMappings);
+			}
+		}
+
+		if (getValues("supportedInterestRefundTypes").length === 0) {
+			const supportedRefunds =
+				templateAdvanced.supportedInterestRefundTypes
+					?.map((option) => option.id || option.code)
+					.filter((value): value is string => Boolean(value)) || [];
+			if (supportedRefunds.length > 0) {
+				setValue("supportedInterestRefundTypes", supportedRefunds);
+			}
+		}
+
+		if (getValues("paymentAllocationTransactionTypes").length === 0) {
+			const configuredTypes =
+				templateAdvanced.paymentAllocation
+					?.map((entry) => entry.transactionType)
+					.filter((value): value is string => Boolean(value)) || [];
+			if (configuredTypes.length > 0) {
+				setValue("paymentAllocationTransactionTypes", configuredTypes);
+			} else {
+				const defaultType =
+					template.advancedPaymentAllocationTransactionTypes?.find(
+						(option) => option.code === "DEFAULT",
+					)?.code ||
+					template.advancedPaymentAllocationTransactionTypes?.[0]?.code;
+				if (defaultType) {
+					setValue("paymentAllocationTransactionTypes", [defaultType]);
+				}
+			}
+		}
+
+		if (getValues("paymentAllocationRules").length === 0) {
+			const configuredRules =
+				templateAdvanced.paymentAllocation?.[0]?.paymentAllocationOrder
+					?.slice()
+					.sort((a, b) => (a.order || 0) - (b.order || 0))
+					.map((entry) => entry.paymentAllocationRule)
+					.filter((value): value is string => Boolean(value)) || [];
+			if (configuredRules.length > 0) {
+				setValue("paymentAllocationRules", configuredRules);
+			} else {
+				const defaultRules =
+					template.advancedPaymentAllocationTypes
+						?.map((option) => option.code)
+						.filter((value): value is string => Boolean(value)) || [];
+				if (defaultRules.length > 0) {
+					setValue("paymentAllocationRules", defaultRules);
+				}
+			}
+		}
+
+		if (
+			getValues("paymentAllocationFutureInstallmentAllocationRule") ===
+			undefined
+		) {
+			const configuredRule =
+				templateAdvanced.paymentAllocation?.[0]
+					?.futureInstallmentAllocationRule;
+			if (configuredRule) {
+				setValue(
+					"paymentAllocationFutureInstallmentAllocationRule",
+					configuredRule,
+				);
+			} else {
+				const defaultRule =
+					template
+						.advancedPaymentAllocationFutureInstallmentAllocationRules?.[0]
+						?.code;
+				if (defaultRule) {
+					setValue(
+						"paymentAllocationFutureInstallmentAllocationRule",
+						defaultRule,
+					);
+				}
+			}
+		}
+
+		if (getValues("creditAllocationTransactionTypes").length === 0) {
+			const configuredTypes =
+				templateAdvanced.creditAllocation
+					?.map((entry) => entry.transactionType)
+					.filter((value): value is string => Boolean(value)) || [];
+			if (configuredTypes.length > 0) {
+				setValue("creditAllocationTransactionTypes", configuredTypes);
+			} else {
+				const defaultType =
+					template.creditAllocationTransactionTypes?.[0]?.code;
+				if (defaultType) {
+					setValue("creditAllocationTransactionTypes", [defaultType]);
+				}
+			}
+		}
+
+		if (getValues("creditAllocationRules").length === 0) {
+			const configuredRules =
+				templateAdvanced.creditAllocation?.[0]?.creditAllocationOrder
+					?.slice()
+					.sort((a, b) => (a.order || 0) - (b.order || 0))
+					.map((entry) => entry.creditAllocationRule)
+					.filter((value): value is string => Boolean(value)) || [];
+			if (configuredRules.length > 0) {
+				setValue("creditAllocationRules", configuredRules);
+			} else {
+				const defaultRules =
+					template.creditAllocationAllocationTypes
+						?.map((option) => option.code)
+						.filter((value): value is string => Boolean(value)) || [];
+				if (defaultRules.length > 0) {
+					setValue("creditAllocationRules", defaultRules);
+				}
+			}
+		}
+
+		if (
+			getValues("recalculationCompoundingFrequencyType") === undefined &&
+			templateRecalculation?.interestRecalculationCompoundingFrequencyType
+				?.id !== undefined
+		) {
+			setValue(
+				"recalculationCompoundingFrequencyType",
+				templateRecalculation.interestRecalculationCompoundingFrequencyType.id,
+			);
+		}
+
+		if (
+			getValues("recalculationCompoundingFrequencyType") === undefined &&
+			template.interestRecalculationFrequencyTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"recalculationCompoundingFrequencyType",
+				template.interestRecalculationFrequencyTypeOptions[0].id,
+			);
+		}
+
+		if (
+			getValues("recalculationCompoundingFrequencyInterval") === undefined &&
+			templateRecalculation?.recalculationCompoundingFrequencyInterval !==
+				undefined
+		) {
+			setValue(
+				"recalculationCompoundingFrequencyInterval",
+				templateRecalculation.recalculationCompoundingFrequencyInterval,
+			);
+		}
+
+		if (
+			getValues("recalculationCompoundingFrequencyOnDayType") === undefined &&
+			templateRecalculation?.recalculationCompoundingFrequencyOnDayType !==
+				undefined
+		) {
+			setValue(
+				"recalculationCompoundingFrequencyOnDayType",
+				templateRecalculation.recalculationCompoundingFrequencyOnDayType,
+			);
+		}
+
+		if (
+			getValues("recalculationRestFrequencyType") === undefined &&
+			templateRecalculation?.recalculationRestFrequencyType?.id !== undefined
+		) {
+			setValue(
+				"recalculationRestFrequencyType",
+				templateRecalculation.recalculationRestFrequencyType.id,
+			);
+		}
+
+		if (
+			getValues("recalculationRestFrequencyType") === undefined &&
+			template.interestRecalculationFrequencyTypeOptions?.[0]?.id !== undefined
+		) {
+			setValue(
+				"recalculationRestFrequencyType",
+				template.interestRecalculationFrequencyTypeOptions[0].id,
+			);
+		}
+
+		if (
+			getValues("recalculationRestFrequencyInterval") === undefined &&
+			templateRecalculation?.recalculationRestFrequencyInterval !== undefined
+		) {
+			setValue(
+				"recalculationRestFrequencyInterval",
+				templateRecalculation.recalculationRestFrequencyInterval,
+			);
+		}
+
 		if (
 			!getValues("transactionProcessingStrategyCode") &&
 			template.transactionProcessingStrategyOptions?.[0]?.code
@@ -272,6 +1032,17 @@ export function LoanProductWizard({
 			template.accountingRuleOptions?.[0]?.id !== undefined
 		) {
 			setValue("accountingRule", template.accountingRuleOptions[0].id);
+		}
+
+		if (getValues("includeInBorrowerCycle") === undefined) {
+			setValue(
+				"includeInBorrowerCycle",
+				Boolean(template.includeInBorrowerCycle),
+			);
+		}
+
+		if (getValues("useBorrowerCycle") === undefined) {
+			setValue("useBorrowerCycle", Boolean(template.useBorrowerCycle));
 		}
 
 		// Set default numeric values
@@ -488,7 +1259,7 @@ export function LoanProductWizard({
 
 							{submitError && (
 								<Alert variant="destructive" className="mt-4">
-									<AlertTitle>Failed to create loan product</AlertTitle>
+									<AlertTitle>{submitErrorTitle}</AlertTitle>
 									<AlertDescription>{submitError}</AlertDescription>
 								</Alert>
 							)}
@@ -529,9 +1300,9 @@ export function LoanProductWizard({
 									>
 										{currentStep === steps.length ? (
 											isSubmitting ? (
-												"Submitting..."
+												submittingLabel
 											) : (
-												"Submit Loan Product"
+												submitActionLabel
 											)
 										) : (
 											<>

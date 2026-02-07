@@ -31,13 +31,19 @@ const CHARGE_PAYMENT_MODE = {
 } as const;
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-	const payload = await response.json();
+	const rawPayload = await response.text();
+	const payload = rawPayload ? (JSON.parse(rawPayload) as unknown) : null;
 
 	if (!response.ok) {
-		throw payload;
+		throw (
+			payload ?? {
+				message: response.statusText || "Request failed",
+				statusCode: response.status,
+			}
+		);
 	}
 
-	return payload as T;
+	return (payload ?? {}) as T;
 }
 
 export const loanProductsApi = {
@@ -171,11 +177,73 @@ export function buildLoanProductRequest(
 			? data.minimumDaysBetweenDisbursalAndFirstRepayment
 			: undefined;
 
+	const usesAdvancedPaymentAllocationStrategy = Boolean(
+		data.transactionProcessingStrategyCode?.includes(
+			"advanced-payment-allocation",
+		),
+	);
+
+	const paymentAllocation =
+		usesAdvancedPaymentAllocationStrategy &&
+		data.paymentAllocationTransactionTypes.length > 0 &&
+		data.paymentAllocationRules.length > 0
+			? data.paymentAllocationTransactionTypes.map((transactionType) => ({
+					transactionType,
+					futureInstallmentAllocationRule:
+						data.paymentAllocationFutureInstallmentAllocationRule,
+					paymentAllocationOrder: data.paymentAllocationRules.map(
+						(paymentAllocationRule, index) => ({
+							order: index + 1,
+							paymentAllocationRule,
+						}),
+					),
+				}))
+			: undefined;
+
+	const creditAllocation =
+		usesAdvancedPaymentAllocationStrategy &&
+		data.creditAllocationTransactionTypes.length > 0 &&
+		data.creditAllocationRules.length > 0
+			? data.creditAllocationTransactionTypes.map((transactionType) => ({
+					transactionType,
+					creditAllocationOrder: data.creditAllocationRules.map(
+						(creditAllocationRule, index) => ({
+							order: index + 1,
+							creditAllocationRule,
+						}),
+					),
+				}))
+			: undefined;
+
+	const supportedInterestRefundTypes =
+		usesAdvancedPaymentAllocationStrategy &&
+		data.supportedInterestRefundTypes.length > 0
+			? data.supportedInterestRefundTypes
+			: undefined;
+
+	const chargeOffReasonToExpenseAccountMappings =
+		data.chargeOffReasonToExpenseMappings.length > 0
+			? data.chargeOffReasonToExpenseMappings.map((mapping) => ({
+					chargeOffReasonCodeValueId: mapping.reasonCodeValueId,
+					expenseAccountId: mapping.expenseAccountId,
+				}))
+			: undefined;
+
+	const writeOffReasonsToExpenseMappings =
+		data.writeOffReasonToExpenseMappings.length > 0
+			? data.writeOffReasonToExpenseMappings.map((mapping) => ({
+					writeOffReasonCodeValueId: String(mapping.reasonCodeValueId),
+					expenseAccountId: String(mapping.expenseAccountId),
+				}))
+			: undefined;
+
 	return {
 		locale: "en",
 		name: data.name,
 		shortName: data.shortName,
 		description: data.description,
+		includeInBorrowerCycle: data.includeInBorrowerCycle,
+		useBorrowerCycle: data.useBorrowerCycle,
 		currencyCode: data.currencyCode,
 		digitsAfterDecimal: data.digitsAfterDecimal,
 		principal: data.principal,
@@ -185,8 +253,24 @@ export function buildLoanProductRequest(
 		numberOfRepayments: data.numberOfRepayments,
 		minNumberOfRepayments: data.minNumberOfRepayments,
 		maxNumberOfRepayments: data.maxNumberOfRepayments,
+		loanScheduleType: data.loanScheduleType,
+		loanScheduleProcessingType: data.loanScheduleProcessingType,
+		multiDisburseLoan: data.multiDisburseLoan,
+		maxTrancheCount: data.maxTrancheCount,
+		disallowExpectedDisbursements: data.disallowExpectedDisbursements,
+		allowFullTermForTranche: data.allowFullTermForTranche,
+		syncExpectedWithDisbursementDate: data.syncExpectedWithDisbursementDate,
+		allowApprovedDisbursedAmountsOverApplied:
+			data.allowApprovedDisbursedAmountsOverApplied,
+		overAppliedCalculationType: data.overAppliedCalculationType,
+		overAppliedNumber: data.overAppliedNumber,
 		repaymentEvery: data.repaymentEvery,
 		repaymentFrequencyType: data.repaymentFrequencyType,
+		repaymentStartDateType: data.repaymentStartDateType,
+		graceOnPrincipalPayment: data.graceOnPrincipalPayment,
+		graceOnInterestPayment: data.graceOnInterestPayment,
+		principalThresholdForLastInstallment:
+			data.principalThresholdForLastInstallment,
 		minimumDaysBetweenDisbursalAndFirstRepayment,
 		interestType: data.interestType,
 		amortizationType: data.amortizationType,
@@ -199,10 +283,72 @@ export function buildLoanProductRequest(
 		daysInYearType: data.daysInYearType,
 		daysInMonthType: data.daysInMonthType,
 		isInterestRecalculationEnabled: data.isInterestRecalculationEnabled,
+		interestRecalculationCompoundingMethod: data.isInterestRecalculationEnabled
+			? data.interestRecalculationCompoundingMethod
+			: undefined,
+		rescheduleStrategyMethod: data.isInterestRecalculationEnabled
+			? data.rescheduleStrategyMethod
+			: undefined,
+		preClosureInterestCalculationStrategy: data.isInterestRecalculationEnabled
+			? data.preClosureInterestCalculationStrategy
+			: undefined,
+		isArrearsBasedOnOriginalSchedule: data.isInterestRecalculationEnabled
+			? data.isArrearsBasedOnOriginalSchedule
+			: undefined,
+		disallowInterestCalculationOnPastDue: data.isInterestRecalculationEnabled
+			? data.disallowInterestCalculationOnPastDue
+			: undefined,
+		recalculationCompoundingFrequencyType: data.isInterestRecalculationEnabled
+			? data.recalculationCompoundingFrequencyType
+			: undefined,
+		recalculationCompoundingFrequencyInterval:
+			data.isInterestRecalculationEnabled
+				? data.recalculationCompoundingFrequencyInterval
+				: undefined,
+		recalculationCompoundingFrequencyOnDayType:
+			data.isInterestRecalculationEnabled
+				? data.recalculationCompoundingFrequencyOnDayType
+				: undefined,
+		recalculationRestFrequencyType: data.isInterestRecalculationEnabled
+			? data.recalculationRestFrequencyType
+			: undefined,
+		recalculationRestFrequencyInterval: data.isInterestRecalculationEnabled
+			? data.recalculationRestFrequencyInterval
+			: undefined,
 		transactionProcessingStrategyCode: data.transactionProcessingStrategyCode,
 		graceOnArrearsAgeing: data.graceOnArrearsAgeing,
 		inArrearsTolerance: data.inArrearsTolerance,
 		overdueDaysForNPA: data.overdueDaysForNPA,
+		delinquencyBucketId: data.delinquencyBucketId,
+		accountMovesOutOfNPAOnlyOnArrearsCompletion:
+			data.accountMovesOutOfNPAOnlyOnArrearsCompletion,
+		enableIncomeCapitalization: data.enableIncomeCapitalization,
+		capitalizedIncomeType: data.enableIncomeCapitalization
+			? data.capitalizedIncomeType
+			: undefined,
+		capitalizedIncomeCalculationType: data.enableIncomeCapitalization
+			? data.capitalizedIncomeCalculationType
+			: undefined,
+		capitalizedIncomeStrategy: data.enableIncomeCapitalization
+			? data.capitalizedIncomeStrategy
+			: undefined,
+		enableBuyDownFee: data.enableBuyDownFee,
+		buyDownFeeIncomeType: data.enableBuyDownFee
+			? data.buyDownFeeIncomeType
+			: undefined,
+		buyDownFeeCalculationType: data.enableBuyDownFee
+			? data.buyDownFeeCalculationType
+			: undefined,
+		buyDownFeeStrategy: data.enableBuyDownFee
+			? data.buyDownFeeStrategy
+			: undefined,
+		merchantBuyDownFee: data.enableBuyDownFee ? data.merchantBuyDownFee : false,
+		chargeOffBehaviour: data.chargeOffBehaviour,
+		chargeOffReasonToExpenseAccountMappings,
+		writeOffReasonsToExpenseMappings,
+		supportedInterestRefundTypes,
+		paymentAllocation,
+		creditAllocation,
 		accountingRule: data.accountingRule,
 		fundSourceAccountId: data.fundSourceAccountId,
 		loanPortfolioAccountId: data.loanPortfolioAccountId,

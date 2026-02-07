@@ -10,6 +10,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -219,6 +220,48 @@ export function LoanProductIdentityStep({
 									{String(errors.digitsAfterDecimal.message)}
 								</p>
 							)}
+						</div>
+					</div>
+
+					<div className="space-y-3 border-t pt-4">
+						<p className="text-xs text-muted-foreground">
+							Borrower cycle settings control whether repeat-borrowing counters
+							are maintained and applied to this product.
+						</p>
+						<div className="flex items-center gap-2">
+							<Controller
+								control={control}
+								name="includeInBorrowerCycle"
+								render={({ field }) => (
+									<Checkbox
+										id="includeInBorrowerCycle"
+										checked={Boolean(field.value)}
+										onCheckedChange={(value) => field.onChange(Boolean(value))}
+									/>
+								)}
+							/>
+							<Label
+								htmlFor="includeInBorrowerCycle"
+								className="cursor-pointer"
+							>
+								Include loans in borrower cycle count
+							</Label>
+						</div>
+						<div className="flex items-center gap-2">
+							<Controller
+								control={control}
+								name="useBorrowerCycle"
+								render={({ field }) => (
+									<Checkbox
+										id="useBorrowerCycle"
+										checked={Boolean(field.value)}
+										onCheckedChange={(value) => field.onChange(Boolean(value))}
+									/>
+								)}
+							/>
+							<Label htmlFor="useBorrowerCycle" className="cursor-pointer">
+								Use borrower cycle-based variations
+							</Label>
 						</div>
 					</div>
 				</CardContent>

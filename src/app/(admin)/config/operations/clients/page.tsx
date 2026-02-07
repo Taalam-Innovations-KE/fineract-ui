@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { ClientRegistrationWizard } from "@/components/clients/ClientRegistrationWizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,17 +16,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetContent,
@@ -34,10 +24,20 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import {
 	createClient,
 	createClientIdentifier,
+	type FineractRequestError,
 	fetchClientIdentifierTemplate,
 	fetchClients,
 	fetchClientTemplate,
@@ -45,7 +45,6 @@ import {
 import type {
 	ClientAddressRequest,
 	GetClientsPageItemsResponse,
-	GetClientsResponse,
 	GetCodeValuesDataResponse,
 	OfficeData,
 	PostClientsRequest,
@@ -120,6 +119,8 @@ type ClientCreatePayload = PostClientsRequest & {
 	clientTypeId?: number;
 	clientClassificationId?: number;
 	legalFormId?: number;
+	savingsProductId?: number;
+	staffId?: number;
 	clientNonPersonDetails?: ClientNonPersonDetails;
 };
 
@@ -134,6 +135,8 @@ type ClientSubmission = {
 	identifiers: IdentifierInput[];
 };
 
+type ClientValidationStep = 1 | 2 | 3 | 4;
+
 function getDefaultOptionId(
 	options: LookupOption[],
 	{ fallbackToFirst = false }: { fallbackToFirst?: boolean } = {},
@@ -143,36 +146,123 @@ function getDefaultOptionId(
 	return fallbackToFirst ? options[0]?.id : undefined;
 }
 
+function findOptionIdByKeywords(options: LookupOption[], keywords: string[]) {
+	const normalizedKeywords = keywords.map((keyword) => keyword.toLowerCase());
+	const match = options.find((option) => {
+		const label = (option.name || option.value || "").toLowerCase();
+		return normalizedKeywords.some((keyword) => label.includes(keyword));
+	});
+
+	return match?.id;
+}
+
 function resolveDocumentTypeId(options: LookupOption[], matches: string[]) {
 	const normalizedMatches = matches.map((match) => match.toLowerCase());
 	const match = options.find((option) => {
 		const name = (option.name || option.value || "").toLowerCase();
 		return normalizedMatches.some((value) => name.includes(value));
 	});
-	return match?.id;
+	if (match?.id) return match.id;
+
+	// Some installations expose generic labels like "Id" instead of "National ID".
+	if (normalizedMatches.some((value) => ["nid", "nin"].includes(value))) {
+		const genericIdMatch = options.find((option) => {
+			const name = (option.name || option.value || "").trim().toLowerCase();
+			return name === "id" || name === "identity id";
+		});
+		return genericIdMatch?.id;
+	}
+
+	return undefined;
 }
 
 function LookupSkeleton() {
 	return (
-		<div className="space-y-4 animate-pulse">
-			<div className="space-y-2">
-				<div className="h-4 w-24 rounded bg-muted" />
-				<div className="h-9 w-full rounded bg-muted" />
-			</div>
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<div className="h-4 w-28 rounded bg-muted" />
-					<div className="h-9 w-full rounded bg-muted" />
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<Skeleton className="h-5 w-44" />
+				</CardTitle>
+				<CardDescription>Loading onboarding template...</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="space-y-2">
+						<Skeleton className="h-4 w-28" />
+						<Skeleton className="h-10 w-full" />
+					</div>
+					<div className="space-y-2">
+						<Skeleton className="h-4 w-24" />
+						<Skeleton className="h-10 w-full" />
+					</div>
 				</div>
 				<div className="space-y-2">
-					<div className="h-4 w-24 rounded bg-muted" />
-					<div className="h-9 w-full rounded bg-muted" />
+					<Skeleton className="h-4 w-32" />
+					<Skeleton className="h-10 w-full" />
 				</div>
-			</div>
-			<div className="space-y-2">
-				<div className="h-4 w-32 rounded bg-muted" />
-				<div className="h-9 w-full rounded bg-muted" />
-			</div>
+				<div className="space-y-2">
+					<Skeleton className="h-4 w-28" />
+					<Skeleton className="h-10 w-full" />
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+function flattenErrorDetails(details?: Record<string, string[]>) {
+	if (!details) return [];
+
+	return Object.entries(details)
+		.flatMap(([field, messages]) =>
+			(messages || []).map((message) => `${field}: ${message}`),
+		)
+		.filter(Boolean);
+}
+
+function ClientTableSkeleton() {
+	return (
+		<div className="space-y-2">
+			<Card className="rounded-sm border border-border/60">
+				<Table>
+					<TableHeader className="bg-muted/40">
+						<TableRow className="border-b border-border/60">
+							<TableHead className="px-3 py-2">
+								<Skeleton className="h-4 w-20" />
+							</TableHead>
+							<TableHead className="px-3 py-2">
+								<Skeleton className="h-4 w-16" />
+							</TableHead>
+							<TableHead className="px-3 py-2">
+								<Skeleton className="h-4 w-16" />
+							</TableHead>
+							<TableHead className="px-3 py-2 text-right">
+								<Skeleton className="h-4 w-14" />
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody className="divide-y divide-border/60">
+						{Array.from({ length: 8 }).map((_, index) => (
+							<TableRow key={`client-row-skeleton-${index}`}>
+								<TableCell className="px-3 py-2">
+									<div className="space-y-1">
+										<Skeleton className="h-4 w-32" />
+										<Skeleton className="h-3 w-20" />
+									</div>
+								</TableCell>
+								<TableCell className="px-3 py-2">
+									<Skeleton className="h-4 w-24" />
+								</TableCell>
+								<TableCell className="px-3 py-2">
+									<Skeleton className="h-6 w-16" />
+								</TableCell>
+								<TableCell className="px-3 py-2 text-right">
+									<Skeleton className="ml-auto h-8 w-14" />
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
+			</Card>
 		</div>
 	);
 }
@@ -227,6 +317,8 @@ export default function ClientsPage() {
 				return {
 					documentTypeId,
 					documentKey: identifier.value,
+					status: "Active",
+					description: `${identifier.label} captured during onboarding`,
 				};
 			});
 
@@ -244,9 +336,9 @@ export default function ClientsPage() {
 			setToastMessage("Client created successfully");
 		},
 	});
+	const resetCreateMutation = createMutation.reset;
 
 	const {
-		handleSubmit,
 		control,
 		reset,
 		setValue,
@@ -329,9 +421,12 @@ export default function ClientsPage() {
 	const isAddressEnabled = Boolean(clientTemplate?.isAddressEnabled);
 	const clientKind = watch("clientKind");
 	const isBusiness = clientKind === "business";
-	const isActive = Boolean(watch("active"));
 	const hasMissingCountry = isAddressEnabled && !countryOptions.length;
 	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
+	const submissionError = createMutation.isError
+		? (createMutation.error as FineractRequestError)
+		: null;
+	const submissionErrorDetails = flattenErrorDetails(submissionError?.details);
 
 	const clients = clientsQuery.data?.pageItems || [];
 
@@ -369,6 +464,7 @@ export default function ClientsPage() {
 
 	useEffect(() => {
 		if (!isDrawerOpen) return;
+		resetCreateMutation();
 		reset({
 			clientKind: "individual",
 			fullname: "",
@@ -396,7 +492,7 @@ export default function ClientsPage() {
 			businessLicenseNo: "",
 			registrationNo: "",
 		});
-	}, [isDrawerOpen, reset]);
+	}, [isDrawerOpen, reset, resetCreateMutation]);
 
 	useEffect(() => {
 		if (!genderOptions.length) return;
@@ -428,11 +524,25 @@ export default function ClientsPage() {
 	useEffect(() => {
 		if (!legalFormOptions.length) return;
 		const currentValue = getValues("legalFormId");
-		const defaultId = getDefaultOptionId(legalFormOptions);
-		if (!currentValue && defaultId) {
-			setValue("legalFormId", defaultId, { shouldDirty: false });
+		const personId = findOptionIdByKeywords(legalFormOptions, ["person"]);
+		const entityId = findOptionIdByKeywords(legalFormOptions, ["entity"]);
+		const fallbackId = getDefaultOptionId(legalFormOptions, {
+			fallbackToFirst: true,
+		});
+		const preferredId = isBusiness
+			? entityId || fallbackId
+			: personId || fallbackId;
+
+		if (!preferredId) return;
+
+		if (
+			!currentValue ||
+			(isBusiness && personId && currentValue === personId) ||
+			(!isBusiness && entityId && currentValue === entityId)
+		) {
+			setValue("legalFormId", preferredId, { shouldDirty: false });
 		}
-	}, [legalFormOptions, getValues, setValue]);
+	}, [isBusiness, legalFormOptions, getValues, setValue]);
 
 	useEffect(() => {
 		if (!businessLineOptions.length || !isBusiness) return;
@@ -474,86 +584,139 @@ export default function ClientsPage() {
 		await templateQuery.refetch();
 	};
 
-	const onSubmit = (data: ClientFormData) => {
+	const validateClientData = (
+		data: ClientFormData,
+		uptoStep: ClientValidationStep = 4,
+	): ClientValidationStep | null => {
 		clearErrors();
-		let hasError = false;
+		let firstInvalidStep: ClientValidationStep | null = null;
+		const isBusinessClient = data.clientKind === "business";
 
-		if (!data.officeId) {
-			setError("officeId", { message: "Office is required" });
-			hasError = true;
-		}
+		const pushError = (
+			step: ClientValidationStep,
+			field: keyof ClientFormData,
+			message: string,
+		) => {
+			setError(field, { message });
+			if (!firstInvalidStep || step < firstInvalidStep) {
+				firstInvalidStep = step;
+			}
+		};
 
-		if (isBusiness) {
-			if (!data.fullname.trim()) {
-				setError("fullname", { message: "Business name is required" });
-				hasError = true;
+		if (uptoStep >= 1) {
+			if (!data.officeId) {
+				pushError(1, "officeId", "Office is required.");
 			}
 			if (!data.legalFormId) {
-				setError("legalFormId", {
-					message: "Legal form is required for businesses",
-				});
-				hasError = true;
+				pushError(1, "legalFormId", "Legal form is required.");
 			}
-			if (!data.businessTypeId) {
-				setError("businessTypeId", {
-					message: "Business type is required",
-				});
-				hasError = true;
+			if (!data.clientKind) {
+				pushError(1, "clientKind", "Client kind is required.");
 			}
-			if (!data.businessLicenseNo?.trim()) {
-				setError("businessLicenseNo", {
-					message: "Business license number is required",
-				});
-				hasError = true;
-			}
-		} else {
-			if (!data.firstname.trim()) {
-				setError("firstname", { message: "First name is required" });
-				hasError = true;
-			}
-			if (!data.lastname.trim()) {
-				setError("lastname", { message: "Last name is required" });
-				hasError = true;
-			}
-			if (!data.nationalId?.trim() && !data.passportNo?.trim()) {
-				setError("nationalId", {
-					message: "National ID or Passport number is required",
-				});
-				setError("passportNo", {
-					message: "National ID or Passport number is required",
-				});
-				hasError = true;
+			if (isBusinessClient && !businessLineOptions.length) {
+				pushError(
+					1,
+					"clientKind",
+					"Business onboarding is unavailable until business types are configured.",
+				);
 			}
 		}
 
-		if (isAddressEnabled) {
-			if (!data.city?.trim()) {
-				setError("city", { message: "City is required" });
-				hasError = true;
-			}
-			if (!data.countryId) {
-				setError("countryId", { message: "Country is required" });
-				hasError = true;
+		if (uptoStep >= 2) {
+			if (isBusinessClient) {
+				if (!data.fullname.trim()) {
+					pushError(2, "fullname", "Business name is required.");
+				}
+				if (!data.businessTypeId) {
+					pushError(2, "businessTypeId", "Business type is required.");
+				}
+			} else {
+				if (!data.firstname.trim()) {
+					pushError(2, "firstname", "First name is required.");
+				}
+				if (!data.lastname.trim()) {
+					pushError(2, "lastname", "Last name is required.");
+				}
 			}
 		}
 
-		if (isActive && !data.activationDate) {
-			setError("activationDate", {
-				message: "Activation date is required",
-			});
-			hasError = true;
+		if (uptoStep >= 3) {
+			if (
+				!isBusinessClient &&
+				!data.nationalId?.trim() &&
+				!data.passportNo?.trim()
+			) {
+				pushError(
+					3,
+					"nationalId",
+					"National ID or Passport number is required.",
+				);
+				pushError(
+					3,
+					"passportNo",
+					"National ID or Passport number is required.",
+				);
+			}
+			if (isBusinessClient && !data.businessLicenseNo?.trim()) {
+				pushError(
+					3,
+					"businessLicenseNo",
+					"Business license number is required.",
+				);
+			}
 		}
 
-		if (hasError) return;
+		if (uptoStep >= 4) {
+			if (isAddressEnabled) {
+				if (!countryOptions.length) {
+					pushError(
+						4,
+						"countryId",
+						"Country lookup values are missing. Configure countries first.",
+					);
+				}
+				if (!data.city?.trim()) {
+					pushError(4, "city", "City is required.");
+				}
+				if (!data.countryId) {
+					pushError(4, "countryId", "Country is required.");
+				}
+			}
+
+			if (Boolean(data.active) && !data.activationDate) {
+				pushError(4, "activationDate", "Activation date is required.");
+			}
+		}
+
+		return firstInvalidStep;
+	};
+
+	const handleStepValidation = (step: number) => {
+		const currentStep = Math.min(4, Math.max(1, step)) as ClientValidationStep;
+		const invalidStep = validateClientData(getValues(), currentStep);
+		return invalidStep === null;
+	};
+
+	const handleClientSubmit = () => {
+		createMutation.reset();
+		const data = getValues();
+		const invalidStep = validateClientData(data, 4);
+
+		if (invalidStep) {
+			return invalidStep;
+		}
+
+		const isBusinessClient = data.clientKind === "business";
 
 		const payload: ClientCreatePayload = {
 			officeId: data.officeId,
 			active: Boolean(data.active),
+			legalFormId: data.legalFormId,
+			locale: "en",
 		};
 
-		if (isBusiness) {
+		if (isBusinessClient) {
 			payload.fullname = data.fullname.trim();
-			payload.legalFormId = data.legalFormId;
 			if (data.businessTypeId) {
 				payload.clientNonPersonDetails = {
 					mainBusinessLineId: data.businessTypeId,
@@ -572,6 +735,8 @@ export default function ClientsPage() {
 		if (data.clientTypeId) payload.clientTypeId = data.clientTypeId;
 		if (data.clientClassificationId)
 			payload.clientClassificationId = data.clientClassificationId;
+		if (data.savingsProductId) payload.savingsProductId = data.savingsProductId;
+		if (data.staffId) payload.staffId = data.staffId;
 
 		const activationDate = data.activationDate
 			? formatDateStringToFormat(data.activationDate, "dd MMMM yyyy")
@@ -583,7 +748,6 @@ export default function ClientsPage() {
 		if (dateOfBirth) payload.dateOfBirth = dateOfBirth;
 		if (activationDate || dateOfBirth) {
 			payload.dateFormat = "dd MMMM yyyy";
-			payload.locale = "en";
 		}
 
 		if (isAddressEnabled) {
@@ -597,7 +761,7 @@ export default function ClientsPage() {
 
 		const identifiers: IdentifierInput[] = [];
 
-		if (!isBusiness) {
+		if (!isBusinessClient) {
 			if (data.nationalId?.trim()) {
 				identifiers.push({
 					label: "National ID",
@@ -622,7 +786,7 @@ export default function ClientsPage() {
 			});
 		}
 
-		if (isBusiness && data.businessLicenseNo?.trim()) {
+		if (isBusinessClient && data.businessLicenseNo?.trim()) {
 			identifiers.push({
 				label: "Business License",
 				value: data.businessLicenseNo.trim(),
@@ -630,7 +794,7 @@ export default function ClientsPage() {
 			});
 		}
 
-		if (isBusiness && data.registrationNo?.trim()) {
+		if (isBusinessClient && data.registrationNo?.trim()) {
 			identifiers.push({
 				label: "Registration Number",
 				value: data.registrationNo.trim(),
@@ -639,6 +803,8 @@ export default function ClientsPage() {
 		}
 
 		createMutation.mutate({ payload, identifiers });
+
+		return null;
 	};
 
 	return (
@@ -659,11 +825,7 @@ export default function ClientsPage() {
 						<CardDescription>Track active and pending clients.</CardDescription>
 					</CardHeader>
 					<CardContent>
-						{clientsQuery.isLoading && (
-							<div className="py-6 text-center text-muted-foreground">
-								Loading clients...
-							</div>
-						)}
+						{clientsQuery.isLoading && <ClientTableSkeleton />}
 						{clientsQuery.error && (
 							<div className="py-6 text-center text-destructive">
 								Failed to load clients. Please try again.
@@ -690,15 +852,16 @@ export default function ClientsPage() {
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-lg overflow-y-auto"
+					className="w-full overflow-y-auto sm:max-w-[80vw]"
 				>
 					<SheetHeader>
 						<SheetTitle>Client Onboarding</SheetTitle>
 						<SheetDescription>
-							Load system lookups before capturing new client details.
+							Create individual or business clients with structured KYC and
+							activation workflows.
 						</SheetDescription>
 					</SheetHeader>
-					<div className="flex justify-end mt-2 mb-4">
+					<div className="mb-4 mt-2 flex justify-end">
 						<Button
 							type="button"
 							variant="outline"
@@ -738,18 +901,16 @@ export default function ClientsPage() {
 								)}
 								countryOptions={countryOptions.filter((o) => o.id)}
 								isAddressEnabled={isAddressEnabled}
-								onSubmit={handleSubmit(onSubmit)}
+								canCreateBusinessClient={businessLineOptions.length > 0}
+								hasBusinessTypeConfiguration={businessLineOptions.length > 0}
+								isOpen={isDrawerOpen}
+								isSubmitting={createMutation.isPending}
+								submissionError={submissionError?.message || null}
+								submissionErrorDetails={submissionErrorDetails}
+								onValidateStep={handleStepValidation}
+								onSubmit={handleClientSubmit}
+								onCancel={() => setIsDrawerOpen(false)}
 							/>
-						)}
-
-						{createMutation.isError && (
-							<Alert variant="destructive">
-								<AlertTitle>Submission failed</AlertTitle>
-								<AlertDescription>
-									{(createMutation.error as Error)?.message ||
-										"Failed to create client. Please try again."}
-								</AlertDescription>
-							</Alert>
 						)}
 
 						{(hasMissingBusinessType || hasMissingCountry) && (

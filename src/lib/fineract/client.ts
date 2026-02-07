@@ -6,6 +6,12 @@ const BFF_ROUTES = {
 	clientsTemplate: "/api/fineract/clients/template",
 };
 
+export type FineractRequestError = Error & {
+	code?: string;
+	details?: Record<string, string[]>;
+	statusCode?: number;
+};
+
 export async function fetchClients(tenantId: string) {
 	const response = await fetch(BFF_ROUTES.clients, {
 		headers: {
@@ -47,7 +53,13 @@ export async function createClient(tenantId: string, payload: unknown) {
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(data.message || "Failed to create client");
+		const error = new Error(
+			data.message || "Failed to create client",
+		) as FineractRequestError;
+		error.code = data.code;
+		error.details = data.details;
+		error.statusCode = data.statusCode;
+		throw error;
 	}
 
 	return data;
@@ -76,7 +88,12 @@ export async function fetchClientIdentifierTemplate(
 export async function createClientIdentifier(
 	tenantId: string,
 	clientId: number,
-	payload: { documentTypeId: number; documentKey: string },
+	payload: {
+		documentTypeId: number;
+		documentKey: string;
+		status?: string;
+		description?: string;
+	},
 ) {
 	const response = await fetch(
 		`/api/fineract/clients/${clientId}/identifiers`,
@@ -92,7 +109,13 @@ export async function createClientIdentifier(
 
 	if (!response.ok) {
 		const data = await response.json();
-		throw new Error(data.message || "Failed to create client identifier");
+		const error = new Error(
+			data.message || "Failed to create client identifier",
+		) as FineractRequestError;
+		error.code = data.code;
+		error.details = data.details;
+		error.statusCode = data.statusCode;
+		throw error;
 	}
 
 	return response.json();

@@ -403,6 +403,9 @@ function transformProductToFormData(
 				.map((entry) => entry.creditAllocationRule)
 				.filter((value): value is string => Boolean(value)) || [],
 		accountingRule: product.accountingRule?.id,
+		fundSourceAccountId: product.accountingMappings?.fundSourceAccount?.id,
+		loanPortfolioAccountId:
+			product.accountingMappings?.loanPortfolioAccount?.id,
 		interestOnLoanAccountId:
 			product.accountingMappings?.interestOnLoanAccount?.id,
 		incomeFromFeeAccountId:

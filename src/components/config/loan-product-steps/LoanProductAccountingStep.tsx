@@ -1,5 +1,6 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import {
@@ -19,6 +20,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { GetLoanProductsTemplateResponse } from "@/lib/fineract/generated/types.gen";
 import type { CreateLoanProductFormData } from "@/lib/schemas/loan-product";
 
@@ -26,19 +32,35 @@ interface LoanProductAccountingStepProps {
 	template?: GetLoanProductsTemplateResponse;
 }
 
-function optionLabel(option?: {
+type OptionLabelData = {
 	code?: string;
 	description?: string;
 	value?: string;
 	name?: string;
-}) {
+	nameDecorated?: string;
+	glCode?: string;
+};
+
+function optionLabel(option?: OptionLabelData) {
 	return (
-		option?.description ||
 		option?.value ||
 		option?.name ||
+		option?.nameDecorated ||
+		option?.description ||
 		option?.code ||
 		"Unknown"
 	);
+}
+
+function accountOptionLabel(option?: OptionLabelData) {
+	const label =
+		option?.name ||
+		option?.nameDecorated ||
+		option?.value ||
+		option?.description ||
+		option?.code ||
+		"Unknown";
+	return option?.glCode ? `${label} (${option.glCode})` : label;
 }
 
 function optionId(option?: { id?: number | string }) {
@@ -59,6 +81,37 @@ function waterfallLabel(option?: { code?: string; name?: string }) {
 	};
 
 	return mapping[option.code] || option?.name || option.code;
+}
+
+function FieldLabel({
+	htmlFor,
+	label,
+	tooltip,
+	required,
+}: {
+	htmlFor: string;
+	label: string;
+	tooltip: string;
+	required?: boolean;
+}) {
+	return (
+		<Label htmlFor={htmlFor} className="flex items-center gap-1.5">
+			<span>{label}</span>
+			{required && <span className="text-destructive">*</span>}
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						className="inline-flex items-center"
+						aria-label={`${label} info`}
+					>
+						<Info className="h-4 w-4 text-muted-foreground" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-sm">{tooltip}</TooltipContent>
+			</Tooltip>
+		</Label>
+	);
 }
 
 export function LoanProductAccountingStep({
@@ -138,6 +191,11 @@ export function LoanProductAccountingStep({
 	// Determine which fields are required based on accounting rule
 	const isAccountingEnabled = accountingRule && accountingRule !== 1;
 	const isAccrualAccounting = accountingRule === 3 || accountingRule === 4;
+	const hasAccountingOptionData =
+		assetOptions.length > 0 ||
+		incomeOptions.length > 0 ||
+		expenseOptions.length > 0 ||
+		liabilityOptions.length > 0;
 
 	function toggleArrayField(
 		field:
@@ -325,9 +383,9 @@ export function LoanProductAccountingStep({
 		// Additional accounts for all accounting types (required by Fineract)
 		if (
 			!currentValues.transfersInSuspenseAccountId &&
-			liabilityOptions.length > 0
+			assetOptions.length > 0
 		) {
-			updates.transfersInSuspenseAccountId = liabilityOptions[0].id;
+			updates.transfersInSuspenseAccountId = assetOptions[0].id;
 		}
 		if (
 			!currentValues.overpaymentLiabilityAccountId &&
@@ -928,7 +986,7 @@ export function LoanProductAccountingStep({
 																key={account.id}
 																value={String(account.id)}
 															>
-																{optionLabel(account)}
+																{accountOptionLabel(account)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -990,7 +1048,7 @@ export function LoanProductAccountingStep({
 																key={account.id}
 																value={String(account.id)}
 															>
-																{optionLabel(account)}
+																{accountOptionLabel(account)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1266,9 +1324,12 @@ export function LoanProductAccountingStep({
 				</CardHeader>
 				<CardContent className="space-y-6">
 					<div className="space-y-2">
-						<Label htmlFor="accountingRule">
-							Accounting Rule <span className="text-destructive">*</span>
-						</Label>
+						<FieldLabel
+							htmlFor="accountingRule"
+							label="Accounting Rule"
+							required
+							tooltip="Select how this loan product posts journal entries. NONE disables product-level GL mappings; CASH and ACCRUAL require account mappings below."
+						/>
 						<Controller
 							control={control}
 							name="accountingRule"
@@ -1303,6 +1364,13 @@ export function LoanProductAccountingStep({
 
 					{isAccountingEnabled && (
 						<>
+							{!hasAccountingOptionData && (
+								<p className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+									No GL account options were returned from the loan product
+									template API. Verify the backend template response before
+									submitting.
+								</p>
+							)}
 							{/* Asset Accounts */}
 							<div className="space-y-3">
 								<h4 className="text-sm font-medium text-muted-foreground">
@@ -1310,10 +1378,12 @@ export function LoanProductAccountingStep({
 								</h4>
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="fundSourceAccountId">
-											Fund Source Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="fundSourceAccountId"
+											label="Fund Source Account"
+											required
+											tooltip="Asset account used as the source of loan disbursement funds."
+										/>
 										<Controller
 											control={control}
 											name="fundSourceAccountId"
@@ -1337,7 +1407,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1351,10 +1421,12 @@ export function LoanProductAccountingStep({
 										)}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="loanPortfolioAccountId">
-											Loan Portfolio Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="loanPortfolioAccountId"
+											label="Loan Portfolio Account"
+											required
+											tooltip="Asset account that holds outstanding principal balances for this product."
+										/>
 										<Controller
 											control={control}
 											name="loanPortfolioAccountId"
@@ -1378,7 +1450,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1394,10 +1466,12 @@ export function LoanProductAccountingStep({
 									{isAccrualAccounting && (
 										<>
 											<div className="space-y-2">
-												<Label htmlFor="receivableInterestAccountId">
-													Receivable Interest Account{" "}
-													<span className="text-destructive">*</span>
-												</Label>
+												<FieldLabel
+													htmlFor="receivableInterestAccountId"
+													label="Receivable Interest Account"
+													required
+													tooltip="Asset account for accrued interest receivable when accrual accounting is used."
+												/>
 												<Controller
 													control={control}
 													name="receivableInterestAccountId"
@@ -1422,7 +1496,7 @@ export function LoanProductAccountingStep({
 																		key={option.id}
 																		value={String(option.id)}
 																	>
-																		{optionLabel(option)}
+																		{accountOptionLabel(option)}
 																	</SelectItem>
 																))}
 															</SelectContent>
@@ -1436,10 +1510,12 @@ export function LoanProductAccountingStep({
 												)}
 											</div>
 											<div className="space-y-2">
-												<Label htmlFor="receivableFeeAccountId">
-													Receivable Fee Account{" "}
-													<span className="text-destructive">*</span>
-												</Label>
+												<FieldLabel
+													htmlFor="receivableFeeAccountId"
+													label="Receivable Fee Account"
+													required
+													tooltip="Asset account for accrued fee receivables under accrual accounting."
+												/>
 												<Controller
 													control={control}
 													name="receivableFeeAccountId"
@@ -1464,7 +1540,7 @@ export function LoanProductAccountingStep({
 																		key={option.id}
 																		value={String(option.id)}
 																	>
-																		{optionLabel(option)}
+																		{accountOptionLabel(option)}
 																	</SelectItem>
 																))}
 															</SelectContent>
@@ -1478,10 +1554,12 @@ export function LoanProductAccountingStep({
 												)}
 											</div>
 											<div className="space-y-2">
-												<Label htmlFor="receivablePenaltyAccountId">
-													Receivable Penalty Account{" "}
-													<span className="text-destructive">*</span>
-												</Label>
+												<FieldLabel
+													htmlFor="receivablePenaltyAccountId"
+													label="Receivable Penalty Account"
+													required
+													tooltip="Asset account for accrued penalty receivables under accrual accounting."
+												/>
 												<Controller
 													control={control}
 													name="receivablePenaltyAccountId"
@@ -1506,7 +1584,7 @@ export function LoanProductAccountingStep({
 																		key={option.id}
 																		value={String(option.id)}
 																	>
-																		{optionLabel(option)}
+																		{accountOptionLabel(option)}
 																	</SelectItem>
 																))}
 															</SelectContent>
@@ -1531,10 +1609,12 @@ export function LoanProductAccountingStep({
 								</h4>
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="interestOnLoanAccountId">
-											Interest on Loan Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="interestOnLoanAccountId"
+											label="Interest on Loan Account"
+											required
+											tooltip="Income account where earned loan interest is recognized."
+										/>
 										<Controller
 											control={control}
 											name="interestOnLoanAccountId"
@@ -1558,7 +1638,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1572,10 +1652,12 @@ export function LoanProductAccountingStep({
 										)}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="incomeFromFeeAccountId">
-											Income from Fee Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="incomeFromFeeAccountId"
+											label="Income from Fee Account"
+											required
+											tooltip="Income account used for fee income generated by this product."
+										/>
 										<Controller
 											control={control}
 											name="incomeFromFeeAccountId"
@@ -1599,7 +1681,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1613,10 +1695,12 @@ export function LoanProductAccountingStep({
 										)}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="incomeFromPenaltyAccountId">
-											Income from Penalty Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="incomeFromPenaltyAccountId"
+											label="Income from Penalty Account"
+											required
+											tooltip="Income account used when penalty charges are posted."
+										/>
 										<Controller
 											control={control}
 											name="incomeFromPenaltyAccountId"
@@ -1640,7 +1724,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1654,10 +1738,12 @@ export function LoanProductAccountingStep({
 										)}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="incomeFromRecoveryAccountId">
-											Income from Recovery Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="incomeFromRecoveryAccountId"
+											label="Income from Recovery Account"
+											required
+											tooltip="Income account for recoveries received after write-off or charge-off actions."
+										/>
 										<Controller
 											control={control}
 											name="incomeFromRecoveryAccountId"
@@ -1681,7 +1767,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1704,10 +1790,12 @@ export function LoanProductAccountingStep({
 								</h4>
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="writeOffAccountId">
-											Write Off Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="writeOffAccountId"
+											label="Write Off Account"
+											required
+											tooltip="Expense account used when loan principal/interest is written off."
+										/>
 										<Controller
 											control={control}
 											name="writeOffAccountId"
@@ -1731,7 +1819,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1754,10 +1842,12 @@ export function LoanProductAccountingStep({
 								</h4>
 								<div className="grid gap-4 md:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="overpaymentLiabilityAccountId">
-											Overpayment Liability Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="overpaymentLiabilityAccountId"
+											label="Overpayment Liability Account"
+											required
+											tooltip="Liability account where excess borrower payments are held until settled."
+										/>
 										<Controller
 											control={control}
 											name="overpaymentLiabilityAccountId"
@@ -1781,7 +1871,7 @@ export function LoanProductAccountingStep({
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>
@@ -1795,10 +1885,12 @@ export function LoanProductAccountingStep({
 										)}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="transfersInSuspenseAccountId">
-											Transfers in Suspense Account{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<FieldLabel
+											htmlFor="transfersInSuspenseAccountId"
+											label="Transfers in Suspense Account"
+											required
+											tooltip="Asset suspense account used to temporarily park unmatched transfer postings."
+										/>
 										<Controller
 											control={control}
 											name="transfersInSuspenseAccountId"
@@ -1817,12 +1909,12 @@ export function LoanProductAccountingStep({
 														<SelectValue placeholder="Select account" />
 													</SelectTrigger>
 													<SelectContent>
-														{liabilityOptions.map((option) => (
+														{assetOptions.map((option) => (
 															<SelectItem
 																key={option.id}
 																value={String(option.id)}
 															>
-																{optionLabel(option)}
+																{accountOptionLabel(option)}
 															</SelectItem>
 														))}
 													</SelectContent>

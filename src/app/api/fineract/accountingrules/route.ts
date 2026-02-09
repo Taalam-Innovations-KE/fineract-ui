@@ -6,29 +6,28 @@ import {
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
-	GetGlAccountsResponse,
-	PostGlAccountsRequest,
-	PostGlAccountsResponse,
+	AccountingRuleData,
+	AccountRuleRequest,
+	PostAccountingRulesResponse,
 } from "@/lib/fineract/generated/types.gen";
 
 /**
- * GET /api/fineract/glaccounts
- * Fetches all GL accounts
+ * GET /api/fineract/accountingrules
+ * Fetches all accounting rules
  */
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const searchParams = request.nextUrl.searchParams.toString();
-		const path = searchParams
-			? `${FINERACT_ENDPOINTS.glaccounts}?${searchParams}`
-			: FINERACT_ENDPOINTS.glaccounts;
 
-		const glaccounts = await fineractFetch<GetGlAccountsResponse[]>(path, {
-			method: "GET",
-			tenantId,
-		});
+		const rules = await fineractFetch<AccountingRuleData[]>(
+			FINERACT_ENDPOINTS.accountingRules,
+			{
+				method: "GET",
+				tenantId,
+			},
+		);
 
-		return NextResponse.json(glaccounts);
+		return NextResponse.json(rules);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {
@@ -38,16 +37,16 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/fineract/glaccounts
- * Creates a new GL account
+ * POST /api/fineract/accountingrules
+ * Creates an accounting rule
  */
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body = (await request.json()) as PostGlAccountsRequest;
+		const body = (await request.json()) as AccountRuleRequest;
 
-		const result = await fineractFetch<PostGlAccountsResponse>(
-			FINERACT_ENDPOINTS.glaccounts,
+		const result = await fineractFetch<PostAccountingRulesResponse>(
+			FINERACT_ENDPOINTS.accountingRules,
 			{
 				method: "POST",
 				body,

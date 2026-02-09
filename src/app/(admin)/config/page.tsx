@@ -37,8 +37,8 @@ const configModules = [
 		title: "Financial Setup",
 		description: "Configure currencies and accounting",
 		icon: DollarSign,
-		href: "/config/financial/currencies",
-		items: ["Currencies", "Accounting Setup (coming soon)"],
+		href: "/config/financial/accounting",
+		items: ["Currencies", "Accounting Setup", "Chart of Accounts"],
 	},
 	{
 		title: "System Configuration",

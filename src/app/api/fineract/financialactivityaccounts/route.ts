@@ -6,29 +6,27 @@ import {
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
-	GetGlAccountsResponse,
-	PostGlAccountsRequest,
-	PostGlAccountsResponse,
+	GetFinancialActivityAccountsResponse,
+	PostFinancialActivityAccountsRequest,
+	PostFinancialActivityAccountsResponse,
 } from "@/lib/fineract/generated/types.gen";
 
 /**
- * GET /api/fineract/glaccounts
- * Fetches all GL accounts
+ * GET /api/fineract/financialactivityaccounts
+ * Fetches financial activity account mappings
  */
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const searchParams = request.nextUrl.searchParams.toString();
-		const path = searchParams
-			? `${FINERACT_ENDPOINTS.glaccounts}?${searchParams}`
-			: FINERACT_ENDPOINTS.glaccounts;
 
-		const glaccounts = await fineractFetch<GetGlAccountsResponse[]>(path, {
+		const mappings = await fineractFetch<
+			GetFinancialActivityAccountsResponse[]
+		>(FINERACT_ENDPOINTS.financialActivityAccounts, {
 			method: "GET",
 			tenantId,
 		});
 
-		return NextResponse.json(glaccounts);
+		return NextResponse.json(mappings);
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {
@@ -38,16 +36,16 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/fineract/glaccounts
- * Creates a new GL account
+ * POST /api/fineract/financialactivityaccounts
+ * Creates a financial activity account mapping
  */
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body = (await request.json()) as PostGlAccountsRequest;
+		const body = (await request.json()) as PostFinancialActivityAccountsRequest;
 
-		const result = await fineractFetch<PostGlAccountsResponse>(
-			FINERACT_ENDPOINTS.glaccounts,
+		const result = await fineractFetch<PostFinancialActivityAccountsResponse>(
+			FINERACT_ENDPOINTS.financialActivityAccounts,
 			{
 				method: "POST",
 				body,

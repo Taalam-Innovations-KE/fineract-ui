@@ -13,6 +13,7 @@ import {
 	Globe,
 	Hash,
 	LayoutGrid,
+	Link2,
 	Receipt,
 	Settings,
 	Shield,
@@ -113,6 +114,11 @@ const navItems: NavItem[] = [
 				title: "Currencies",
 				href: "/config/financial/currencies",
 				icon: DollarSign,
+			},
+			{
+				title: "Accounting Setup",
+				href: "/config/financial/accounting",
+				icon: Link2,
 			},
 			{
 				title: "Account Number Formats",

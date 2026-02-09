@@ -54,6 +54,22 @@ export const FINERACT_ENDPOINTS = {
 	// Accounting - Journal Entries
 	journalEntries: "/v1/journalentries",
 	glaccounts: "/v1/glaccounts",
+	glAccountsTemplate: "/v1/glaccounts/template",
+	glAccountsDownloadTemplate: "/v1/glaccounts/downloadtemplate",
+	glAccountsUploadTemplate: "/v1/glaccounts/uploadtemplate",
+	glAccountById: (glAccountId: number | string) =>
+		`/v1/glaccounts/${glAccountId}`,
+	accountingRules: "/v1/accountingrules",
+	accountingRulesTemplate: "/v1/accountingrules/template",
+	accountingRuleById: (accountingRuleId: number | string) =>
+		`/v1/accountingrules/${accountingRuleId}`,
+	financialActivityAccounts: "/v1/financialactivityaccounts",
+	financialActivityAccountsTemplate: "/v1/financialactivityaccounts/template",
+	financialActivityAccountById: (mappingId: number | string) =>
+		`/v1/financialactivityaccounts/${mappingId}`,
+	glClosures: "/v1/glclosures",
+	glClosureById: (glClosureId: number | string) =>
+		`/v1/glclosures/${glClosureId}`,
 
 	// Reports
 	reports: "/v1/reports",
@@ -129,6 +145,23 @@ export const BFF_ROUTES = {
 	// Accounting - Journal Entries
 	journalEntries: "/api/fineract/journalentries",
 	glaccounts: "/api/fineract/glaccounts",
+	glAccountsTemplate: "/api/fineract/glaccounts/template",
+	glAccountsDownloadTemplate: "/api/fineract/glaccounts/downloadtemplate",
+	glAccountsUploadTemplate: "/api/fineract/glaccounts/uploadtemplate",
+	glAccountById: (glAccountId: number | string) =>
+		`/api/fineract/glaccounts/${glAccountId}`,
+	accountingRules: "/api/fineract/accountingrules",
+	accountingRulesTemplate: "/api/fineract/accountingrules/template",
+	accountingRuleById: (accountingRuleId: number | string) =>
+		`/api/fineract/accountingrules/${accountingRuleId}`,
+	financialActivityAccounts: "/api/fineract/financialactivityaccounts",
+	financialActivityAccountsTemplate:
+		"/api/fineract/financialactivityaccounts/template",
+	financialActivityAccountById: (mappingId: number | string) =>
+		`/api/fineract/financialactivityaccounts/${mappingId}`,
+	glClosures: "/api/fineract/glclosures",
+	glClosureById: (glClosureId: number | string) =>
+		`/api/fineract/glclosures/${glClosureId}`,
 
 	// Reports
 	reports: "/api/fineract/reports",

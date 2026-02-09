@@ -30,6 +30,8 @@ export const FINERACT_ENDPOINTS = {
 	// Products
 	loanProducts: "/v1/loanproducts",
 	loanProductTemplate: "/v1/loanproducts/template",
+	savingsProducts: "/v1/savingsproducts",
+	savingsProductTemplate: "/v1/savingsproducts/template",
 	charges: "/v1/charges",
 
 	// Loans
@@ -120,6 +122,8 @@ export const BFF_ROUTES = {
 	// Products
 	loanProducts: "/api/fineract/loanproducts",
 	loanProductTemplate: "/api/fineract/loanproducts/template",
+	savingsProducts: "/api/fineract/savingsproducts",
+	savingsProductTemplate: "/api/fineract/savingsproducts/template",
 	charges: "/api/fineract/charges",
 
 	// Loans

@@ -14,6 +14,7 @@ import {
 	Hash,
 	LayoutGrid,
 	Link2,
+	PiggyBank,
 	Receipt,
 	Settings,
 	Shield,
@@ -109,6 +110,11 @@ const navItems: NavItem[] = [
 				title: "Loan Products",
 				href: "/config/products/loans",
 				icon: CreditCard,
+			},
+			{
+				title: "Savings Products",
+				href: "/config/products/savings",
+				icon: PiggyBank,
 			},
 			{
 				title: "Currencies",

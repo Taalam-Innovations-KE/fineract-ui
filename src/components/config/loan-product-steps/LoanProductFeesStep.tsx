@@ -106,6 +106,7 @@ export function LoanProductFeesStep({
 	const { fields, append, remove } = useFieldArray({
 		control,
 		name: "fees",
+		keyName: "fieldId",
 	});
 
 	const [isFeeDrawerOpen, setIsFeeDrawerOpen] = useState(false);
@@ -254,7 +255,7 @@ export function LoanProductFeesStep({
 						)}
 						{fields.map((fee, index) => (
 							<Badge
-								key={fee.id}
+								key={fee.fieldId}
 								variant="outline"
 								className="flex items-center gap-2"
 							>

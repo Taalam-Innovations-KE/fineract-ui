@@ -31,7 +31,7 @@ export const penaltyChargeFormSchema = z
 		]),
 		calculationMethod: z.enum(["flat", "percent"]),
 		amount: z.number().positive("Amount must be greater than 0"),
-		gracePeriodOverride: z.number().nonnegative().optional(),
+		gracePeriodOverride: optionalNumber,
 		currencyCode: z.string().length(3, "Currency code must be 3 characters"),
 		frequencyType: z.enum(["days", "weeks", "months", "years"]).optional(),
 		frequencyInterval: optionalPositiveInteger,

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm, useFormContext } from "react-hook-form";
+import type { input as ZodInput } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,12 +72,99 @@ const PENALTY_FREQUENCY_TO_API = {
 } as const;
 const LOAN_CHARGE_APPLIES_TO = 1;
 
-function normalizeChargeToPenaltyOption(
-	charge: GetChargesResponse,
-): GetLoanProductsChargeOptions | null {
-	if (!charge.id) return null;
+type PenaltyFrequencyType = NonNullable<PenaltySelection["frequencyType"]>;
+type PenaltyOption = GetLoanProductsChargeOptions & Record<string, unknown>;
+type PenaltyFormInput = ZodInput<typeof penaltyChargeFormSchema>;
+
+function readUnknownProperty(source: object, property: string) {
+	const record = source as Record<string, unknown>;
+	return record[property];
+}
+
+function readUnknownNumberProperty(source: object, property: string) {
+	const value = readUnknownProperty(source, property);
+	if (typeof value === "number") return value;
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
+function mapApiPenaltyFrequencyToUi(
+	value: unknown,
+): PenaltyFrequencyType | undefined {
+	if (typeof value === "number") {
+		return mapApiPenaltyFrequencyToUi(String(value));
+	}
+
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		if (normalized === "0" || normalized.includes("day")) return "days";
+		if (normalized === "1" || normalized.includes("week")) return "weeks";
+		if (normalized === "2" || normalized.includes("month")) return "months";
+		if (normalized === "3" || normalized.includes("year")) return "years";
+		return undefined;
+	}
+
+	if (value && typeof value === "object") {
+		const objectValue = value as Record<string, unknown>;
+		return (
+			mapApiPenaltyFrequencyToUi(objectValue.id) ||
+			mapApiPenaltyFrequencyToUi(objectValue.code) ||
+			mapApiPenaltyFrequencyToUi(objectValue.value) ||
+			mapApiPenaltyFrequencyToUi(objectValue.description)
+		);
+	}
+
+	return undefined;
+}
+
+function mapChargeCalculationToPenaltyBasis(
+	chargeCalculationTypeId?: number,
+): PenaltySelection["penaltyBasis"] {
+	if (chargeCalculationTypeId === 3) return "overdueInterest";
+	if (chargeCalculationTypeId === 4) return "overduePrincipal";
+	return "totalOverdue";
+}
+
+function mapChargeCalculationToMethod(
+	chargeCalculationTypeId?: number,
+): PenaltySelection["calculationMethod"] {
+	return chargeCalculationTypeId === 1 ? "flat" : "percent";
+}
+
+function mapOptionToPenaltySelection(option: GetLoanProductsChargeOptions) {
+	const chargeCalculationTypeId = option.chargeCalculationType?.id;
+	const frequencyType = mapApiPenaltyFrequencyToUi(
+		readUnknownProperty(option, "feeFrequency"),
+	);
+	const frequencyInterval = readUnknownNumberProperty(option, "feeInterval");
 
 	return {
+		calculationMethod: mapChargeCalculationToMethod(chargeCalculationTypeId),
+		penaltyBasis: mapChargeCalculationToPenaltyBasis(chargeCalculationTypeId),
+		frequencyType,
+		frequencyInterval,
+	};
+}
+
+function formatOptionRecurrence(option: GetLoanProductsChargeOptions) {
+	const frequencyType = mapApiPenaltyFrequencyToUi(
+		readUnknownProperty(option, "feeFrequency"),
+	);
+	const frequencyInterval = readUnknownNumberProperty(option, "feeInterval");
+
+	if (!frequencyType || !frequencyInterval) return null;
+	return `Every ${frequencyInterval} ${frequencyType}`;
+}
+
+function normalizeChargeToPenaltyOption(
+	charge: GetChargesResponse,
+): PenaltyOption | null {
+	if (!charge.id) return null;
+
+	const option: PenaltyOption = {
 		id: charge.id,
 		name: charge.name,
 		active: charge.active,
@@ -121,6 +209,11 @@ function normalizeChargeToPenaltyOption(
 				}
 			: undefined,
 	};
+
+	option.feeFrequency = readUnknownProperty(charge, "feeFrequency");
+	option.feeInterval = readUnknownNumberProperty(charge, "feeInterval");
+
+	return option;
 }
 
 function toAmountLabel(
@@ -179,6 +272,7 @@ export function LoanProductPenaltiesStep({
 	const { fields, append, remove } = useFieldArray({
 		control,
 		name: "penalties",
+		keyName: "fieldId",
 	});
 
 	const [isPenaltyDrawerOpen, setIsPenaltyDrawerOpen] = useState(false);
@@ -196,7 +290,7 @@ export function LoanProductPenaltiesStep({
 	});
 
 	// Separate form for creating new penalties (API call)
-	const penaltyForm = useForm<PenaltyFormData>({
+	const penaltyForm = useForm<PenaltyFormInput, unknown, PenaltyFormData>({
 		resolver: zodResolver(penaltyChargeFormSchema),
 		mode: "onChange",
 		defaultValues: {
@@ -316,6 +410,7 @@ export function LoanProductPenaltiesStep({
 			name: option.name || "Penalty",
 			amount: option.amount,
 			currencyCode: option.currency?.code,
+			...mapOptionToPenaltySelection(option),
 		});
 	};
 
@@ -325,7 +420,9 @@ export function LoanProductPenaltiesStep({
 		[];
 	const templateOrChargePenaltyOptions =
 		templatePenaltyOptions.length > 0
-			? templatePenaltyOptions.filter((option) => option.active !== false)
+			? (templatePenaltyOptions.filter(
+					(option) => option.active !== false,
+				) as PenaltyOption[])
 			: chargeOptions.filter(
 					(option) => option.penalty === true && option.active !== false,
 				);
@@ -337,9 +434,7 @@ export function LoanProductPenaltiesStep({
 				charge.chargeAppliesTo?.id === LOAN_CHARGE_APPLIES_TO,
 		)
 		.map(normalizeChargeToPenaltyOption)
-		.filter(
-			(option): option is GetLoanProductsChargeOptions => option !== null,
-		);
+		.filter((option): option is PenaltyOption => option !== null);
 	const penaltyOptions = Array.from(
 		new Map(
 			[...templateOrChargePenaltyOptions, ...penaltiesFromCharges].map(
@@ -377,7 +472,7 @@ export function LoanProductPenaltiesStep({
 						)}
 						{fields.map((penalty, index) => (
 							<Badge
-								key={penalty.id}
+								key={penalty.fieldId}
 								variant="outline"
 								className="flex items-center gap-2"
 							>
@@ -611,7 +706,11 @@ export function LoanProductPenaltiesStep({
 								>
 									Cancel
 								</Button>
-								<Button type="submit" disabled={isCreatingPenalty}>
+								<Button
+									type="button"
+									onClick={() => void handleCreatePenalty()}
+									disabled={isCreatingPenalty}
+								>
 									{isCreatingPenalty ? "Creating..." : "Create Penalty"}
 								</Button>
 							</div>
@@ -639,36 +738,42 @@ export function LoanProductPenaltiesStep({
 								{currencyCode || "N/A"}.
 							</p>
 						) : (
-							matchingCurrencyPenaltyOptions.map((option) => (
-								<div
-									key={option.id}
-									className="flex items-center justify-between p-3 border rounded-lg"
-								>
-									<div>
-										<p className="font-medium">{option.name}</p>
-										<p className="text-sm text-muted-foreground">
-											{option.currency?.code} {option.amount} -{" "}
-											{option.chargeTimeType?.description}
-										</p>
-									</div>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											handleAddExistingPenalty(option);
-											setIsPenaltySelectOpen(false);
-										}}
-										disabled={fields.some(
-											(penalty) => penalty.id === option.id,
-										)}
+							matchingCurrencyPenaltyOptions.map((option) => {
+								const recurrenceLabel = formatOptionRecurrence(option);
+								return (
+									<div
+										key={option.id}
+										className="flex items-center justify-between p-3 border rounded-lg"
 									>
-										{fields.some((penalty) => penalty.id === option.id)
-											? "Added"
-											: "Add"}
-									</Button>
-								</div>
-							))
+										<div>
+											<p className="font-medium">{option.name}</p>
+											<p className="text-sm text-muted-foreground">
+												{option.currency?.code} {option.amount} -{" "}
+												{option.chargeTimeType?.description ||
+													option.chargeTimeType?.code ||
+													"Penalty"}
+												{recurrenceLabel ? ` (${recurrenceLabel})` : ""}
+											</p>
+										</div>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => {
+												handleAddExistingPenalty(option);
+												setIsPenaltySelectOpen(false);
+											}}
+											disabled={fields.some(
+												(penalty) => penalty.id === option.id,
+											)}
+										>
+											{fields.some((penalty) => penalty.id === option.id)
+												? "Added"
+												: "Add"}
+										</Button>
+									</div>
+								);
+							})
 						)}
 						{excludedPenaltyCount > 0 && currencyCode && (
 							<p className="text-xs text-muted-foreground">

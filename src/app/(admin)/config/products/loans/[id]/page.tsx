@@ -124,10 +124,48 @@ function readUnknownBooleanProperty(
 	return typeof value === "boolean" ? value : fallback;
 }
 
-function readUnknownNumberProperty(source: object, property: string) {
+function readUnknownProperty(source: object, property: string) {
 	const record = source as Record<string, unknown>;
-	const value = record[property];
-	return typeof value === "number" ? value : undefined;
+	return record[property];
+}
+
+function readUnknownNumberProperty(source: object, property: string) {
+	const value = readUnknownProperty(source, property);
+	if (typeof value === "number") return value;
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
+function mapApiPenaltyFrequencyToUi(
+	value: unknown,
+): "days" | "weeks" | "months" | "years" | undefined {
+	if (typeof value === "number") {
+		return mapApiPenaltyFrequencyToUi(String(value));
+	}
+
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		if (normalized === "0" || normalized.includes("day")) return "days";
+		if (normalized === "1" || normalized.includes("week")) return "weeks";
+		if (normalized === "2" || normalized.includes("month")) return "months";
+		if (normalized === "3" || normalized.includes("year")) return "years";
+		return undefined;
+	}
+
+	if (value && typeof value === "object") {
+		const objectValue = value as Record<string, unknown>;
+		return (
+			mapApiPenaltyFrequencyToUi(objectValue.id) ||
+			mapApiPenaltyFrequencyToUi(objectValue.code) ||
+			mapApiPenaltyFrequencyToUi(objectValue.value) ||
+			mapApiPenaltyFrequencyToUi(objectValue.description)
+		);
+	}
+
+	return undefined;
 }
 
 function transformProductToFormData(
@@ -178,25 +216,33 @@ function transformProductToFormData(
 
 	const penalties = detailedCharges
 		.filter((charge) => charge.penalty)
-		.map((charge) => ({
-			id: charge.id!,
-			name: charge.name || "",
-			amount: charge.amount,
-			currencyCode: charge.currency?.code,
-			calculationMethod:
-				charge.chargeCalculationType?.id === 1
-					? "flat"
-					: ("percent" as "flat" | "percent"),
-			penaltyBasis:
-				charge.chargeCalculationType?.id === 3
-					? "overdueInterest"
-					: charge.chargeCalculationType?.id === 4
-						? "overduePrincipal"
-						: ("totalOverdue" as
-								| "totalOverdue"
-								| "overduePrincipal"
-								| "overdueInterest"),
-		}));
+		.map((charge) => {
+			const frequencyType = mapApiPenaltyFrequencyToUi(
+				readUnknownProperty(charge, "feeFrequency"),
+			);
+
+			return {
+				id: charge.id!,
+				name: charge.name || "",
+				amount: charge.amount,
+				currencyCode: charge.currency?.code,
+				calculationMethod:
+					charge.chargeCalculationType?.id === 1
+						? "flat"
+						: ("percent" as "flat" | "percent"),
+				penaltyBasis:
+					charge.chargeCalculationType?.id === 3
+						? "overdueInterest"
+						: charge.chargeCalculationType?.id === 4
+							? "overduePrincipal"
+							: ("totalOverdue" as
+									| "totalOverdue"
+									| "overduePrincipal"
+									| "overdueInterest"),
+				frequencyType,
+				frequencyInterval: readUnknownNumberProperty(charge, "feeInterval"),
+			};
+		});
 
 	return {
 		name: product.name || "",

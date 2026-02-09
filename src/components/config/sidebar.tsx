@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -41,26 +41,46 @@ const navItems: NavItem[] = [
 		icon: LayoutGrid,
 	},
 	{
-		title: "Organisation",
-		href: "/config/organisation",
-		icon: Building2,
+		title: "Customer Operations",
+		href: "/config/operations/clients",
+		icon: Users,
 		children: [
 			{
-				title: "Offices",
-				href: "/config/organisation/offices",
-				icon: Building2,
-			},
-			{ title: "Staff", href: "/config/organisation/staff", icon: Users },
-			{ title: "Users", href: "/config/organisation/users", icon: UserCog },
-			{
-				title: "Roles & Permissions",
-				href: "/config/organisation/roles",
-				icon: Shield,
+				title: "Clients",
+				href: "/config/operations/clients",
+				icon: Users,
 			},
 			{
-				title: "Account Number Formats",
-				href: "/config/organisation/account-number-formats",
-				icon: Hash,
+				title: "Loans",
+				href: "/config/operations/loans",
+				icon: Banknote,
+			},
+			{
+				title: "Transactions",
+				href: "/config/operations/transactions",
+				icon: Receipt,
+			},
+		],
+	},
+	{
+		title: "Operational Controls",
+		href: "/config/operations/cob",
+		icon: Clock,
+		children: [
+			{
+				title: "Close of Business",
+				href: "/config/operations/cob",
+				icon: Clock,
+			},
+			{
+				title: "Batch Operations",
+				href: "/config/operations/batch",
+				icon: Zap,
+			},
+			{
+				title: "Audit Trail",
+				href: "/config/operations/audits",
+				icon: FileText,
 			},
 			{
 				title: "Working Days",
@@ -80,28 +100,57 @@ const navItems: NavItem[] = [
 		],
 	},
 	{
-		title: "Financial Setup",
-		href: "/config/financial",
+		title: "Products & Finance",
+		href: "/config/products/loans",
 		icon: DollarSign,
 		children: [
+			{
+				title: "Loan Products",
+				href: "/config/products/loans",
+				icon: CreditCard,
+			},
 			{
 				title: "Currencies",
 				href: "/config/financial/currencies",
 				icon: DollarSign,
 			},
+			{
+				title: "Account Number Formats",
+				href: "/config/organisation/account-number-formats",
+				icon: Hash,
+			},
 		],
 	},
 	{
-		title: "System Configuration",
-		href: "/config/system",
-		icon: Settings,
+		title: "People & Access",
+		href: "/config/organisation/offices",
+		icon: Shield,
 		children: [
-			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
+			{
+				title: "Offices",
+				href: "/config/organisation/offices",
+				icon: Building2,
+			},
+			{ title: "Staff", href: "/config/organisation/staff", icon: Users },
+			{ title: "Users", href: "/config/organisation/users", icon: UserCog },
+			{
+				title: "Roles & Permissions",
+				href: "/config/organisation/roles",
+				icon: Shield,
+			},
 			{
 				title: "Maker Checker",
 				href: "/config/system/maker-checker",
 				icon: Shield,
 			},
+		],
+	},
+	{
+		title: "Platform Settings",
+		href: "/config/system/codes",
+		icon: Settings,
+		children: [
+			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
 			{
 				title: "Global Configuration",
 				href: "/config/system/global",
@@ -114,58 +163,54 @@ const navItems: NavItem[] = [
 			},
 		],
 	},
-	{
-		title: "Products",
-		href: "/config/products",
-		icon: CreditCard,
-		children: [
-			{
-				title: "Loan Products",
-				href: "/config/products/loans",
-				icon: CreditCard,
-			},
-		],
-	},
-	{
-		title: "Operations",
-		href: "/config/operations",
-		icon: Clock,
-		children: [
-			{
-				title: "Close of Business",
-				href: "/config/operations/cob",
-				icon: Clock,
-			},
-			{ title: "Clients", href: "/config/operations/clients", icon: Users },
-			{ title: "Loans", href: "/config/operations/loans", icon: Banknote },
-			{
-				title: "Transactions",
-				href: "/config/operations/transactions",
-				icon: Receipt,
-			},
-			{
-				title: "Batch Operations",
-				href: "/config/operations/batch",
-				icon: Zap,
-			},
-			{
-				title: "Audit Trail",
-				href: "/config/operations/audits",
-				icon: FileText,
-			},
-		],
-	},
 ];
+
+function matchesPath(
+	currentPath: string | null,
+	targetPath: string,
+	includeDescendants = false,
+) {
+	if (!currentPath) {
+		return false;
+	}
+
+	return (
+		currentPath === targetPath ||
+		(includeDescendants && currentPath.startsWith(`${targetPath}/`))
+	);
+}
+
+function isSectionActive(item: NavItem, currentPath: string | null) {
+	if (!item.children?.length) {
+		return matchesPath(currentPath, item.href);
+	}
+
+	return item.children.some((child) =>
+		matchesPath(currentPath, child.href, true),
+	);
+}
 
 export function Sidebar() {
 	const pathname = usePathname();
 	const [openSections, setOpenSections] = useState<string[]>(() => {
-		// Auto-open the section that contains the current page
-		const activeSection = navItems.find(
-			(item) => pathname?.startsWith(item.href + "/") || pathname === item.href,
+		const activeSection = navItems.find((item) =>
+			isSectionActive(item, pathname),
 		);
 		return activeSection ? [activeSection.href] : [];
 	});
+
+	useEffect(() => {
+		const activeSection = navItems.find((item) =>
+			isSectionActive(item, pathname),
+		);
+		if (!activeSection) {
+			return;
+		}
+
+		setOpenSections((prev) =>
+			prev.includes(activeSection.href) ? prev : [...prev, activeSection.href],
+		);
+	}, [pathname]);
 
 	const toggleSection = (href: string) => {
 		setOpenSections((prev) =>
@@ -177,11 +222,7 @@ export function Sidebar() {
 		<nav className="flex flex-col gap-0.5 px-2.5 py-2">
 			{navItems.map((item, index) => {
 				const hasChildren = item.children && item.children.length > 0;
-				// For items without children, only match exact path
-				// For items with children, match if path starts with the href
-				const isActive = hasChildren
-					? pathname?.startsWith(item.href + "/")
-					: pathname === item.href;
+				const isActive = isSectionActive(item, pathname);
 				const isOpen = openSections.includes(item.href);
 				const Icon = item.icon;
 
@@ -227,7 +268,7 @@ export function Sidebar() {
 							<div className="ml-3.5 mt-0.5 flex flex-col overflow-hidden">
 								{item.children!.map((child) => {
 									const ChildIcon = child.icon;
-									const isChildActive = pathname === child.href;
+									const isChildActive = matchesPath(pathname, child.href, true);
 
 									return (
 										<Link

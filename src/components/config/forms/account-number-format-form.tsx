@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Save, X } from "lucide-react";
+import { CircleHelp, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,7 +14,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
+	EnumOptionData,
 	GetAccountNumberFormatsIdResponse,
 	GetAccountNumberFormatsResponseTemplate,
 	PostAccountNumberFormatsRequest,
@@ -30,6 +37,45 @@ interface AccountNumberFormatFormProps {
 	onSubmit: (data: PostAccountNumberFormatsRequest) => Promise<void>;
 	onDelete?: () => Promise<void>;
 	onCancel: () => void;
+}
+
+const ACCOUNT_TYPE_DESCRIPTIONS: Record<string, string> = {
+	"accountType.client":
+		"Client accounts identify customer profiles and are used as the base reference for client-level records.",
+	"accountType.loan":
+		"Loan accounts track borrowing products and all loan lifecycle transactions.",
+	"accountType.savings":
+		"Savings accounts track deposit products, balances, and savings transactions.",
+	"accountType.center":
+		"Center accounts are used for center/grouping structures in group-based lending setups.",
+	"accountType.group":
+		"Group accounts identify borrowing or operational groups under an office structure.",
+	"accountType.shares":
+		"Share accounts track share products and shareholder ownership transactions.",
+};
+
+const PREFIX_TYPE_DESCRIPTIONS: Record<string, string> = {
+	"accountNumberPrefixType.prefixShortName":
+		"Uses a configured short code prefix to keep account numbers compact and recognizable.",
+	"accountNumberPrefixType.officeName":
+		"Prefixes account numbers based on the office context where the account is created.",
+	"accountNumberPrefixType.clientType":
+		"Prefixes account numbers using the client's type classification.",
+	"accountNumberPrefixType.loanProductShortName":
+		"Prefixes account numbers using the selected loan product short name.",
+	"accountNumberPrefixType.savingsProductShortName":
+		"Prefixes account numbers using the selected savings product short name.",
+};
+
+function getOptionDescription(
+	option: EnumOptionData | undefined,
+	descriptionMap: Record<string, string>,
+	fallback: string,
+) {
+	if (!option?.code) {
+		return fallback;
+	}
+	return descriptionMap[option.code] || fallback;
 }
 
 export function AccountNumberFormatForm({
@@ -134,124 +180,189 @@ export function AccountNumberFormatForm({
 	};
 
 	const prefixOptions = getPrefixOptions();
+	const accountTypeOptions = templateData.accountTypeOptions || [];
 
 	return (
-		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-			{submitError && (
-				<Alert variant="destructive">
-					<AlertTitle>Unable to complete request</AlertTitle>
-					<AlertDescription>{submitError}</AlertDescription>
-				</Alert>
-			)}
-			<div className="space-y-2">
-				<Label htmlFor="accountType">
-					Account Type <span className="text-destructive">*</span>
-				</Label>
-				<Controller
-					control={control}
-					name="accountType"
-					render={({ field }) => (
-						<Select
-							value={field.value ? String(field.value) : ""}
-							onValueChange={(value) => field.onChange(Number(value))}
-							disabled={isEditing}
-						>
-							<SelectTrigger id="accountType">
-								<SelectValue placeholder="Select account type" />
-							</SelectTrigger>
-							<SelectContent>
-								{templateData.accountTypeOptions?.map((option) => (
-									<SelectItem key={option.id} value={String(option.id)}>
-										{option.value}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
-				/>
-				{errors.accountType && (
-					<p className="text-sm text-destructive">
-						{errors.accountType.message}
-					</p>
+		<TooltipProvider>
+			<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+				{submitError && (
+					<Alert variant="destructive">
+						<AlertTitle>Unable to complete request</AlertTitle>
+						<AlertDescription>{submitError}</AlertDescription>
+					</Alert>
 				)}
-			</div>
+				<div className="space-y-2">
+					<div className="flex items-center gap-1.5">
+						<Label htmlFor="accountType">
+							Account Type <span className="text-destructive">*</span>
+						</Label>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									className="text-muted-foreground hover:text-foreground transition-colors"
+									aria-label="Account type help"
+								>
+									<CircleHelp className="h-4 w-4" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-sm space-y-1">
+								<p className="text-xs font-semibold">Account Type Guide</p>
+								{accountTypeOptions.map((option) => (
+									<p key={option.id} className="text-xs">
+										<span className="font-medium">{option.value}:</span>{" "}
+										{getOptionDescription(
+											option,
+											ACCOUNT_TYPE_DESCRIPTIONS,
+											"A Fineract account category used to separate numbering rules.",
+										)}
+									</p>
+								))}
+							</TooltipContent>
+						</Tooltip>
+					</div>
+					<Controller
+						control={control}
+						name="accountType"
+						render={({ field }) => (
+							<Select
+								value={field.value ? String(field.value) : ""}
+								onValueChange={(value) => field.onChange(Number(value))}
+								disabled={isEditing}
+							>
+								<SelectTrigger id="accountType">
+									<SelectValue placeholder="Select account type" />
+								</SelectTrigger>
+								<SelectContent>
+									{accountTypeOptions.map((option) => (
+										<SelectItem key={option.id} value={String(option.id)}>
+											{option.value}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					/>
+					{errors.accountType && (
+						<p className="text-sm text-destructive">
+							{errors.accountType.message}
+						</p>
+					)}
+				</div>
 
-			<div className="space-y-2">
-				<Label htmlFor="prefixType">
-					Prefix Type <span className="text-destructive">*</span>
-				</Label>
-				<Controller
-					control={control}
-					name="prefixType"
-					render={({ field }) => (
-						<Select
-							value={field.value ? String(field.value) : ""}
-							onValueChange={(value) => field.onChange(Number(value))}
-							disabled={!selectedAccountType || prefixOptions.length === 0}
-						>
-							<SelectTrigger id="prefixType">
-								<SelectValue
-									placeholder={
-										!selectedAccountType
-											? "Select account type first"
-											: prefixOptions.length === 0
-												? "No prefix options available"
-												: "Select prefix type"
-									}
-								/>
-							</SelectTrigger>
-							<SelectContent>
+				<div className="space-y-2">
+					<div className="flex items-center gap-1.5">
+						<Label htmlFor="prefixType">
+							Prefix Type <span className="text-destructive">*</span>
+						</Label>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									className="text-muted-foreground hover:text-foreground transition-colors"
+									aria-label="Prefix type help"
+								>
+									<CircleHelp className="h-4 w-4" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-sm space-y-1">
+								<p className="text-xs font-semibold">Prefix Type Guide</p>
+								{!selectedAccountType && (
+									<p className="text-xs">
+										Select an account type first to see available prefix styles.
+									</p>
+								)}
+								{selectedAccountType && prefixOptions.length === 0 && (
+									<p className="text-xs">
+										No prefix styles are configured for this account type.
+									</p>
+								)}
 								{prefixOptions.map((option) => (
-									<SelectItem key={option.id} value={String(option.id)}>
-										{option.value}
-									</SelectItem>
+									<p key={option.id} className="text-xs">
+										<span className="font-medium">{option.value}:</span>{" "}
+										{getOptionDescription(
+											option,
+											PREFIX_TYPE_DESCRIPTIONS,
+											"Controls how the prefix part of generated account numbers is derived.",
+										)}
+									</p>
 								))}
-							</SelectContent>
-						</Select>
+							</TooltipContent>
+						</Tooltip>
+					</div>
+					<Controller
+						control={control}
+						name="prefixType"
+						render={({ field }) => (
+							<Select
+								value={field.value ? String(field.value) : ""}
+								onValueChange={(value) => field.onChange(Number(value))}
+								disabled={!selectedAccountType || prefixOptions.length === 0}
+							>
+								<SelectTrigger id="prefixType">
+									<SelectValue
+										placeholder={
+											!selectedAccountType
+												? "Select account type first"
+												: prefixOptions.length === 0
+													? "No prefix options available"
+													: "Select prefix type"
+										}
+									/>
+								</SelectTrigger>
+								<SelectContent>
+									{prefixOptions.map((option) => (
+										<SelectItem key={option.id} value={String(option.id)}>
+											{option.value}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+					/>
+					{errors.prefixType && (
+						<p className="text-sm text-destructive">
+							{errors.prefixType.message}
+						</p>
 					)}
-				/>
-				{errors.prefixType && (
-					<p className="text-sm text-destructive">
-						{errors.prefixType.message}
-					</p>
-				)}
-			</div>
+				</div>
 
-			<div className="flex justify-between gap-3 pt-4">
-				<div>
-					{isEditing && onDelete && (
+				<div className="flex justify-between gap-3 pt-4">
+					<div>
+						{isEditing && onDelete && (
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={handleDelete}
+								disabled={isSubmitting}
+							>
+								Delete Format
+							</Button>
+						)}
+					</div>
+					<div className="flex gap-3">
 						<Button
 							type="button"
-							variant="destructive"
-							onClick={handleDelete}
+							variant="outline"
+							onClick={onCancel}
 							disabled={isSubmitting}
 						>
-							Delete Format
+							<X className="w-4 h-4 mr-2" />
+							Cancel
 						</Button>
-					)}
+						<Button type="submit" disabled={isSubmitting}>
+							<Save className="w-4 h-4 mr-2" />
+							{isSubmitting
+								? isEditing
+									? "Updating..."
+									: "Creating..."
+								: isEditing
+									? "Update Format"
+									: "Create Format"}
+						</Button>
+					</div>
 				</div>
-				<div className="flex gap-3">
-					<Button
-						type="button"
-						variant="outline"
-						onClick={onCancel}
-						disabled={isSubmitting}
-					>
-						<X className="w-4 h-4 mr-2" />
-						Cancel
-					</Button>
-					<Button type="submit" disabled={isSubmitting}>
-						<Save className="w-4 h-4 mr-2" />
-						{isSubmitting
-							? isEditing
-								? "Updating..."
-								: "Creating..."
-							: isEditing
-								? "Update Format"
-								: "Create Format"}
-					</Button>
-				</div>
-			</div>
-		</form>
+			</form>
+		</TooltipProvider>
 	);
 }

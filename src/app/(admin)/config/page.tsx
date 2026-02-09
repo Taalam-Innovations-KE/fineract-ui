@@ -66,6 +66,7 @@ const configModules = [
 			"Transactions",
 			"Batch Operations",
 			"Audit Trail",
+			"Reports",
 		],
 	},
 ];

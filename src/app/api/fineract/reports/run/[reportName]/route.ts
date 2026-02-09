@@ -13,7 +13,7 @@ const FINERACT_PASSWORD = process.env.FINERACT_PASSWORD || "password";
  * Runs a report and returns the output in the requested format
  *
  * Query parameters:
- * - output-type: PDF, XLS, CSV, HTML (default: PDF)
+ * - output-type: PDF, XLS, XLSX, CSV, HTML (optional; omit for JSON resultset)
  * - R_loanId: Loan ID for loan-specific reports
  * - R_accountNo: Account number filter
  * - R_officeId: Office ID filter
@@ -61,12 +61,18 @@ export async function GET(
 			searchParams.append(key, value);
 		});
 
-		// Default to PDF if no output type specified
-		if (!searchParams.has("output-type")) {
-			searchParams.set("output-type", "PDF");
+		const requestedOutputType = normalizeOutputType(
+			searchParams.get("output-type"),
+		);
+		if (searchParams.has("output-type")) {
+			searchParams.delete("output-type");
 		}
 
-		const outputType = searchParams.get("output-type") || "PDF";
+		applyBackendExportQueryParams(searchParams, requestedOutputType);
+
+		const outputType =
+			requestedOutputType || inferOutputTypeFromQuery(searchParams);
+		const shouldDownload = Boolean(outputType && outputType !== "JSON");
 
 		// Build the Fineract URL
 		const encodedReportName = encodeURIComponent(reportName);
@@ -78,7 +84,9 @@ export async function GET(
 			headers: {
 				Authorization: authHeader,
 				"fineract-platform-tenantid": tenantId,
-				Accept: getAcceptHeader(outputType),
+				Accept: shouldDownload
+					? getAcceptHeader(outputType)
+					: "application/json",
 			},
 		});
 
@@ -96,11 +104,31 @@ export async function GET(
 			);
 		}
 
+		if (!shouldDownload) {
+			const responseText = await response.text();
+			if (!responseText) {
+				return NextResponse.json({});
+			}
+
+			try {
+				return NextResponse.json(JSON.parse(responseText));
+			} catch {
+				return new NextResponse(responseText, {
+					status: 200,
+					headers: {
+						"Content-Type":
+							response.headers.get("Content-Type") || "application/json",
+					},
+				});
+			}
+		}
+
 		// Get the response as a blob/buffer
 		const data = await response.arrayBuffer();
 
 		// Determine content type and filename
-		const contentType = getContentType(outputType);
+		const contentType =
+			response.headers.get("Content-Type") || getContentType(outputType);
 		const filename = `${reportName.replace(/\s+/g, "_")}_${Date.now()}.${getFileExtension(outputType)}`;
 
 		// Return the file
@@ -120,12 +148,20 @@ export async function GET(
 	}
 }
 
-function getAcceptHeader(outputType: string): string {
+function getAcceptHeader(outputType: string | null): string {
+	if (!outputType) {
+		return "application/json";
+	}
+
 	switch (outputType.toUpperCase()) {
+		case "JSON":
+			return "application/json";
 		case "PDF":
 			return "application/pdf";
 		case "XLS":
 			return "application/vnd.ms-excel";
+		case "XLSX":
+			return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 		case "CSV":
 			return "text/csv";
 		case "HTML":
@@ -135,12 +171,20 @@ function getAcceptHeader(outputType: string): string {
 	}
 }
 
-function getContentType(outputType: string): string {
+function getContentType(outputType: string | null): string {
+	if (!outputType) {
+		return "application/json";
+	}
+
 	switch (outputType.toUpperCase()) {
+		case "JSON":
+			return "application/json";
 		case "PDF":
 			return "application/pdf";
 		case "XLS":
 			return "application/vnd.ms-excel";
+		case "XLSX":
+			return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 		case "CSV":
 			return "text/csv";
 		case "HTML":
@@ -150,17 +194,108 @@ function getContentType(outputType: string): string {
 	}
 }
 
-function getFileExtension(outputType: string): string {
+function getFileExtension(outputType: string | null): string {
+	if (!outputType) {
+		return "json";
+	}
+
 	switch (outputType.toUpperCase()) {
 		case "PDF":
 			return "pdf";
 		case "XLS":
 			return "xls";
+		case "XLSX":
+			return "xlsx";
 		case "CSV":
 			return "csv";
 		case "HTML":
 			return "html";
 		default:
 			return "pdf";
+	}
+}
+
+function normalizeOutputType(value: string | null): string | null {
+	if (!value) {
+		return null;
+	}
+
+	const upper = value.toUpperCase();
+	if (
+		upper === "JSON" ||
+		upper === "PDF" ||
+		upper === "XLS" ||
+		upper === "XLSX" ||
+		upper === "CSV" ||
+		upper === "HTML"
+	) {
+		return upper;
+	}
+
+	return null;
+}
+
+function isTrue(value: string | null): boolean {
+	return value?.toLowerCase() === "true";
+}
+
+function inferOutputTypeFromQuery(
+	searchParams: URLSearchParams,
+): string | null {
+	if (isTrue(searchParams.get("exportCSV"))) return "CSV";
+	if (isTrue(searchParams.get("exportPDF"))) return "PDF";
+	if (isTrue(searchParams.get("exportXLSX"))) return "XLSX";
+	if (isTrue(searchParams.get("exportXLS"))) return "XLS";
+	if (isTrue(searchParams.get("exportHTML"))) return "HTML";
+	if (
+		isTrue(searchParams.get("exportJSON")) ||
+		isTrue(searchParams.get("pretty"))
+	) {
+		return "JSON";
+	}
+	return null;
+}
+
+function applyBackendExportQueryParams(
+	searchParams: URLSearchParams,
+	outputType: string | null,
+): void {
+	if (!outputType) {
+		return;
+	}
+
+	switch (outputType) {
+		case "JSON":
+			if (!searchParams.has("exportJSON")) {
+				searchParams.set("exportJSON", "true");
+			}
+			return;
+		case "CSV":
+			if (!searchParams.has("exportCSV")) {
+				searchParams.set("exportCSV", "true");
+			}
+			return;
+		case "PDF":
+			if (!searchParams.has("exportPDF")) {
+				searchParams.set("exportPDF", "true");
+			}
+			return;
+		case "XLS":
+			if (!searchParams.has("exportXLS")) {
+				searchParams.set("exportXLS", "true");
+			}
+			return;
+		case "XLSX":
+			if (!searchParams.has("exportXLSX")) {
+				searchParams.set("exportXLSX", "true");
+			}
+			return;
+		case "HTML":
+			if (!searchParams.has("exportHTML")) {
+				searchParams.set("exportHTML", "true");
+			}
+			return;
+		default:
+			return;
 	}
 }

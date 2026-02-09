@@ -81,6 +81,8 @@ export const FINERACT_ENDPOINTS = {
 	reports: "/v1/reports",
 	runReports: (reportName: string) =>
 		`/v1/runreports/${encodeURIComponent(reportName)}`,
+	runReportsAvailableExports: (reportName: string) =>
+		`/v1/runreports/availableExports/${encodeURIComponent(reportName)}`,
 } as const;
 
 /**
@@ -179,4 +181,6 @@ export const BFF_ROUTES = {
 	reports: "/api/fineract/reports",
 	runReport: (reportName: string) =>
 		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,
+	runReportAvailableExports: (reportName: string) =>
+		`/api/fineract/reports/available-exports/${encodeURIComponent(reportName)}`,
 } as const;

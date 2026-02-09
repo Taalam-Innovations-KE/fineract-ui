@@ -475,7 +475,9 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 							isOpen={isEditOpen}
 							isEditMode={true}
 							initialData={mapSavingsProductToFormData(product)}
-							onSubmit={(payload) => updateMutation.mutateAsync(payload)}
+							onSubmit={async (payload) => {
+								await updateMutation.mutateAsync(payload);
+							}}
 							onCancel={() => setIsEditOpen(false)}
 						/>
 					</div>

@@ -302,7 +302,9 @@ export default function SavingsProductsPage() {
 						<FormErrorBoundary>
 							<SavingsProductForm
 								isOpen={isDrawerOpen}
-								onSubmit={(payload) => createMutation.mutateAsync(payload)}
+								onSubmit={async (payload) => {
+									await createMutation.mutateAsync(payload);
+								}}
 								onCancel={() => setIsDrawerOpen(false)}
 							/>
 						</FormErrorBoundary>

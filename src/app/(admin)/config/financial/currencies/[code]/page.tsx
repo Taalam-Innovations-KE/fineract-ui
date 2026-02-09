@@ -71,9 +71,13 @@ export default function CurrencyDetailPage({
 		queryFn: () => fetchCurrencies(effectiveTenantId),
 	});
 
-	const currency = currenciesConfig?.currencyOptions?.find(
-		(c: CurrencyData) => c.code === code,
-	);
+	const currency =
+		currenciesConfig?.selectedCurrencyOptions?.find(
+			(c: CurrencyData) => c.code === code,
+		) ||
+		currenciesConfig?.currencyOptions?.find(
+			(c: CurrencyData) => c.code === code,
+		);
 
 	if (isLoading) {
 		return (

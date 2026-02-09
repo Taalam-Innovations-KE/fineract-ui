@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-	fineractFetch,
-	getTenantFromRequest,
-} from "@/lib/fineract/client.server";
+import { fineractFetch } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
@@ -10,13 +7,22 @@ import type {
 	CurrencyUpdateRequest,
 } from "@/lib/fineract/generated/types.gen";
 
+function resolveTenantId(request: NextRequest): string {
+	return (
+		request.headers.get("x-tenant-id") ||
+		request.headers.get("fineract-platform-tenantid") ||
+		request.headers.get("X-Tenant-Id") ||
+		"default"
+	);
+}
+
 /**
  * GET /api/fineract/currencies
  * Fetches currency configuration (enabled and available currencies)
  */
 export async function GET(request: NextRequest) {
 	try {
-		const tenantId = getTenantFromRequest(request);
+		const tenantId = resolveTenantId(request);
 
 		const currencies = await fineractFetch<CurrencyConfigurationData>(
 			FINERACT_ENDPOINTS.currencies,
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
 	try {
-		const tenantId = getTenantFromRequest(request);
+		const tenantId = resolveTenantId(request);
 		const body = (await request.json()) as CurrencyUpdateRequest;
 
 		const result = await fineractFetch(FINERACT_ENDPOINTS.currencies, {

@@ -24,12 +24,32 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	CurrencyConfigurationData,
 	CurrencyData,
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
+
+function resolveTenantId(tenantId?: string | null): string {
+	const normalized = tenantId?.trim();
+	return normalized && normalized.length > 0 ? normalized : "default";
+}
+
+async function getResponseErrorMessage(
+	response: Response,
+	fallback: string,
+): Promise<string> {
+	const payload = await response.json().catch(() => null);
+	if (payload && typeof payload === "object" && "message" in payload) {
+		const message = (payload as { message?: unknown }).message;
+		if (typeof message === "string" && message.trim().length > 0) {
+			return message;
+		}
+	}
+	return fallback;
+}
 
 async function fetchCurrencies(
 	tenantId: string,
@@ -41,7 +61,9 @@ async function fetchCurrencies(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch currencies");
+		throw new Error(
+			await getResponseErrorMessage(response, "Failed to fetch currencies"),
+		);
 	}
 
 	return response.json();
@@ -58,8 +80,9 @@ async function updateCurrencies(tenantId: string, currencies: string[]) {
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to update currencies");
+		throw new Error(
+			await getResponseErrorMessage(response, "Failed to update currencies"),
+		);
 	}
 
 	return response.json();
@@ -73,8 +96,68 @@ function areSetsEqual(a: Set<string>, b: Set<string>) {
 	return true;
 }
 
+function CurrenciesTableSkeleton() {
+	return (
+		<div className="space-y-2">
+			<table className="w-full text-left text-sm">
+				<thead className="border-b border-border/60 bg-muted/40">
+					<tr>
+						<th className="px-3 py-2">
+							<Skeleton className="h-4 w-20" />
+						</th>
+						<th className="px-3 py-2">
+							<Skeleton className="h-4 w-24" />
+						</th>
+						<th className="px-3 py-2 text-right">
+							<Skeleton className="h-4 w-16 ml-auto" />
+						</th>
+					</tr>
+				</thead>
+				<tbody className="divide-y divide-border/60">
+					{Array.from({ length: 6 }).map((_, index) => (
+						<tr key={`currency-row-skeleton-${index}`}>
+							<td className="px-3 py-3">
+								<Skeleton className="h-4 w-16" />
+							</td>
+							<td className="px-3 py-3">
+								<Skeleton className="h-4 w-36" />
+							</td>
+							<td className="px-3 py-3 text-right">
+								<Skeleton className="h-4 w-8 ml-auto" />
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+function CurrencyOptionsSkeleton() {
+	return (
+		<div className="space-y-3">
+			{Array.from({ length: 8 }).map((_, index) => (
+				<div
+					key={`currency-option-skeleton-${index}`}
+					className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
+				>
+					<Skeleton className="h-4 w-4 mt-1" />
+					<div className="flex-1 space-y-2">
+						<Skeleton className="h-4 w-40" />
+						<Skeleton className="h-3 w-28" />
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function CurrenciesPage() {
 	const { tenantId } = useTenantStore();
+	const effectiveTenantId = useMemo(
+		() => resolveTenantId(tenantId),
+		[tenantId],
+	);
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
@@ -88,15 +171,17 @@ export default function CurrenciesPage() {
 		error,
 		refetch,
 	} = useQuery({
-		queryKey: ["currencies", tenantId],
-		queryFn: () => fetchCurrencies(tenantId),
+		queryKey: ["currencies", effectiveTenantId],
+		queryFn: () => fetchCurrencies(effectiveTenantId),
 	});
 
 	const updateMutation = useMutation({
 		mutationFn: (currencies: string[]) =>
-			updateCurrencies(tenantId, currencies),
+			updateCurrencies(effectiveTenantId, currencies),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["currencies", tenantId] });
+			queryClient.invalidateQueries({
+				queryKey: ["currencies", effectiveTenantId],
+			});
 			setIsDrawerOpen(false);
 			setToastMessage("Currencies updated successfully");
 		},
@@ -211,7 +296,9 @@ export default function CurrenciesPage() {
 				title="Currencies"
 				subtitle="Manage active currencies without leaving the dashboard"
 				actions={
-					<Button onClick={handleOpenDrawer}>Configure Currencies</Button>
+					<Button onClick={handleOpenDrawer} disabled={isLoading}>
+						Configure Currencies
+					</Button>
 				}
 			>
 				<Card>
@@ -229,15 +316,25 @@ export default function CurrenciesPage() {
 						</div>
 					</CardHeader>
 					<CardContent>
-						{isLoading && (
-							<div className="text-center py-6 text-muted-foreground">
-								Loading currencies...
-							</div>
-						)}
+						{isLoading && <CurrenciesTableSkeleton />}
 						{error && (
-							<div className="text-center py-6 text-destructive">
-								Failed to load currencies. Please try again.
-							</div>
+							<Alert variant="destructive">
+								<AlertTitle>Unable to load currencies</AlertTitle>
+								<AlertDescription className="flex items-center justify-between gap-3">
+									<span>
+										{(error as Error)?.message ||
+											"Failed to load currencies. Please try again."}
+									</span>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => refetch()}
+									>
+										Retry
+									</Button>
+								</AlertDescription>
+							</Alert>
 						)}
 						{!isLoading && !error && (
 							<DataTable
@@ -291,9 +388,19 @@ export default function CurrenciesPage() {
 						{error && (
 							<Alert variant="destructive">
 								<AlertTitle>Unable to load currencies</AlertTitle>
-								<AlertDescription>
-									{(error as Error)?.message ||
-										"Failed to load currencies. Please try again."}
+								<AlertDescription className="flex items-center justify-between gap-3">
+									<span>
+										{(error as Error)?.message ||
+											"Failed to load currencies. Please try again."}
+									</span>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => refetch()}
+									>
+										Retry
+									</Button>
 								</AlertDescription>
 							</Alert>
 						)}
@@ -309,7 +416,9 @@ export default function CurrenciesPage() {
 						)}
 
 						<div className="space-y-3">
-							{filteredOptions.length === 0 ? (
+							{isFetching && currencyOptions.length === 0 ? (
+								<CurrencyOptionsSkeleton />
+							) : filteredOptions.length === 0 ? (
 								<div className="rounded-sm border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
 									No currencies match your search.
 								</div>
@@ -335,15 +444,21 @@ export default function CurrenciesPage() {
 												id={checkboxId}
 												checked={isChecked}
 												onCheckedChange={() => toggleCurrency(code)}
+												disabled={!code}
 											/>
 											<Label
 												htmlFor={checkboxId}
 												className="flex-1 cursor-pointer"
 											>
-												<div className="text-sm font-medium">
-													{code || "—"}
-													{code ? " · " : ""}
-													{label}
+												<div className="flex items-center justify-between gap-2">
+													<div className="text-sm font-medium">
+														{code || "—"}
+														{code ? " · " : ""}
+														{label}
+													</div>
+													<Badge variant={isChecked ? "success" : "secondary"}>
+														{isChecked ? "Active" : "Inactive"}
+													</Badge>
 												</div>
 												<div className="text-xs text-muted-foreground">
 													Decimal places: {decimalPlaces}

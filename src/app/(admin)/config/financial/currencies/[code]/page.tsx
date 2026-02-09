@@ -1,22 +1,39 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { use } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	CurrencyConfigurationData,
 	CurrencyData,
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
+
+function resolveTenantId(tenantId?: string | null): string {
+	const normalized = tenantId?.trim();
+	return normalized && normalized.length > 0 ? normalized : "default";
+}
+
+async function getResponseErrorMessage(
+	response: Response,
+	fallback: string,
+): Promise<string> {
+	const payload = await response.json().catch(() => null);
+	if (payload && typeof payload === "object" && "message" in payload) {
+		const message = (payload as { message?: unknown }).message;
+		if (typeof message === "string" && message.trim().length > 0) {
+			return message;
+		}
+	}
+	return fallback;
+}
 
 async function fetchCurrencies(
 	tenantId: string,
@@ -28,7 +45,9 @@ async function fetchCurrencies(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch currencies");
+		throw new Error(
+			await getResponseErrorMessage(response, "Failed to fetch currencies"),
+		);
 	}
 
 	return response.json();
@@ -41,14 +60,15 @@ export default function CurrencyDetailPage({
 }) {
 	const { code } = use(params);
 	const { tenantId } = useTenantStore();
+	const effectiveTenantId = resolveTenantId(tenantId);
 
 	const {
 		data: currenciesConfig,
 		isLoading,
 		error,
 	} = useQuery({
-		queryKey: ["currencies", tenantId],
-		queryFn: () => fetchCurrencies(tenantId),
+		queryKey: ["currencies", effectiveTenantId],
+		queryFn: () => fetchCurrencies(effectiveTenantId),
 	});
 
 	const currency = currenciesConfig?.currencyOptions?.find(
@@ -57,9 +77,36 @@ export default function CurrencyDetailPage({
 
 	if (isLoading) {
 		return (
-			<PageShell title="Currency Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading currency details...
+			<PageShell
+				title="Currency Details"
+				actions={
+					<Button asChild variant="outline">
+						<Link href="/config/financial/currencies">
+							<ArrowLeft className="h-4 w-4 mr-2" />
+							Back to Currencies
+						</Link>
+					</Button>
+				}
+			>
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-56" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 6 }).map((_, index) => (
+									<div
+										key={`currency-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-5 w-40" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);
@@ -67,9 +114,20 @@ export default function CurrencyDetailPage({
 
 	if (error || !currency) {
 		return (
-			<PageShell title="Currency Details">
+			<PageShell
+				title="Currency Details"
+				actions={
+					<Button asChild variant="outline">
+						<Link href="/config/financial/currencies">
+							<ArrowLeft className="h-4 w-4 mr-2" />
+							Back to Currencies
+						</Link>
+					</Button>
+				}
+			>
 				<div className="py-6 text-center text-destructive">
-					Failed to load currency details. Please try again.
+					{(error as Error)?.message ||
+						"Failed to load currency details. Please try again."}
 				</div>
 			</PageShell>
 		);
@@ -83,6 +141,14 @@ export default function CurrencyDetailPage({
 		<PageShell
 			title={`Currency: ${currency.name}`}
 			subtitle="View currency details"
+			actions={
+				<Button asChild variant="outline">
+					<Link href="/config/financial/currencies">
+						<ArrowLeft className="h-4 w-4 mr-2" />
+						Back to Currencies
+					</Link>
+				</Button>
+			}
 		>
 			<div className="space-y-6">
 				<Card>

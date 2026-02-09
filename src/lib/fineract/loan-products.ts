@@ -221,7 +221,10 @@ export function buildLoanProductRequest(
 			? data.supportedInterestRefundTypes
 			: undefined;
 
+	const supportsChargeOffBehaviour = data.loanScheduleType === "PROGRESSIVE";
+
 	const chargeOffReasonToExpenseAccountMappings =
+		supportsChargeOffBehaviour &&
 		data.chargeOffReasonToExpenseMappings.length > 0
 			? data.chargeOffReasonToExpenseMappings.map((mapping) => ({
 					chargeOffReasonCodeValueId: mapping.reasonCodeValueId,
@@ -230,6 +233,7 @@ export function buildLoanProductRequest(
 			: undefined;
 
 	const writeOffReasonsToExpenseMappings =
+		supportsChargeOffBehaviour &&
 		data.writeOffReasonToExpenseMappings.length > 0
 			? data.writeOffReasonToExpenseMappings.map((mapping) => ({
 					writeOffReasonCodeValueId: String(mapping.reasonCodeValueId),
@@ -342,7 +346,9 @@ export function buildLoanProductRequest(
 			? data.buyDownFeeStrategy
 			: undefined,
 		merchantBuyDownFee: data.enableBuyDownFee ? data.merchantBuyDownFee : false,
-		chargeOffBehaviour: data.chargeOffBehaviour,
+		chargeOffBehaviour: supportsChargeOffBehaviour
+			? data.chargeOffBehaviour
+			: undefined,
 		chargeOffReasonToExpenseAccountMappings,
 		writeOffReasonsToExpenseMappings,
 		supportedInterestRefundTypes,

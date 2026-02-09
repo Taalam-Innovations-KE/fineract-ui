@@ -70,6 +70,13 @@ function readUnknownProperty(source: object, property: string): unknown {
 	return record[property];
 }
 
+type SavingsAccountingMappingRow = {
+	key: string;
+	label: string;
+	id: number | undefined;
+	name: string | undefined;
+};
+
 function getMappingRows(product: GetSavingsProductsProductIdResponse) {
 	const mappingObject = readUnknownProperty(product, "accountingMappings");
 	if (!mappingObject || typeof mappingObject !== "object") {
@@ -101,12 +108,7 @@ function getMappingRows(product: GetSavingsProductsProductIdResponse) {
 				name,
 			};
 		})
-		.filter(
-			(
-				row,
-			): row is { key: string; label: string; id?: number; name?: string } =>
-				Boolean(row),
-		);
+		.filter((row): row is SavingsAccountingMappingRow => row !== null);
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {

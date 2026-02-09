@@ -11,6 +11,7 @@ import {
 	DollarSign,
 	FileText,
 	Globe,
+	Hash,
 	LayoutGrid,
 	Receipt,
 	Settings,
@@ -55,6 +56,11 @@ const navItems: NavItem[] = [
 				title: "Roles & Permissions",
 				href: "/config/organisation/roles",
 				icon: Shield,
+			},
+			{
+				title: "Account Number Formats",
+				href: "/config/organisation/account-number-formats",
+				icon: Hash,
 			},
 			{
 				title: "Working Days",

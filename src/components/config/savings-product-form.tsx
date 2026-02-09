@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import type { Resolver } from "react-hook-form";
 import { useForm, useFormContext } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,6 +91,26 @@ function getErrorMessage(error: unknown): string {
 	return "Failed to save savings product.";
 }
 
+function readUnknownBooleanProperty(source: object, property: string): boolean {
+	const record = source as Record<string, unknown>;
+	const value = record[property];
+	return typeof value === "boolean" ? value : false;
+}
+
+function readUnknownNumberProperty(
+	source: object,
+	property: string,
+): number | undefined {
+	const record = source as Record<string, unknown>;
+	const value = record[property];
+	if (typeof value === "number") return value;
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
 function SavingsProductFormSkeleton() {
 	return (
 		<Card>
@@ -160,7 +181,7 @@ function NumberField({
 							step={step}
 							min={min}
 							placeholder={placeholder}
-							value={field.value ?? ""}
+							value={field.value === undefined ? "" : String(field.value)}
 							onChange={(event) => {
 								const value = event.target.value;
 								field.onChange(value === "" ? undefined : Number(value));
@@ -271,7 +292,6 @@ export function SavingsProductForm({
 		isDormancyTrackingActive: false,
 		lockinPeriodFrequency: undefined,
 		lockinPeriodFrequencyType: undefined,
-		charges: [],
 		savingsReferenceAccountId: undefined,
 		savingsControlAccountId: undefined,
 		interestOnSavingsAccountId: undefined,
@@ -289,7 +309,9 @@ export function SavingsProductForm({
 	};
 
 	const form = useForm<SavingsProductFormData>({
-		resolver: zodResolver(savingsProductSchema),
+		resolver: zodResolver(
+			savingsProductSchema,
+		) as Resolver<SavingsProductFormData>,
 		mode: "onChange",
 		defaultValues,
 	});
@@ -353,7 +375,10 @@ export function SavingsProductForm({
 			);
 			form.setValue(
 				"inMultiplesOf",
-				template.currencyOptions[0].inMultiplesOf ?? 1,
+				readUnknownNumberProperty(
+					template.currencyOptions[0],
+					"inMultiplesOf",
+				) ?? 1,
 			);
 		}
 
@@ -376,13 +401,19 @@ export function SavingsProductForm({
 		form.setValue("accountingRule", template.accountingRule?.id ?? 1);
 		form.setValue(
 			"withdrawalFeeForTransfers",
-			Boolean(template.withdrawalFeeForTransfers),
+			readUnknownBooleanProperty(template, "withdrawalFeeForTransfers"),
 		);
-		form.setValue("withHoldTax", Boolean(template.withHoldTax));
-		form.setValue("allowOverdraft", Boolean(template.allowOverdraft));
+		form.setValue(
+			"withHoldTax",
+			readUnknownBooleanProperty(template, "withHoldTax"),
+		);
+		form.setValue(
+			"allowOverdraft",
+			readUnknownBooleanProperty(template, "allowOverdraft"),
+		);
 		form.setValue(
 			"isDormancyTrackingActive",
-			Boolean(template.isDormancyTrackingActive),
+			readUnknownBooleanProperty(template, "isDormancyTrackingActive"),
 		);
 	}, [template, form, isEditMode]);
 
@@ -399,7 +430,10 @@ export function SavingsProductForm({
 		}
 
 		form.setValue("digitsAfterDecimal", selectedCurrency.decimalPlaces ?? 2);
-		form.setValue("inMultiplesOf", selectedCurrency.inMultiplesOf ?? 1);
+		form.setValue(
+			"inMultiplesOf",
+			readUnknownNumberProperty(selectedCurrency, "inMultiplesOf") ?? 1,
+		);
 	}, [selectedCurrencyCode, currencyOptions, form]);
 
 	const requiresCashMappings = accountingRule >= 2;

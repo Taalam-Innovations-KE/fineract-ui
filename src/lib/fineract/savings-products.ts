@@ -239,6 +239,10 @@ export function mapSavingsProductToFormData(
 		typeof lockinPeriodFrequencyTypeValue === "object"
 			? readUnknownNumberProperty(lockinPeriodFrequencyTypeValue, "id")
 			: readUnknownNumberProperty(product, "lockinPeriodFrequencyType");
+	const inMultiplesOf =
+		product.currency && typeof product.currency === "object"
+			? readUnknownNumberProperty(product.currency, "inMultiplesOf")
+			: undefined;
 
 	return {
 		name: product.name || "",
@@ -246,7 +250,7 @@ export function mapSavingsProductToFormData(
 		description: product.description || "",
 		currencyCode: product.currency?.code || "",
 		digitsAfterDecimal: product.currency?.decimalPlaces ?? 2,
-		inMultiplesOf: product.currency?.inMultiplesOf ?? 1,
+		inMultiplesOf: inMultiplesOf ?? 1,
 		nominalAnnualInterestRate: product.nominalAnnualInterestRate ?? 0,
 		interestCompoundingPeriodType:
 			product.interestCompoundingPeriodType?.id ?? 1,

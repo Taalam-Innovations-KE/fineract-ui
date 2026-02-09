@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import type { Resolver } from "react-hook-form";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -95,7 +96,9 @@ export function PostRepaymentSheet({
 	const { tenantId } = useTenantStore();
 
 	const form = useForm<LoanRepaymentFormData>({
-		resolver: zodResolver(loanRepaymentSchema),
+		resolver: zodResolver(
+			loanRepaymentSchema,
+		) as Resolver<LoanRepaymentFormData>,
 		defaultValues: {
 			transactionDate: getTodayDateInputValue(),
 			dateFormat: "dd MMMM yyyy",

@@ -463,7 +463,12 @@ export default function ReportsPage() {
 
 	const applicableReports = useMemo(
 		() =>
-			(reportsQuery.data || []).filter((report) => report.useReport !== false),
+			(reportsQuery.data || []).filter((report) => {
+				const enabled = report.useReport !== false;
+				const isMailingReport =
+					(report.reportType || "").toLowerCase() === "email";
+				return enabled && !isMailingReport;
+			}),
 		[reportsQuery.data],
 	);
 

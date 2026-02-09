@@ -203,6 +203,13 @@ export function LoanProductFeesStep({
 	const handleAddExistingFee = (option: GetLoanProductsChargeOptions) => {
 		if (!option?.id || typeof option.id !== "number") return;
 		if (fields.some((fee) => fee.id === option.id)) return;
+		if (
+			currencyCode &&
+			option.currency?.code &&
+			option.currency.code !== currencyCode
+		) {
+			return;
+		}
 
 		append({
 			id: option.id,
@@ -217,6 +224,12 @@ export function LoanProductFeesStep({
 	const feeOptions = chargeOptions.filter(
 		(option) => option.penalty !== true && option.active !== false,
 	);
+	const matchingCurrencyFeeOptions = feeOptions.filter((option) => {
+		if (!currencyCode) return true;
+		return option.currency?.code === currencyCode;
+	});
+	const excludedFeeCount =
+		feeOptions.length - matchingCurrencyFeeOptions.length;
 
 	return (
 		<TooltipProvider>
@@ -443,12 +456,12 @@ export function LoanProductFeesStep({
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6 space-y-4">
-						{feeOptions.length === 0 ? (
+						{matchingCurrencyFeeOptions.length === 0 ? (
 							<p className="text-sm text-muted-foreground">
-								No existing fees available.
+								No existing fees available for currency {currencyCode || "N/A"}.
 							</p>
 						) : (
-							feeOptions.map((option) => (
+							matchingCurrencyFeeOptions.map((option) => (
 								<div
 									key={option.id}
 									className="flex items-center justify-between p-3 border rounded-lg"
@@ -476,6 +489,11 @@ export function LoanProductFeesStep({
 									</Button>
 								</div>
 							))
+						)}
+						{excludedFeeCount > 0 && currencyCode && (
+							<p className="text-xs text-muted-foreground">
+								{excludedFeeCount} fee(s) hidden due to currency mismatch.
+							</p>
 						)}
 					</div>
 				</SheetContent>

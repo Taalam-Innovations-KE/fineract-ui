@@ -213,6 +213,13 @@ export function LoanProductPenaltiesStep({
 	const handleAddExistingPenalty = (option: GetLoanProductsChargeOptions) => {
 		if (!option?.id || typeof option.id !== "number") return;
 		if (fields.some((penalty) => penalty.id === option.id)) return;
+		if (
+			currencyCode &&
+			option.currency?.code &&
+			option.currency.code !== currencyCode
+		) {
+			return;
+		}
 
 		append({
 			id: option.id,
@@ -226,6 +233,12 @@ export function LoanProductPenaltiesStep({
 	const penaltyOptions = chargeOptions.filter(
 		(option) => option.penalty === true && option.active !== false,
 	);
+	const matchingCurrencyPenaltyOptions = penaltyOptions.filter((option) => {
+		if (!currencyCode) return true;
+		return option.currency?.code === currencyCode;
+	});
+	const excludedPenaltyCount =
+		penaltyOptions.length - matchingCurrencyPenaltyOptions.length;
 
 	return (
 		<TooltipProvider>
@@ -446,12 +459,13 @@ export function LoanProductPenaltiesStep({
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6 space-y-4">
-						{penaltyOptions.length === 0 ? (
+						{matchingCurrencyPenaltyOptions.length === 0 ? (
 							<p className="text-sm text-muted-foreground">
-								No existing penalties available.
+								No existing penalties available for currency{" "}
+								{currencyCode || "N/A"}.
 							</p>
 						) : (
-							penaltyOptions.map((option) => (
+							matchingCurrencyPenaltyOptions.map((option) => (
 								<div
 									key={option.id}
 									className="flex items-center justify-between p-3 border rounded-lg"
@@ -481,6 +495,12 @@ export function LoanProductPenaltiesStep({
 									</Button>
 								</div>
 							))
+						)}
+						{excludedPenaltyCount > 0 && currencyCode && (
+							<p className="text-xs text-muted-foreground">
+								{excludedPenaltyCount} penalty charge(s) hidden due to currency
+								mismatch.
+							</p>
 						)}
 					</div>
 				</SheetContent>

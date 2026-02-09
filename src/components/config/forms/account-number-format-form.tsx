@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -20,11 +21,14 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+	type AccountNumberFormatMutationRequest,
+	type AccountNumberFormatRecord,
+	PREFIX_SHORT_NAME_TYPE_ID as PREFIX_SHORT_NAME_ID,
+} from "@/lib/fineract/account-number-formats";
 import type {
 	EnumOptionData,
-	GetAccountNumberFormatsIdResponse,
 	GetAccountNumberFormatsResponseTemplate,
-	PostAccountNumberFormatsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import {
 	type CreateAccountNumberFormatFormData,
@@ -33,8 +37,8 @@ import {
 
 interface AccountNumberFormatFormProps {
 	templateData: GetAccountNumberFormatsResponseTemplate;
-	initialData?: GetAccountNumberFormatsIdResponse;
-	onSubmit: (data: PostAccountNumberFormatsRequest) => Promise<void>;
+	initialData?: AccountNumberFormatRecord;
+	onSubmit: (data: AccountNumberFormatMutationRequest) => Promise<void>;
 	onDelete?: () => Promise<void>;
 	onCancel: () => void;
 }
@@ -104,11 +108,13 @@ export function AccountNumberFormatForm({
 			? {
 					accountType: initialData.accountType?.id || 0,
 					prefixType: initialData.prefixType?.id || 0,
+					prefixCharacter: initialData.prefixCharacter || "",
 				}
 			: undefined,
 	});
 
 	const watchedAccountType = watch("accountType");
+	const watchedPrefixType = watch("prefixType");
 
 	// Update selected account type when form changes
 	useEffect(() => {
@@ -116,8 +122,15 @@ export function AccountNumberFormatForm({
 		// Reset prefix type when account type changes
 		if (watchedAccountType !== initialData?.accountType?.id) {
 			setValue("prefixType", 0);
+			setValue("prefixCharacter", "");
 		}
 	}, [watchedAccountType, setValue, initialData?.accountType?.id]);
+
+	useEffect(() => {
+		if (watchedPrefixType !== PREFIX_SHORT_NAME_ID) {
+			setValue("prefixCharacter", "");
+		}
+	}, [watchedPrefixType, setValue]);
 
 	// Get available prefix options for selected account type
 	const getPrefixOptions = () => {
@@ -137,12 +150,15 @@ export function AccountNumberFormatForm({
 		setIsSubmitting(true);
 		setSubmitError(null);
 		try {
-			const requestData: PostAccountNumberFormatsRequest = {
+			const requestData: AccountNumberFormatMutationRequest = {
 				prefixType: data.prefixType,
 			};
 
 			if (!isEditing) {
 				requestData.accountType = data.accountType;
+			}
+			if (data.prefixType === PREFIX_SHORT_NAME_ID) {
+				requestData.prefixCharacter = data.prefixCharacter?.trim();
 			}
 
 			await onSubmit(requestData);
@@ -181,6 +197,7 @@ export function AccountNumberFormatForm({
 
 	const prefixOptions = getPrefixOptions();
 	const accountTypeOptions = templateData.accountTypeOptions || [];
+	const requiresPrefixCharacter = watchedPrefixType === PREFIX_SHORT_NAME_ID;
 
 	return (
 		<TooltipProvider>
@@ -326,6 +343,34 @@ export function AccountNumberFormatForm({
 						</p>
 					)}
 				</div>
+				{requiresPrefixCharacter && (
+					<div className="space-y-2">
+						<Label htmlFor="prefixCharacter">
+							Prefix Characters <span className="text-destructive">*</span>
+						</Label>
+						<Controller
+							control={control}
+							name="prefixCharacter"
+							render={({ field }) => (
+								<Input
+									{...field}
+									id="prefixCharacter"
+									value={field.value || ""}
+									placeholder="Enter prefix characters (e.g. LN)"
+									maxLength={20}
+								/>
+							)}
+						/>
+						<p className="text-xs text-muted-foreground">
+							Required when using PREFIX_SHORT_NAME.
+						</p>
+						{errors.prefixCharacter && (
+							<p className="text-sm text-destructive">
+								{errors.prefixCharacter.message}
+							</p>
+						)}
+					</div>
+				)}
 
 				<div className="flex justify-between gap-3 pt-4">
 					<div>

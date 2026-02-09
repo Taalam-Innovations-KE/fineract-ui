@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import type {
+	AccountNumberFormatMutationRequest,
+	AccountNumberFormatRecord,
+} from "@/lib/fineract/account-number-formats";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
-import type {
-	GetAccountNumberFormatsIdResponse,
-	PostAccountNumberFormatsRequest,
-} from "@/lib/fineract/generated/types.gen";
 
 /**
  * GET /api/fineract/accountnumberformats
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
 
-		const formats = await fineractFetch<GetAccountNumberFormatsIdResponse[]>(
+		const formats = await fineractFetch<AccountNumberFormatRecord[]>(
 			FINERACT_ENDPOINTS.accountNumberFormats,
 			{
 				method: "GET",
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body = (await request.json()) as PostAccountNumberFormatsRequest;
+		const body = (await request.json()) as AccountNumberFormatMutationRequest;
 
 		const result = await fineractFetch(
 			FINERACT_ENDPOINTS.accountNumberFormats,

@@ -5,7 +5,6 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { AccountNumberFormatForm } from "@/components/config/forms/account-number-format-form";
 import { PageShell } from "@/components/config/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -22,17 +21,17 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
-	GetAccountNumberFormatsIdResponse,
-	GetAccountNumberFormatsResponseTemplate,
-	PostAccountNumberFormatsRequest,
-} from "@/lib/fineract/generated/types.gen";
+	AccountNumberFormatMutationRequest,
+	AccountNumberFormatRecord,
+} from "@/lib/fineract/account-number-formats";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { GetAccountNumberFormatsResponseTemplate } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchAccountNumberFormats(
 	tenantId: string,
-): Promise<GetAccountNumberFormatsIdResponse[]> {
+): Promise<AccountNumberFormatRecord[]> {
 	const response = await fetch(BFF_ROUTES.accountNumberFormats, {
 		headers: {
 			"x-tenant-id": tenantId,
@@ -64,7 +63,7 @@ async function fetchAccountNumberFormatsTemplate(
 
 async function createAccountNumberFormat(
 	tenantId: string,
-	data: PostAccountNumberFormatsRequest,
+	data: AccountNumberFormatMutationRequest,
 ) {
 	const response = await fetch(BFF_ROUTES.accountNumberFormats, {
 		method: "POST",
@@ -86,7 +85,7 @@ async function createAccountNumberFormat(
 async function updateAccountNumberFormat(
 	tenantId: string,
 	formatId: number,
-	data: PostAccountNumberFormatsRequest,
+	data: AccountNumberFormatMutationRequest,
 ) {
 	const response = await fetch(
 		`${BFF_ROUTES.accountNumberFormats}/${formatId}`,
@@ -131,7 +130,7 @@ export default function AccountNumberFormatsPage() {
 	const { tenantId } = useTenantStore();
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [selectedFormat, setSelectedFormat] =
-		useState<GetAccountNumberFormatsIdResponse | null>(null);
+		useState<AccountNumberFormatRecord | null>(null);
 	const queryClient = useQueryClient();
 
 	const isEditing = Boolean(selectedFormat);
@@ -155,7 +154,7 @@ export default function AccountNumberFormatsPage() {
 	});
 
 	const createMutation = useMutation({
-		mutationFn: (data: PostAccountNumberFormatsRequest) =>
+		mutationFn: (data: AccountNumberFormatMutationRequest) =>
 			createAccountNumberFormat(tenantId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
@@ -166,7 +165,7 @@ export default function AccountNumberFormatsPage() {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (data: PostAccountNumberFormatsRequest) =>
+		mutationFn: (data: AccountNumberFormatMutationRequest) =>
 			updateAccountNumberFormat(tenantId, selectedFormat!.id!, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
@@ -189,7 +188,7 @@ export default function AccountNumberFormatsPage() {
 		},
 	});
 
-	const handleRowClick = (row: GetAccountNumberFormatsIdResponse) => {
+	const handleRowClick = (row: AccountNumberFormatRecord) => {
 		setSelectedFormat(row);
 		setIsDialogOpen(true);
 	};
@@ -209,7 +208,7 @@ export default function AccountNumberFormatsPage() {
 	const formatColumns = [
 		{
 			header: "Account Type",
-			cell: (format: GetAccountNumberFormatsIdResponse) => (
+			cell: (format: AccountNumberFormatRecord) => (
 				<span className="font-medium">
 					{format.accountType?.value || "Unknown"}
 				</span>
@@ -217,9 +216,17 @@ export default function AccountNumberFormatsPage() {
 		},
 		{
 			header: "Prefix Type",
-			cell: (format: GetAccountNumberFormatsIdResponse) => (
+			cell: (format: AccountNumberFormatRecord) => (
 				<span className="text-muted-foreground">
 					{format.prefixType?.value || "Unknown"}
+				</span>
+			),
+		},
+		{
+			header: "Prefix Characters",
+			cell: (format: AccountNumberFormatRecord) => (
+				<span className="text-muted-foreground">
+					{format.prefixCharacter || "—"}
 				</span>
 			),
 		},

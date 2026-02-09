@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	Banknote,
@@ -9,12 +9,27 @@ import {
 	FilePenLine,
 	Fingerprint,
 	History,
+	RotateCcw,
+	Trash2,
+	UserCheck,
 	Users,
+	UserX,
 } from "lucide-react";
 import Link from "next/link";
-import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { use, useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,9 +45,17 @@ import {
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
+	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { formatDateForFineract, getFineractDateConfig } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	AddressData,
@@ -43,6 +66,8 @@ import type {
 	GetClientsLoanAccounts,
 	GetClientsPageItems,
 	GetClientsSavingsAccounts,
+	GetCodesResponse,
+	GetCodeValuesDataResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
@@ -51,6 +76,41 @@ type ClientTab = "overview" | "accounts" | "identifiers" | "activity";
 type ClientStatusChip = {
 	label: string;
 	variant: BadgeProps["variant"];
+};
+
+type ClientLifecycleState =
+	| "pending"
+	| "active"
+	| "closed"
+	| "rejected"
+	| "withdrawn"
+	| "unknown";
+
+type ClientActionKey =
+	| "activate"
+	| "close"
+	| "reject"
+	| "withdraw"
+	| "reactivate"
+	| "undoReject"
+	| "undoWithdraw"
+	| "delete";
+
+type ActionFeedback = {
+	type: "success" | "error";
+	message: string;
+};
+
+type ClientReasonOption = {
+	id: number;
+	name: string;
+};
+
+type ClientActionDefinition = {
+	id: ClientActionKey;
+	label: string;
+	variant?: "default" | "destructive";
+	icon: React.ElementType;
 };
 
 function titleCaseWords(value: string): string {
@@ -152,6 +212,348 @@ function getClientStatusChip(client: ClientDataWritable): ClientStatusChip {
 	}
 
 	return { label: statusText, variant: "secondary" };
+}
+
+function normalizeClientStatus(client: ClientDataWritable): string {
+	const rawStatus = [client.status?.code, client.status?.value]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+
+	return rawStatus;
+}
+
+function getClientLifecycleState(
+	client: ClientDataWritable,
+): ClientLifecycleState {
+	const normalized = normalizeClientStatus(client);
+
+	if (normalized.includes("withdraw")) return "withdrawn";
+	if (normalized.includes("reject")) return "rejected";
+	if (normalized.includes("close")) return "closed";
+	if (normalized.includes("pending") || normalized.includes("approval")) {
+		return "pending";
+	}
+	if (
+		client.active ||
+		(normalized.includes("active") && !normalized.includes("inactive"))
+	) {
+		return "active";
+	}
+
+	return "unknown";
+}
+
+function getClientActionDefinitions(
+	state: ClientLifecycleState,
+): ClientActionDefinition[] {
+	if (state === "pending") {
+		return [
+			{ id: "activate", label: "Enable Client", icon: UserCheck },
+			{ id: "reject", label: "Reject", icon: UserX, variant: "destructive" },
+			{
+				id: "withdraw",
+				label: "Withdraw",
+				icon: UserX,
+				variant: "destructive",
+			},
+			{
+				id: "delete",
+				label: "Delete Client",
+				icon: Trash2,
+				variant: "destructive",
+			},
+		];
+	}
+
+	if (state === "active") {
+		return [
+			{
+				id: "close",
+				label: "Close Client",
+				icon: UserX,
+				variant: "destructive",
+			},
+		];
+	}
+
+	if (state === "closed") {
+		return [{ id: "reactivate", label: "Reactivate Client", icon: RotateCcw }];
+	}
+
+	if (state === "rejected") {
+		return [{ id: "undoReject", label: "Undo Rejection", icon: RotateCcw }];
+	}
+
+	if (state === "withdrawn") {
+		return [{ id: "undoWithdraw", label: "Undo Withdrawal", icon: RotateCcw }];
+	}
+
+	return [];
+}
+
+function getActionConfirmationText(action: ClientActionKey): {
+	title: string;
+	description: string;
+} {
+	switch (action) {
+		case "activate":
+			return {
+				title: "Enable Client",
+				description:
+					"This will activate the client profile and allow operations on the client.",
+			};
+		case "close":
+			return {
+				title: "Close Client",
+				description:
+					"This will close the client profile. Ensure all linked accounts are already closed.",
+			};
+		case "reject":
+			return {
+				title: "Reject Client",
+				description:
+					"This will reject the client application and prevent activation until reopened.",
+			};
+		case "withdraw":
+			return {
+				title: "Withdraw Client",
+				description:
+					"This will mark the client application as withdrawn by applicant.",
+			};
+		case "reactivate":
+			return {
+				title: "Reactivate Client",
+				description: "This will reopen a closed client profile.",
+			};
+		case "undoReject":
+			return {
+				title: "Undo Rejection",
+				description: "This will reopen a previously rejected client.",
+			};
+		case "undoWithdraw":
+			return {
+				title: "Undo Withdrawal",
+				description: "This will reopen a previously withdrawn client.",
+			};
+		case "delete":
+			return {
+				title: "Delete Client",
+				description:
+					"This permanently deletes the client record. This action cannot be undone.",
+			};
+		default:
+			return {
+				title: "Confirm Action",
+				description: "Are you sure you want to proceed?",
+			};
+	}
+}
+
+function getActionTooltipCopy(action: ClientActionKey): {
+	summary: string;
+	whenToUse: string;
+	result: string;
+} {
+	switch (action) {
+		case "activate":
+			return {
+				summary: "Moves a pending client into active status.",
+				whenToUse:
+					"Use after onboarding checks are complete and the client is approved.",
+				result: "Client can start using operational products and services.",
+			};
+		case "close":
+			return {
+				summary: "Marks an active client profile as closed.",
+				whenToUse:
+					"Use only when the client has exited and no non-closed loans or savings remain.",
+				result: "Client becomes inactive for new operations until reactivated.",
+			};
+		case "reject":
+			return {
+				summary: "Declines a pending client application.",
+				whenToUse:
+					"Use when onboarding requirements are not met and application should not proceed.",
+				result:
+					"Client stays non-active and can be reopened later using Undo Rejection.",
+			};
+		case "withdraw":
+			return {
+				summary: "Records a pending application as withdrawn.",
+				whenToUse:
+					"Use when the applicant chooses to stop onboarding before activation.",
+				result:
+					"Application is closed as withdrawn and can be reopened with Undo Withdrawal.",
+			};
+		case "reactivate":
+			return {
+				summary: "Reopens a previously closed client.",
+				whenToUse:
+					"Use when a closed client returns and should resume normal operations.",
+				result: "Client status returns to active.",
+			};
+		case "undoReject":
+			return {
+				summary: "Reopens a previously rejected client application.",
+				whenToUse:
+					"Use when rejection should be reversed after correcting review issues.",
+				result: "Client returns to a pre-activation workflow state.",
+			};
+		case "undoWithdraw":
+			return {
+				summary: "Reopens a previously withdrawn client application.",
+				whenToUse:
+					"Use when an applicant resumes onboarding after an earlier withdrawal.",
+				result: "Client returns to a pre-activation workflow state.",
+			};
+		case "delete":
+			return {
+				summary: "Permanently removes the client record from the system.",
+				whenToUse:
+					"Use only for pending clients that should be removed completely.",
+				result:
+					"Hard delete is irreversible and the client cannot be recovered.",
+			};
+		default:
+			return {
+				summary: "Runs a client lifecycle action.",
+				whenToUse: "Use when the current status allows this transition.",
+				result: "Client status changes according to selected action.",
+			};
+	}
+}
+
+function getReasonOptionsFromTemplate(
+	client: ClientDataWritable,
+	keys: string[],
+): ClientReasonOption[] {
+	const candidate = client as Record<string, unknown>;
+	const resolved = keys
+		.flatMap((key) => {
+			const value = candidate[key];
+			return Array.isArray(value) ? value : [];
+		})
+		.map((item) => item as GetCodeValuesDataResponse)
+		.filter((item) => Number.isFinite(item.id) && Boolean(item.name))
+		.map((item) => ({
+			id: Number(item.id),
+			name: String(item.name),
+		}));
+
+	return resolved;
+}
+
+function uniqueReasonOptions(
+	options: ClientReasonOption[],
+): ClientReasonOption[] {
+	const seen = new Set<number>();
+	return options.filter((option) => {
+		if (seen.has(option.id)) return false;
+		seen.add(option.id);
+		return true;
+	});
+}
+
+async function fetchLifecycleReasonOptions(
+	tenantId: string,
+	reasonType: "rejection" | "withdrawal",
+): Promise<ClientReasonOption[]> {
+	const codesResponse = await fetch(BFF_ROUTES.codes, {
+		headers: { "x-tenant-id": tenantId },
+	});
+
+	if (!codesResponse.ok) {
+		throw new Error("Failed to fetch code registry");
+	}
+
+	const codes = (await codesResponse.json()) as GetCodesResponse[];
+	const tokens =
+		reasonType === "rejection" ? ["client", "reject"] : ["client", "withdraw"];
+
+	const matchedCode = codes.find((code) => {
+		const name = (code.name || "").toLowerCase();
+		return tokens.every((token) => name.includes(token));
+	});
+
+	if (!matchedCode?.id) {
+		return [];
+	}
+
+	const codeValuesResponse = await fetch(
+		`${BFF_ROUTES.codes}/${matchedCode.id}/codevalues`,
+		{
+			headers: { "x-tenant-id": tenantId },
+		},
+	);
+
+	if (!codeValuesResponse.ok) {
+		throw new Error("Failed to fetch code values");
+	}
+
+	const values =
+		(await codeValuesResponse.json()) as GetCodeValuesDataResponse[];
+	return values
+		.filter((value) => Number.isFinite(value.id) && Boolean(value.name))
+		.filter((value) => value.active !== false)
+		.map((value) => ({
+			id: Number(value.id),
+			name: String(value.name),
+		}));
+}
+
+function getErrorMessage(data: unknown, fallback: string): string {
+	if (typeof data === "object" && data !== null && "message" in data) {
+		const message = (data as { message?: unknown }).message;
+		if (typeof message === "string" && message.trim().length > 0) {
+			return message;
+		}
+	}
+	return fallback;
+}
+
+async function runClientCommand(
+	tenantId: string,
+	id: string,
+	command: string,
+	body: Record<string, unknown>,
+) {
+	const response = await fetch(
+		`${BFF_ROUTES.clients}/${id}?command=${command}`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(body),
+		},
+	);
+
+	const data = (await response.json().catch(() => null)) as unknown;
+
+	if (!response.ok) {
+		throw new Error(getErrorMessage(data, "Failed to perform client action"));
+	}
+
+	return data;
+}
+
+async function deleteClient(tenantId: string, id: string) {
+	const response = await fetch(`${BFF_ROUTES.clients}/${id}`, {
+		method: "DELETE",
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	const data = (await response.json().catch(() => null)) as unknown;
+
+	if (!response.ok) {
+		throw new Error(getErrorMessage(data, "Failed to delete client"));
+	}
+
+	return data;
 }
 
 async function fetchClient(
@@ -314,11 +716,24 @@ export default function ClientDetailPage({
 }) {
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
+	const router = useRouter();
+	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState<ClientTab>("overview");
+	const [confirmAction, setConfirmAction] = useState<ClientActionKey | null>(
+		null,
+	);
+	const [selectedRejectionReasonId, setSelectedRejectionReasonId] =
+		useState<string>("");
+	const [selectedWithdrawalReasonId, setSelectedWithdrawalReasonId] =
+		useState<string>("");
+	const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(
+		null,
+	);
 
 	const clientQuery = useQuery({
 		queryKey: ["client", tenantId, id],
 		queryFn: () => fetchClient(tenantId, id),
+		enabled: Boolean(tenantId && id),
 	});
 
 	const accountsQuery = useQuery({
@@ -343,6 +758,229 @@ export default function ClientDetailPage({
 		queryFn: () => fetchClientTransactions(tenantId, id),
 		enabled: Boolean(tenantId && id),
 	});
+
+	const lifecycleState = useMemo(() => {
+		if (!clientQuery.data) return "unknown";
+		return getClientLifecycleState(clientQuery.data);
+	}, [clientQuery.data]);
+
+	const showPendingActions = lifecycleState === "pending";
+
+	const rejectionReasonQuery = useQuery({
+		queryKey: ["client-rejection-reasons", tenantId],
+		queryFn: () => fetchLifecycleReasonOptions(tenantId, "rejection"),
+		enabled: Boolean(tenantId && showPendingActions),
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const withdrawalReasonQuery = useQuery({
+		queryKey: ["client-withdrawal-reasons", tenantId],
+		queryFn: () => fetchLifecycleReasonOptions(tenantId, "withdrawal"),
+		enabled: Boolean(tenantId && showPendingActions),
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const templateRejectionReasons = useMemo(() => {
+		if (!clientQuery.data) return [];
+
+		return getReasonOptionsFromTemplate(clientQuery.data, [
+			"rejectionReasons",
+			"clientRejectionReasons",
+			"rejectReasons",
+		]);
+	}, [clientQuery.data]);
+
+	const templateWithdrawalReasons = useMemo(() => {
+		if (!clientQuery.data) return [];
+
+		return getReasonOptionsFromTemplate(clientQuery.data, [
+			"withdrawalReasons",
+			"clientWithdrawalReasons",
+			"withdrawReasons",
+		]);
+	}, [clientQuery.data]);
+
+	const rejectionReasonOptions = useMemo(() => {
+		return uniqueReasonOptions([
+			...templateRejectionReasons,
+			...(rejectionReasonQuery.data || []),
+		]);
+	}, [templateRejectionReasons, rejectionReasonQuery.data]);
+
+	const withdrawalReasonOptions = useMemo(() => {
+		return uniqueReasonOptions([
+			...templateWithdrawalReasons,
+			...(withdrawalReasonQuery.data || []),
+		]);
+	}, [templateWithdrawalReasons, withdrawalReasonQuery.data]);
+
+	useEffect(() => {
+		if (!selectedRejectionReasonId && rejectionReasonOptions[0]?.id) {
+			setSelectedRejectionReasonId(String(rejectionReasonOptions[0].id));
+		}
+	}, [rejectionReasonOptions, selectedRejectionReasonId]);
+
+	useEffect(() => {
+		if (!selectedWithdrawalReasonId && withdrawalReasonOptions[0]?.id) {
+			setSelectedWithdrawalReasonId(String(withdrawalReasonOptions[0].id));
+		}
+	}, [withdrawalReasonOptions, selectedWithdrawalReasonId]);
+
+	const lifecycleActions = useMemo(() => {
+		return getClientActionDefinitions(lifecycleState);
+	}, [lifecycleState]);
+
+	const lifecycleMutation = useMutation({
+		mutationFn: async (action: ClientActionKey) => {
+			const today = formatDateForFineract(new Date());
+			const dateConfig = getFineractDateConfig();
+
+			if (action === "delete") {
+				return deleteClient(tenantId, id);
+			}
+
+			if (action === "activate") {
+				return runClientCommand(tenantId, id, "activate", {
+					activationDate: today,
+					...dateConfig,
+				});
+			}
+
+			if (action === "close") {
+				return runClientCommand(tenantId, id, "close", {
+					closureDate: today,
+					...dateConfig,
+				});
+			}
+
+			if (action === "reject") {
+				const reasonId = Number(selectedRejectionReasonId);
+				if (!Number.isFinite(reasonId) || reasonId <= 0) {
+					throw new Error(
+						"Rejection reason is required before rejecting this client.",
+					);
+				}
+
+				return runClientCommand(tenantId, id, "reject", {
+					rejectionDate: today,
+					rejectionReasonId: reasonId,
+					...dateConfig,
+				});
+			}
+
+			if (action === "withdraw") {
+				const reasonId = Number(selectedWithdrawalReasonId);
+				if (!Number.isFinite(reasonId) || reasonId <= 0) {
+					throw new Error(
+						"Withdrawal reason is required before withdrawing this client.",
+					);
+				}
+
+				return runClientCommand(tenantId, id, "withdraw", {
+					withdrawalDate: today,
+					withdrawalReasonId: reasonId,
+					...dateConfig,
+				});
+			}
+
+			if (action === "reactivate") {
+				return runClientCommand(tenantId, id, "reactivate", {
+					reactivationDate: today,
+					reactivateDate: today,
+					...dateConfig,
+				});
+			}
+
+			if (action === "undoReject") {
+				return runClientCommand(tenantId, id, "undoReject", {
+					reopenedDate: today,
+					...dateConfig,
+				});
+			}
+
+			return runClientCommand(tenantId, id, "undoWithdraw", {
+				reopenedDate: today,
+				...dateConfig,
+			});
+		},
+		onSuccess: (_, action) => {
+			setActionFeedback({
+				type: "success",
+				message:
+					action === "delete"
+						? "Client deleted successfully."
+						: "Client action completed successfully.",
+			});
+			setConfirmAction(null);
+
+			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
+			queryClient.invalidateQueries({ queryKey: ["client", tenantId, id] });
+			queryClient.invalidateQueries({
+				queryKey: ["client-accounts", tenantId, id],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["client-identifiers", tenantId, id],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["client-transactions", tenantId, id],
+			});
+
+			if (action === "delete") {
+				router.push("/config/operations/clients");
+			}
+		},
+		onError: (error: unknown) => {
+			setActionFeedback({
+				type: "error",
+				message:
+					error instanceof Error
+						? error.message
+						: "Failed to perform client action.",
+			});
+			setConfirmAction(null);
+		},
+	});
+
+	const handleActionClick = (action: ClientActionKey) => {
+		setActionFeedback(null);
+
+		if (action === "reject" && rejectionReasonOptions.length === 0) {
+			setActionFeedback({
+				type: "error",
+				message:
+					"No rejection reasons are configured. Add values in Code Registry first.",
+			});
+			return;
+		}
+
+		if (action === "withdraw" && withdrawalReasonOptions.length === 0) {
+			setActionFeedback({
+				type: "error",
+				message:
+					"No withdrawal reasons are configured. Add values in Code Registry first.",
+			});
+			return;
+		}
+
+		setConfirmAction(action);
+	};
+
+	const confirmCopy = confirmAction
+		? getActionConfirmationText(confirmAction)
+		: null;
+	const isConfirmDestructive =
+		confirmAction === "close" ||
+		confirmAction === "reject" ||
+		confirmAction === "withdraw" ||
+		confirmAction === "delete";
+	const selectedRejectionReasonName =
+		rejectionReasonOptions.find(
+			(option) => String(option.id) === selectedRejectionReasonId,
+		)?.name || "";
+	const selectedWithdrawalReasonName =
+		withdrawalReasonOptions.find(
+			(option) => String(option.id) === selectedWithdrawalReasonId,
+		)?.name || "";
 
 	const headerActions = (
 		<div className="flex items-center gap-2">
@@ -532,474 +1170,684 @@ export default function ClientDetailPage({
 	];
 
 	return (
-		<PageShell
-			title={
-				<div className="flex items-center gap-2">
-					<span>
-						{formatText(
-							client.displayName ||
-								client.fullname ||
-								`${client.firstname || ""} ${client.lastname || ""}`.trim(),
-						)}
-					</span>
-					<Badge variant={statusChip.variant}>{statusChip.label}</Badge>
-				</div>
-			}
-			subtitle={`${formatText(client.accountNo)} | ${formatText(client.officeName)}`}
-			actions={headerActions}
-		>
-			<div className="space-y-6">
-				<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-					<MetricCard
-						label="Client ID"
-						value={formatText(client.id)}
-						icon={Users}
-					/>
-					<MetricCard
-						label="Status"
-						value={statusChip.label}
-						icon={CreditCard}
-						variant={client.active ? "success" : "warning"}
-					/>
-					<MetricCard
-						label="Linked Accounts"
-						value={String(linkedAccountsCount)}
-						icon={Banknote}
-					/>
-					<MetricCard
-						label="Identifiers"
-						value={String(identifiers.length)}
-						icon={Fingerprint}
-					/>
-				</div>
+		<>
+			<PageShell
+				title={
+					<div className="flex items-center gap-2">
+						<span>
+							{formatText(
+								client.displayName ||
+									client.fullname ||
+									`${client.firstname || ""} ${client.lastname || ""}`.trim(),
+							)}
+						</span>
+						<Badge variant={statusChip.variant}>{statusChip.label}</Badge>
+					</div>
+				}
+				subtitle={`${formatText(client.accountNo)} | ${formatText(client.officeName)}`}
+				actions={headerActions}
+			>
+				<div className="space-y-6">
+					<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+						<MetricCard
+							label="Client ID"
+							value={formatText(client.id)}
+							icon={Users}
+						/>
+						<MetricCard
+							label="Status"
+							value={statusChip.label}
+							icon={CreditCard}
+							variant={client.active ? "success" : "warning"}
+						/>
+						<MetricCard
+							label="Linked Accounts"
+							value={String(linkedAccountsCount)}
+							icon={Banknote}
+						/>
+						<MetricCard
+							label="Identifiers"
+							value={String(identifiers.length)}
+							icon={Fingerprint}
+						/>
+					</div>
 
-				{hasPartialDataError && (
-					<Alert>
-						<AlertTitle>Partial Data</AlertTitle>
-						<AlertDescription>
-							Some client sections could not be loaded. Core profile data is
-							still available.
-						</AlertDescription>
-					</Alert>
-				)}
+					{hasPartialDataError && (
+						<Alert>
+							<AlertTitle>Partial Data</AlertTitle>
+							<AlertDescription>
+								Some client sections could not be loaded. Core profile data is
+								still available.
+							</AlertDescription>
+						</Alert>
+					)}
 
-				<Tabs
-					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as ClientTab)}
-				>
-					<div className="md:hidden">
-						<Select
-							value={activeTab}
-							onValueChange={(value) => setActiveTab(value as ClientTab)}
+					{actionFeedback && (
+						<Alert
+							variant={
+								actionFeedback.type === "error" ? "destructive" : "default"
+							}
 						>
-							<SelectTrigger>
-								{activeTab === "overview" && "Overview"}
-								{activeTab === "accounts" && "Accounts"}
-								{activeTab === "identifiers" && "Identifiers"}
-								{activeTab === "activity" && "Activity"}
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="overview">Overview</SelectItem>
-								<SelectItem value="accounts">Accounts</SelectItem>
-								<SelectItem value="identifiers">Identifiers</SelectItem>
-								<SelectItem value="activity">Activity</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
+							<AlertTitle>
+								{actionFeedback.type === "error"
+									? "Action Failed"
+									: "Action Completed"}
+							</AlertTitle>
+							<AlertDescription>{actionFeedback.message}</AlertDescription>
+						</Alert>
+					)}
 
-					<TabsList
-						variant="line"
-						className="hidden w-full justify-start border-b md:flex"
+					{lifecycleActions.length > 0 && (
+						<Card>
+							<CardHeader className="pb-3">
+								<CardTitle className="text-base">Client Actions</CardTitle>
+								<CardDescription>
+									Status-driven lifecycle actions available for this client.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								{showPendingActions && (
+									<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+										{lifecycleActions.some(
+											(action) => action.id === "reject",
+										) && (
+											<div className="space-y-2">
+												<p className="text-sm font-medium">Rejection Reason</p>
+												<Select
+													value={selectedRejectionReasonId}
+													onValueChange={setSelectedRejectionReasonId}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Select rejection reason" />
+													</SelectTrigger>
+													<SelectContent>
+														{rejectionReasonOptions.map((option) => (
+															<SelectItem
+																key={`reject-reason-${option.id}`}
+																value={String(option.id)}
+															>
+																{option.name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										)}
+
+										{lifecycleActions.some(
+											(action) => action.id === "withdraw",
+										) && (
+											<div className="space-y-2">
+												<p className="text-sm font-medium">Withdrawal Reason</p>
+												<Select
+													value={selectedWithdrawalReasonId}
+													onValueChange={setSelectedWithdrawalReasonId}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Select withdrawal reason" />
+													</SelectTrigger>
+													<SelectContent>
+														{withdrawalReasonOptions.map((option) => (
+															<SelectItem
+																key={`withdraw-reason-${option.id}`}
+																value={String(option.id)}
+															>
+																{option.name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										)}
+									</div>
+								)}
+
+								<div className="flex flex-wrap items-center gap-2">
+									<TooltipProvider>
+										{lifecycleActions.map((action) => {
+											const Icon = action.icon;
+											const tooltipCopy = getActionTooltipCopy(action.id);
+											const needsRejectReason =
+												action.id === "reject" &&
+												(!selectedRejectionReasonId ||
+													rejectionReasonOptions.length === 0);
+											const needsWithdrawReason =
+												action.id === "withdraw" &&
+												(!selectedWithdrawalReasonId ||
+													withdrawalReasonOptions.length === 0);
+											const disabled =
+												lifecycleMutation.isPending ||
+												needsRejectReason ||
+												needsWithdrawReason;
+
+											return (
+												<Tooltip key={`client-action-${action.id}`}>
+													<TooltipTrigger asChild>
+														<span className="inline-flex">
+															<Button
+																variant={action.variant || "default"}
+																size="sm"
+																onClick={() => handleActionClick(action.id)}
+																disabled={disabled}
+															>
+																<Icon className="mr-2 h-4 w-4" />
+																{action.label}
+															</Button>
+														</span>
+													</TooltipTrigger>
+													<TooltipContent className="max-w-xs">
+														<div className="space-y-1">
+															<p className="text-sm font-semibold">
+																{action.label}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{tooltipCopy.summary}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																<span className="font-medium text-foreground">
+																	When to use:
+																</span>{" "}
+																{tooltipCopy.whenToUse}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																<span className="font-medium text-foreground">
+																	Result:
+																</span>{" "}
+																{tooltipCopy.result}
+															</p>
+														</div>
+													</TooltipContent>
+												</Tooltip>
+											);
+										})}
+									</TooltipProvider>
+								</div>
+
+								{showPendingActions &&
+									(rejectionReasonQuery.isError ||
+										withdrawalReasonQuery.isError) && (
+										<p className="text-xs text-destructive">
+											Some lifecycle reason lookups could not be loaded. Ensure
+											rejection and withdrawal reasons exist in Code Registry.
+										</p>
+									)}
+							</CardContent>
+						</Card>
+					)}
+
+					<Tabs
+						value={activeTab}
+						onValueChange={(value) => setActiveTab(value as ClientTab)}
 					>
-						<TabsTrigger value="overview">Overview</TabsTrigger>
-						<TabsTrigger value="accounts">Accounts</TabsTrigger>
-						<TabsTrigger value="identifiers">Identifiers</TabsTrigger>
-						<TabsTrigger value="activity">Activity</TabsTrigger>
-					</TabsList>
+						<div className="md:hidden">
+							<Select
+								value={activeTab}
+								onValueChange={(value) => setActiveTab(value as ClientTab)}
+							>
+								<SelectTrigger>
+									{activeTab === "overview" && "Overview"}
+									{activeTab === "accounts" && "Accounts"}
+									{activeTab === "identifiers" && "Identifiers"}
+									{activeTab === "activity" && "Activity"}
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="overview">Overview</SelectItem>
+									<SelectItem value="accounts">Accounts</SelectItem>
+									<SelectItem value="identifiers">Identifiers</SelectItem>
+									<SelectItem value="activity">Activity</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 
-					<div className="mt-4">
-						<TabsContent value="overview">
-							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="text-base">
-											Profile & Contact
-										</CardTitle>
-										<CardDescription>
-											Core onboarding identity and communication details
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="divide-y">
-										<InfoRow
-											label="Display Name"
-											value={formatText(client.displayName)}
-										/>
-										<InfoRow
-											label="Account Number"
-											value={formatText(client.accountNo)}
-										/>
-										<InfoRow
-											label="External ID"
-											value={formatExternalId(client.externalId)}
-										/>
-										<InfoRow
-											label="Mobile Number"
-											value={formatText(client.mobileNo)}
-										/>
-										<InfoRow
-											label="Email Address"
-											value={formatText(client.emailAddress)}
-										/>
-										<InfoRow
-											label="Office"
-											value={formatText(client.officeName)}
-										/>
-										<InfoRow
-											label="Assigned Staff"
-											value={formatText(client.staffName)}
-										/>
-										<InfoRow
-											label="Default Savings Product"
-											value={formatText(client.savingsProductName)}
-										/>
-									</CardContent>
-								</Card>
+						<TabsList
+							variant="line"
+							className="hidden w-full justify-start border-b md:flex"
+						>
+							<TabsTrigger value="overview">Overview</TabsTrigger>
+							<TabsTrigger value="accounts">Accounts</TabsTrigger>
+							<TabsTrigger value="identifiers">Identifiers</TabsTrigger>
+							<TabsTrigger value="activity">Activity</TabsTrigger>
+						</TabsList>
 
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="text-base">
-											Onboarding Details
-										</CardTitle>
-										<CardDescription>
-											Client structure and status captured from template fields
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="divide-y">
-										<InfoRow label="Client Kind" value={clientKindLabel} />
-										<InfoRow
-											label="First Name"
-											value={formatText(client.firstname)}
-										/>
-										<InfoRow
-											label="Middle Name"
-											value={formatText(client.middlename)}
-										/>
-										<InfoRow
-											label="Last Name"
-											value={formatText(client.lastname)}
-										/>
-										<InfoRow
-											label="Business Name"
-											value={formatText(client.fullname)}
-										/>
-										<InfoRow
-											label="Date of Birth"
-											value={formatDate(client.dateOfBirth)}
-										/>
-										<InfoRow
-											label="Gender"
-											value={readCodeValueLabel(client.gender)}
-										/>
-										<InfoRow
-											label="Legal Form"
-											value={readEnumLabel(client.legalForm)}
-										/>
-										<InfoRow
-											label="Client Type"
-											value={readCodeValueLabel(client.clientType)}
-										/>
-										<InfoRow
-											label="Client Classification"
-											value={readCodeValueLabel(client.clientClassification)}
-										/>
-										<InfoRow
-											label="Main Business Line"
-											value={mainBusinessLineName}
-										/>
-										<InfoRow
-											label="Activation Date"
-											value={formatDate(client.activationDate)}
-										/>
-										<InfoRow label="Status" value={statusChip.label} />
-										<InfoRow
-											label="Status Code"
-											value={formatCodeLabel(client.status?.code)}
-										/>
-									</CardContent>
-								</Card>
+						<div className="mt-4">
+							<TabsContent value="overview">
+								<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="text-base">
+												Profile & Contact
+											</CardTitle>
+											<CardDescription>
+												Core onboarding identity and communication details
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow
+												label="Display Name"
+												value={formatText(client.displayName)}
+											/>
+											<InfoRow
+												label="Account Number"
+												value={formatText(client.accountNo)}
+											/>
+											<InfoRow
+												label="External ID"
+												value={formatExternalId(client.externalId)}
+											/>
+											<InfoRow
+												label="Mobile Number"
+												value={formatText(client.mobileNo)}
+											/>
+											<InfoRow
+												label="Email Address"
+												value={formatText(client.emailAddress)}
+											/>
+											<InfoRow
+												label="Office"
+												value={formatText(client.officeName)}
+											/>
+											<InfoRow
+												label="Assigned Staff"
+												value={formatText(client.staffName)}
+											/>
+											<InfoRow
+												label="Default Savings Product"
+												value={formatText(client.savingsProductName)}
+											/>
+										</CardContent>
+									</Card>
 
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="text-base">Address</CardTitle>
-										<CardDescription>
-											Primary client address from address records
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="divide-y">
-										<InfoRow
-											label="Address Line 1"
-											value={formatText(primaryAddress?.addressLine1)}
-										/>
-										<InfoRow
-											label="Address Line 2"
-											value={formatText(primaryAddress?.addressLine2)}
-										/>
-										<InfoRow
-											label="Address Line 3"
-											value={formatText(primaryAddress?.addressLine3)}
-										/>
-										<InfoRow
-											label="City / Town"
-											value={formatText(
-												primaryAddress?.city || primaryAddress?.townVillage,
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="text-base">
+												Onboarding Details
+											</CardTitle>
+											<CardDescription>
+												Client structure and status captured from template
+												fields
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow label="Client Kind" value={clientKindLabel} />
+											<InfoRow
+												label="First Name"
+												value={formatText(client.firstname)}
+											/>
+											<InfoRow
+												label="Middle Name"
+												value={formatText(client.middlename)}
+											/>
+											<InfoRow
+												label="Last Name"
+												value={formatText(client.lastname)}
+											/>
+											<InfoRow
+												label="Business Name"
+												value={formatText(client.fullname)}
+											/>
+											<InfoRow
+												label="Date of Birth"
+												value={formatDate(client.dateOfBirth)}
+											/>
+											<InfoRow
+												label="Gender"
+												value={readCodeValueLabel(client.gender)}
+											/>
+											<InfoRow
+												label="Legal Form"
+												value={readEnumLabel(client.legalForm)}
+											/>
+											<InfoRow
+												label="Client Type"
+												value={readCodeValueLabel(client.clientType)}
+											/>
+											<InfoRow
+												label="Client Classification"
+												value={readCodeValueLabel(client.clientClassification)}
+											/>
+											<InfoRow
+												label="Main Business Line"
+												value={mainBusinessLineName}
+											/>
+											<InfoRow
+												label="Activation Date"
+												value={formatDate(client.activationDate)}
+											/>
+											<InfoRow label="Status" value={statusChip.label} />
+											<InfoRow
+												label="Status Code"
+												value={formatCodeLabel(client.status?.code)}
+											/>
+										</CardContent>
+									</Card>
+
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="text-base">Address</CardTitle>
+											<CardDescription>
+												Primary client address from address records
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow
+												label="Address Line 1"
+												value={formatText(primaryAddress?.addressLine1)}
+											/>
+											<InfoRow
+												label="Address Line 2"
+												value={formatText(primaryAddress?.addressLine2)}
+											/>
+											<InfoRow
+												label="Address Line 3"
+												value={formatText(primaryAddress?.addressLine3)}
+											/>
+											<InfoRow
+												label="City / Town"
+												value={formatText(
+													primaryAddress?.city || primaryAddress?.townVillage,
+												)}
+											/>
+											<InfoRow
+												label="District / County"
+												value={formatText(primaryAddress?.countyDistrict)}
+											/>
+											<InfoRow
+												label="State / Province"
+												value={formatText(primaryAddress?.stateName)}
+											/>
+											<InfoRow
+												label="Country"
+												value={formatText(
+													primaryAddress?.countryName ||
+														primaryAddress?.countryId,
+												)}
+											/>
+											<InfoRow
+												label="Postal Code"
+												value={formatText(primaryAddress?.postalCode)}
+											/>
+										</CardContent>
+									</Card>
+
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="text-base">
+												KYC & Identifiers
+											</CardTitle>
+											<CardDescription>
+												Documents captured during onboarding and updates
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											{identifiers.length === 0 ? (
+												<p className="text-sm text-muted-foreground">
+													No client identifiers found.
+												</p>
+											) : (
+												<div className="space-y-3">
+													{identifiers.map((identifier) => (
+														<div
+															key={identifier.id || identifier.documentKey}
+															className="flex items-start justify-between gap-3 border-b pb-2 last:border-b-0"
+														>
+															<span className="text-sm text-muted-foreground">
+																{formatText(identifier.documentType?.name)}
+															</span>
+															<span className="text-sm font-medium text-right">
+																{formatText(identifier.documentKey)}
+															</span>
+														</div>
+													))}
+												</div>
 											)}
-										/>
-										<InfoRow
-											label="District / County"
-											value={formatText(primaryAddress?.countyDistrict)}
-										/>
-										<InfoRow
-											label="State / Province"
-											value={formatText(primaryAddress?.stateName)}
-										/>
-										<InfoRow
-											label="Country"
-											value={formatText(
-												primaryAddress?.countryName ||
-													primaryAddress?.countryId,
+										</CardContent>
+									</Card>
+
+									<Card className="lg:col-span-2">
+										<CardHeader className="pb-3">
+											<CardTitle className="text-base">
+												Group Membership
+											</CardTitle>
+										</CardHeader>
+										<CardContent>
+											{groups.length === 0 ? (
+												<p className="text-sm text-muted-foreground">
+													Client is not assigned to any group.
+												</p>
+											) : (
+												<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+													{groups.map((group) => (
+														<div
+															key={group.id || group.name}
+															className="rounded-sm border border-border/60 p-3"
+														>
+															<p className="text-sm font-semibold">
+																{formatText(group.name)}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																Group ID: {formatText(group.id)} | Account:{" "}
+																{formatText(group.accountNo)}
+															</p>
+														</div>
+													))}
+												</div>
 											)}
-										/>
-										<InfoRow
-											label="Postal Code"
-											value={formatText(primaryAddress?.postalCode)}
-										/>
-									</CardContent>
-								</Card>
+										</CardContent>
+									</Card>
+								</div>
+							</TabsContent>
 
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="text-base">
-											KYC & Identifiers
-										</CardTitle>
-										<CardDescription>
-											Documents captured during onboarding and updates
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										{identifiers.length === 0 ? (
-											<p className="text-sm text-muted-foreground">
-												No client identifiers found.
-											</p>
-										) : (
-											<div className="space-y-3">
-												{identifiers.map((identifier) => (
-													<div
-														key={identifier.id || identifier.documentKey}
-														className="flex items-start justify-between gap-3 border-b pb-2 last:border-b-0"
-													>
-														<span className="text-sm text-muted-foreground">
-															{formatText(identifier.documentType?.name)}
-														</span>
-														<span className="text-sm font-medium text-right">
-															{formatText(identifier.documentKey)}
-														</span>
-													</div>
-												))}
-											</div>
-										)}
-									</CardContent>
-								</Card>
+							<TabsContent value="accounts">
+								<div className="grid grid-cols-1 gap-4">
+									<Card>
+										<CardHeader>
+											<CardTitle>Loan Accounts</CardTitle>
+											<CardDescription>
+												{loanAccounts.length} linked loan account
+												{loanAccounts.length === 1 ? "" : "s"}
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											<DataTable
+												columns={loanColumns}
+												data={loanAccounts}
+												getRowId={(row) =>
+													row.id || row.accountNo || "loan-account"
+												}
+												emptyMessage="No linked loan accounts."
+											/>
+										</CardContent>
+									</Card>
 
-								<Card className="lg:col-span-2">
-									<CardHeader className="pb-3">
-										<CardTitle className="text-base">
-											Group Membership
-										</CardTitle>
-									</CardHeader>
-									<CardContent>
-										{groups.length === 0 ? (
-											<p className="text-sm text-muted-foreground">
-												Client is not assigned to any group.
-											</p>
-										) : (
-											<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-												{groups.map((group) => (
-													<div
-														key={group.id || group.name}
-														className="rounded-sm border border-border/60 p-3"
-													>
-														<p className="text-sm font-semibold">
-															{formatText(group.name)}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															Group ID: {formatText(group.id)} | Account:{" "}
-															{formatText(group.accountNo)}
-														</p>
-													</div>
-												))}
-											</div>
-										)}
-									</CardContent>
-								</Card>
-							</div>
-						</TabsContent>
+									<Card>
+										<CardHeader>
+											<CardTitle>Savings Accounts</CardTitle>
+											<CardDescription>
+												{savingsAccounts.length} linked savings account
+												{savingsAccounts.length === 1 ? "" : "s"}
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											<DataTable
+												columns={savingsColumns}
+												data={savingsAccounts}
+												getRowId={(row) =>
+													row.id || row.accountNo || "savings-account"
+												}
+												emptyMessage="No linked savings accounts."
+											/>
+										</CardContent>
+									</Card>
+								</div>
+							</TabsContent>
 
-						<TabsContent value="accounts">
-							<div className="grid grid-cols-1 gap-4">
+							<TabsContent value="identifiers">
 								<Card>
 									<CardHeader>
-										<CardTitle>Loan Accounts</CardTitle>
+										<CardTitle>Client Identifiers</CardTitle>
 										<CardDescription>
-											{loanAccounts.length} linked loan account
-											{loanAccounts.length === 1 ? "" : "s"}
+											KYC and identity references tied to this client
 										</CardDescription>
 									</CardHeader>
 									<CardContent>
 										<DataTable
-											columns={loanColumns}
-											data={loanAccounts}
+											columns={identifierColumns}
+											data={identifiers}
 											getRowId={(row) =>
-												row.id || row.accountNo || "loan-account"
+												row.id || row.documentKey || "identifier"
 											}
-											emptyMessage="No linked loan accounts."
+											emptyMessage="No client identifiers found."
 										/>
 									</CardContent>
 								</Card>
+							</TabsContent>
 
-								<Card>
-									<CardHeader>
-										<CardTitle>Savings Accounts</CardTitle>
-										<CardDescription>
-											{savingsAccounts.length} linked savings account
-											{savingsAccounts.length === 1 ? "" : "s"}
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										<DataTable
-											columns={savingsColumns}
-											data={savingsAccounts}
-											getRowId={(row) =>
-												row.id || row.accountNo || "savings-account"
-											}
-											emptyMessage="No linked savings accounts."
-										/>
-									</CardContent>
-								</Card>
-							</div>
-						</TabsContent>
+							<TabsContent value="activity">
+								<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="flex items-center gap-2 text-base">
+												<History className="h-4 w-4" />
+												Lifecycle Timeline
+											</CardTitle>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow
+												label="Submitted On"
+												value={formatDate(client.timeline?.submittedOnDate)}
+											/>
+											<InfoRow
+												label="Submitted By"
+												value={formatText(
+													[
+														client.timeline?.submittedByFirstname,
+														client.timeline?.submittedByLastname,
+													]
+														.filter(Boolean)
+														.join(" "),
+												)}
+											/>
+											<InfoRow
+												label="Activated On"
+												value={formatDate(client.timeline?.activatedOnDate)}
+											/>
+											<InfoRow
+												label="Activated By"
+												value={formatText(
+													[
+														client.timeline?.activatedByFirstname,
+														client.timeline?.activatedByLastname,
+													]
+														.filter(Boolean)
+														.join(" "),
+												)}
+											/>
+										</CardContent>
+									</Card>
 
-						<TabsContent value="identifiers">
-							<Card>
-								<CardHeader>
-									<CardTitle>Client Identifiers</CardTitle>
-									<CardDescription>
-										KYC and identity references tied to this client
-									</CardDescription>
-								</CardHeader>
-								<CardContent>
-									<DataTable
-										columns={identifierColumns}
-										data={identifiers}
-										getRowId={(row) =>
-											row.id || row.documentKey || "identifier"
-										}
-										emptyMessage="No client identifiers found."
-									/>
-								</CardContent>
-							</Card>
-						</TabsContent>
+									<Card>
+										<CardHeader className="pb-3">
+											<CardTitle className="flex items-center gap-2 text-base">
+												<Building2 className="h-4 w-4" />
+												Organisational Assignment
+											</CardTitle>
+										</CardHeader>
+										<CardContent className="divide-y">
+											<InfoRow
+												label="Office ID"
+												value={formatText(client.officeId)}
+											/>
+											<InfoRow
+												label="Office Name"
+												value={formatText(client.officeName)}
+											/>
+											<InfoRow
+												label="Savings Product ID"
+												value={formatText(client.savingsProductId)}
+											/>
+											<InfoRow
+												label="Savings Product"
+												value={formatText(client.savingsProductName)}
+											/>
+										</CardContent>
+									</Card>
 
-						<TabsContent value="activity">
-							<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="flex items-center gap-2 text-base">
-											<History className="h-4 w-4" />
-											Lifecycle Timeline
-										</CardTitle>
-									</CardHeader>
-									<CardContent className="divide-y">
-										<InfoRow
-											label="Submitted On"
-											value={formatDate(client.timeline?.submittedOnDate)}
-										/>
-										<InfoRow
-											label="Submitted By"
-											value={formatText(
-												[
-													client.timeline?.submittedByFirstname,
-													client.timeline?.submittedByLastname,
-												]
-													.filter(Boolean)
-													.join(" "),
-											)}
-										/>
-										<InfoRow
-											label="Activated On"
-											value={formatDate(client.timeline?.activatedOnDate)}
-										/>
-										<InfoRow
-											label="Activated By"
-											value={formatText(
-												[
-													client.timeline?.activatedByFirstname,
-													client.timeline?.activatedByLastname,
-												]
-													.filter(Boolean)
-													.join(" "),
-											)}
-										/>
-									</CardContent>
-								</Card>
+									<Card className="lg:col-span-2">
+										<CardHeader>
+											<CardTitle>Recent Transactions</CardTitle>
+											<CardDescription>
+												Most recent 25 client transactions
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											<DataTable
+												columns={transactionColumns}
+												data={transactions}
+												getRowId={(row) =>
+													row.id || `${row.date}-${row.amount}`
+												}
+												emptyMessage="No transactions found for this client."
+											/>
+										</CardContent>
+									</Card>
+								</div>
+							</TabsContent>
+						</div>
+					</Tabs>
+				</div>
+			</PageShell>
 
-								<Card>
-									<CardHeader className="pb-3">
-										<CardTitle className="flex items-center gap-2 text-base">
-											<Building2 className="h-4 w-4" />
-											Organisational Assignment
-										</CardTitle>
-									</CardHeader>
-									<CardContent className="divide-y">
-										<InfoRow
-											label="Office ID"
-											value={formatText(client.officeId)}
-										/>
-										<InfoRow
-											label="Office Name"
-											value={formatText(client.officeName)}
-										/>
-										<InfoRow
-											label="Savings Product ID"
-											value={formatText(client.savingsProductId)}
-										/>
-										<InfoRow
-											label="Savings Product"
-											value={formatText(client.savingsProductName)}
-										/>
-									</CardContent>
-								</Card>
-
-								<Card className="lg:col-span-2">
-									<CardHeader>
-										<CardTitle>Recent Transactions</CardTitle>
-										<CardDescription>
-											Most recent 25 client transactions
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										<DataTable
-											columns={transactionColumns}
-											data={transactions}
-											getRowId={(row) => row.id || `${row.date}-${row.amount}`}
-											emptyMessage="No transactions found for this client."
-										/>
-									</CardContent>
-								</Card>
-							</div>
-						</TabsContent>
-					</div>
-				</Tabs>
-			</div>
-		</PageShell>
+			<AlertDialog
+				open={Boolean(confirmAction)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setConfirmAction(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{confirmCopy?.title || "Confirm Action"}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{confirmCopy?.description || "Are you sure you want to continue?"}
+						</AlertDialogDescription>
+						{confirmAction === "reject" && selectedRejectionReasonName && (
+							<p className="text-sm text-muted-foreground">
+								Reason:{" "}
+								<span className="font-medium">
+									{selectedRejectionReasonName}
+								</span>
+							</p>
+						)}
+						{confirmAction === "withdraw" && selectedWithdrawalReasonName && (
+							<p className="text-sm text-muted-foreground">
+								Reason:{" "}
+								<span className="font-medium">
+									{selectedWithdrawalReasonName}
+								</span>
+							</p>
+						)}
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={lifecycleMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							variant={isConfirmDestructive ? "destructive" : "default"}
+							disabled={!confirmAction || lifecycleMutation.isPending}
+							onClick={(event) => {
+								event.preventDefault();
+								if (!confirmAction) return;
+								lifecycleMutation.mutate(confirmAction);
+							}}
+						>
+							{lifecycleMutation.isPending ? "Processing..." : "Confirm"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+		</>
 	);
 }

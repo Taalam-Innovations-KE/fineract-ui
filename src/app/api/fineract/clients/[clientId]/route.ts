@@ -7,6 +7,9 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	ClientDataWritable,
+	DeleteClientsClientIdResponse,
+	PostClientsClientIdRequest,
+	PostClientsClientIdResponse,
 	PutClientsClientIdResponse,
 } from "@/lib/fineract/generated/types.gen";
 
@@ -63,6 +66,93 @@ export async function PUT(
 		);
 
 		return NextResponse.json(result);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+/**
+ * DELETE /api/fineract/clients/[clientId]
+ * Deletes a client (allowed by Fineract in pending state)
+ */
+export async function DELETE(
+	request: NextRequest,
+	{ params }: { params: Promise<{ clientId: string }> },
+) {
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const { clientId } = await params;
+
+		const result = await fineractFetch<DeleteClientsClientIdResponse>(
+			`${FINERACT_ENDPOINTS.clients}/${clientId}`,
+			{
+				method: "DELETE",
+				tenantId,
+			},
+		);
+
+		return NextResponse.json(result);
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+/**
+ * POST /api/fineract/clients/[clientId]?command=<command>
+ * Executes client lifecycle commands (activate, close, reject, withdraw, etc.)
+ */
+export async function POST(
+	request: NextRequest,
+	{ params }: { params: Promise<{ clientId: string }> },
+) {
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const { clientId } = await params;
+		const command = request.nextUrl.searchParams.get("command");
+
+		if (!command) {
+			return NextResponse.json(
+				{ message: "Missing required query parameter: command" },
+				{ status: 400 },
+			);
+		}
+
+		const rawBody = await request.text();
+		const body = rawBody
+			? (JSON.parse(rawBody) as PostClientsClientIdRequest)
+			: undefined;
+
+		const commandAliases: Record<string, string[]> = {
+			undoReject: ["undoReject", "undoRejection"],
+			undoWithdraw: ["undoWithdraw", "undoWithdrawal"],
+		};
+		const candidateCommands = commandAliases[command] || [command];
+
+		let lastError: unknown;
+		for (const candidate of candidateCommands) {
+			try {
+				const result = await fineractFetch<PostClientsClientIdResponse>(
+					`${FINERACT_ENDPOINTS.clients}/${clientId}?command=${encodeURIComponent(candidate)}`,
+					{
+						method: "POST",
+						body,
+						tenantId,
+					},
+				);
+
+				return NextResponse.json(result);
+			} catch (error) {
+				lastError = error;
+			}
+		}
+
+		throw lastError;
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {

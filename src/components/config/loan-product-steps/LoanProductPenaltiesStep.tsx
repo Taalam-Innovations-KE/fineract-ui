@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm, useFormContext } from "react-hook-form";
@@ -34,6 +34,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
+	GetChargesResponse,
 	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
 	PostChargesResponse,
@@ -56,6 +57,71 @@ type PenaltyItem = PenaltySelection & {
 	summary?: string;
 	gracePeriodOverride?: number;
 };
+
+type LoanTemplateWithPenaltyOptions = GetLoanProductsTemplateResponse & {
+	penaltyOptions?: Array<GetLoanProductsChargeOptions>;
+};
+
+const OVERDUE_INSTALLMENT_CHARGE_TIME_TYPE = 9;
+const PENALTY_FREQUENCY_TO_API = {
+	days: "0",
+	weeks: "1",
+	months: "2",
+	years: "3",
+} as const;
+const LOAN_CHARGE_APPLIES_TO = 1;
+
+function normalizeChargeToPenaltyOption(
+	charge: GetChargesResponse,
+): GetLoanProductsChargeOptions | null {
+	if (!charge.id) return null;
+
+	return {
+		id: charge.id,
+		name: charge.name,
+		active: charge.active,
+		penalty: charge.penalty,
+		amount: charge.amount,
+		currency: charge.currency
+			? {
+					code: charge.currency.code,
+					decimalPlaces: charge.currency.decimalPlaces,
+					displayLabel: charge.currency.displayLabel,
+					displaySymbol: charge.currency.displaySymbol,
+					name: charge.currency.name,
+					nameCode: charge.currency.nameCode,
+				}
+			: undefined,
+		chargeTimeType: charge.chargeTimeType
+			? {
+					id: charge.chargeTimeType.id,
+					code: charge.chargeTimeType.code,
+					description: charge.chargeTimeType.description,
+				}
+			: undefined,
+		chargeAppliesTo: charge.chargeAppliesTo
+			? {
+					id: charge.chargeAppliesTo.id,
+					code: charge.chargeAppliesTo.code,
+					description: charge.chargeAppliesTo.description,
+				}
+			: undefined,
+		chargeCalculationType: charge.chargeCalculationType
+			? {
+					id: charge.chargeCalculationType.id,
+					code: charge.chargeCalculationType.code,
+					description: charge.chargeCalculationType.description,
+				}
+			: undefined,
+		chargePaymentMode: charge.chargePaymentMode
+			? {
+					id: charge.chargePaymentMode.id,
+					code: charge.chargePaymentMode.code,
+					description: charge.chargePaymentMode.description,
+				}
+			: undefined,
+	};
+}
 
 function toAmountLabel(
 	amount?: number,
@@ -93,8 +159,12 @@ function formatPenaltySummary(penalty: PenaltyItem, currencyCode?: string) {
 	const graceLabel = penalty.gracePeriodOverride
 		? ` after ${penalty.gracePeriodOverride} grace days`
 		: "";
+	const recurrenceLabel =
+		penalty.frequencyType && penalty.frequencyInterval
+			? ` every ${penalty.frequencyInterval} ${penalty.frequencyType}`
+			: "";
 
-	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}`;
+	return `${penalty.name} - ${amountLabel} on ${basisLabel}${graceLabel}${recurrenceLabel}`;
 }
 
 export function LoanProductPenaltiesStep({
@@ -117,6 +187,13 @@ export function LoanProductPenaltiesStep({
 		null,
 	);
 	const [isCreatingPenalty, setIsCreatingPenalty] = useState(false);
+	const chargesQuery = useQuery({
+		queryKey: ["charges", tenantId],
+		queryFn: async () =>
+			(await chargesApi.list(tenantId)) as Array<GetChargesResponse>,
+		enabled: isPenaltySelectOpen,
+		staleTime: 1000 * 60 * 5,
+	});
 
 	// Separate form for creating new penalties (API call)
 	const penaltyForm = useForm<PenaltyFormData>({
@@ -126,6 +203,8 @@ export function LoanProductPenaltiesStep({
 			calculationMethod: "percent",
 			penaltyBasis: "totalOverdue",
 			currencyCode: currencyCode || "KES",
+			frequencyType: undefined,
+			frequencyInterval: undefined,
 		},
 	});
 
@@ -160,11 +239,18 @@ export function LoanProductPenaltiesStep({
 				currencyCode: values.currencyCode,
 				amount: values.amount,
 				chargeAppliesTo: 1, // Loan charges
-				chargeTimeType: 4, // Overdue installment charge - correct for penalties
+				chargeTimeType: OVERDUE_INSTALLMENT_CHARGE_TIME_TYPE,
 				chargeCalculationType,
 				penalty: true,
 				chargePaymentMode: 1, // Payable separately (penalties are paid explicitly)
 				active: true, // Penalties should be active by default
+				feeFrequency: values.frequencyType
+					? PENALTY_FREQUENCY_TO_API[values.frequencyType]
+					: undefined,
+				feeInterval:
+					values.frequencyInterval !== undefined
+						? String(values.frequencyInterval)
+						: undefined,
 				locale: "en",
 			};
 
@@ -186,6 +272,8 @@ export function LoanProductPenaltiesStep({
 				currencyCode: values.currencyCode,
 				calculationMethod: values.calculationMethod,
 				penaltyBasis: values.penaltyBasis,
+				frequencyType: values.frequencyType,
+				frequencyInterval: values.frequencyInterval,
 			});
 
 			penaltyForm.reset({
@@ -195,6 +283,8 @@ export function LoanProductPenaltiesStep({
 				amount: undefined,
 				name: "",
 				gracePeriodOverride: undefined,
+				frequencyType: undefined,
+				frequencyInterval: undefined,
 			});
 			setIsPenaltyDrawerOpen(false);
 
@@ -230,9 +320,33 @@ export function LoanProductPenaltiesStep({
 	};
 
 	const chargeOptions = template?.chargeOptions || [];
-	const penaltyOptions = chargeOptions.filter(
-		(option) => option.penalty === true && option.active !== false,
-	);
+	const templatePenaltyOptions =
+		(template as LoanTemplateWithPenaltyOptions | undefined)?.penaltyOptions ||
+		[];
+	const templateOrChargePenaltyOptions =
+		templatePenaltyOptions.length > 0
+			? templatePenaltyOptions.filter((option) => option.active !== false)
+			: chargeOptions.filter(
+					(option) => option.penalty === true && option.active !== false,
+				);
+	const penaltiesFromCharges = (chargesQuery.data || [])
+		.filter(
+			(charge) =>
+				charge.penalty === true &&
+				charge.active !== false &&
+				charge.chargeAppliesTo?.id === LOAN_CHARGE_APPLIES_TO,
+		)
+		.map(normalizeChargeToPenaltyOption)
+		.filter(
+			(option): option is GetLoanProductsChargeOptions => option !== null,
+		);
+	const penaltyOptions = Array.from(
+		new Map(
+			[...templateOrChargePenaltyOptions, ...penaltiesFromCharges].map(
+				(option) => [option.id, option],
+			),
+		).values(),
+	).filter((option) => option.id !== undefined);
 	const matchingCurrencyPenaltyOptions = penaltyOptions.filter((option) => {
 		if (!currencyCode) return true;
 		return option.currency?.code === currencyCode;
@@ -418,6 +532,66 @@ export function LoanProductPenaltiesStep({
 									<p className="text-xs text-muted-foreground">
 										Optional grace period before penalty applies.
 									</p>
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="penalty-frequency-type">
+										Recurrence Frequency (optional)
+									</Label>
+									<Select
+										value={penaltyForm.watch("frequencyType") || ""}
+										onValueChange={(value) =>
+											penaltyForm.setValue(
+												"frequencyType",
+												value === ""
+													? undefined
+													: (value as "days" | "weeks" | "months" | "years"),
+											)
+										}
+									>
+										<SelectTrigger id="penalty-frequency-type">
+											<SelectValue placeholder="Select frequency" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="days">Days</SelectItem>
+											<SelectItem value="weeks">Weeks</SelectItem>
+											<SelectItem value="months">Months</SelectItem>
+											<SelectItem value="years">Years</SelectItem>
+										</SelectContent>
+									</Select>
+									{penaltyForm.formState.errors.frequencyType && (
+										<p className="text-sm text-destructive">
+											{String(
+												penaltyForm.formState.errors.frequencyType.message,
+											)}
+										</p>
+									)}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="penalty-frequency-interval">
+										Recurrence Interval
+									</Label>
+									<Input
+										id="penalty-frequency-interval"
+										type="number"
+										min={1}
+										{...penaltyForm.register("frequencyInterval", {
+											valueAsNumber: true,
+										})}
+										placeholder="1"
+									/>
+									<p className="text-xs text-muted-foreground">
+										For example: 1 day for daily penalties, 1 week for weekly.
+									</p>
+									{penaltyForm.formState.errors.frequencyInterval && (
+										<p className="text-sm text-destructive">
+											{String(
+												penaltyForm.formState.errors.frequencyInterval.message,
+											)}
+										</p>
+									)}
 								</div>
 							</div>
 

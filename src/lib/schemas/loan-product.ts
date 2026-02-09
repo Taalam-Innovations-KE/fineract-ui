@@ -21,14 +21,41 @@ export const feeChargeFormSchema = z.object({
 	currencyCode: z.string().length(3, "Currency code must be 3 characters"),
 });
 
-export const penaltyChargeFormSchema = z.object({
-	name: z.string().min(2, "Penalty name is required"),
-	penaltyBasis: z.enum(["totalOverdue", "overduePrincipal", "overdueInterest"]),
-	calculationMethod: z.enum(["flat", "percent"]),
-	amount: z.number().positive("Amount must be greater than 0"),
-	gracePeriodOverride: z.number().nonnegative().optional(),
-	currencyCode: z.string().length(3, "Currency code must be 3 characters"),
-});
+export const penaltyChargeFormSchema = z
+	.object({
+		name: z.string().min(2, "Penalty name is required"),
+		penaltyBasis: z.enum([
+			"totalOverdue",
+			"overduePrincipal",
+			"overdueInterest",
+		]),
+		calculationMethod: z.enum(["flat", "percent"]),
+		amount: z.number().positive("Amount must be greater than 0"),
+		gracePeriodOverride: z.number().nonnegative().optional(),
+		currencyCode: z.string().length(3, "Currency code must be 3 characters"),
+		frequencyType: z.enum(["days", "weeks", "months", "years"]).optional(),
+		frequencyInterval: optionalPositiveInteger,
+	})
+	.superRefine((data, ctx) => {
+		const hasFrequencyType = Boolean(data.frequencyType);
+		const hasFrequencyInterval = data.frequencyInterval !== undefined;
+
+		if (hasFrequencyType && !hasFrequencyInterval) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["frequencyInterval"],
+				message: "Frequency interval is required when frequency type is set",
+			});
+		}
+
+		if (!hasFrequencyType && hasFrequencyInterval) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["frequencyType"],
+				message: "Frequency type is required when frequency interval is set",
+			});
+		}
+	});
 
 export const feeSelectionSchema = z.object({
 	id: z.number().int(),
@@ -51,6 +78,8 @@ export const penaltySelectionSchema = z.object({
 		.enum(["totalOverdue", "overduePrincipal", "overdueInterest"])
 		.optional(),
 	currencyCode: z.string().optional(),
+	frequencyType: z.enum(["days", "weeks", "months", "years"]).optional(),
+	frequencyInterval: optionalPositiveInteger,
 });
 
 const reasonToExpenseMappingSchema = z.object({

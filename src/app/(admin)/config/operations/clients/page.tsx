@@ -1091,21 +1091,35 @@ export default function ClientsPage() {
 		}
 
 		if (uptoStep >= 3) {
-			if (
-				!isBusinessClient &&
-				!data.nationalId?.trim() &&
-				!data.passportNo?.trim()
-			) {
-				pushError(
-					3,
-					"nationalId",
-					"National ID or Passport number is required.",
-				);
-				pushError(
-					3,
-					"passportNo",
-					"National ID or Passport number is required.",
-				);
+			if (!isBusinessClient) {
+				const hasNationalId = Boolean(data.nationalId?.trim());
+				const hasPassportNo = Boolean(data.passportNo?.trim());
+
+				if (!hasNationalId && !hasPassportNo) {
+					pushError(
+						3,
+						"nationalId",
+						"Provide either National ID or Passport number.",
+					);
+					pushError(
+						3,
+						"passportNo",
+						"Provide either National ID or Passport number.",
+					);
+				}
+
+				if (hasNationalId && hasPassportNo) {
+					pushError(
+						3,
+						"nationalId",
+						"Provide only one identifier: National ID or Passport number, not both.",
+					);
+					pushError(
+						3,
+						"passportNo",
+						"Provide only one identifier: National ID or Passport number, not both.",
+					);
+				}
 			}
 			if (isBusinessClient && !data.businessLicenseNo?.trim()) {
 				pushError(
@@ -1160,11 +1174,14 @@ export default function ClientsPage() {
 		const isBusinessClient = data.clientKind === "business";
 
 		const payload: ClientCreatePayload = {
-			officeId: data.officeId,
 			active: Boolean(data.active),
 			legalFormId: data.legalFormId,
 			locale: "en",
 		};
+
+		if (!isEditMode) {
+			payload.officeId = data.officeId;
+		}
 
 		if (isBusinessClient) {
 			payload.fullname = data.fullname.trim();

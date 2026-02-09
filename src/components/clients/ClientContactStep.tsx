@@ -137,11 +137,7 @@ export function ClientContactStep({
 				{!isBusiness ? (
 					<>
 						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<FormField
-								label="National ID"
-								required
-								error={errors.nationalId?.message}
-							>
+							<FormField label="National ID" error={errors.nationalId?.message}>
 								<Controller
 									control={control}
 									name="nationalId"
@@ -152,7 +148,6 @@ export function ClientContactStep({
 							</FormField>
 							<FormField
 								label="Passport Number"
-								required
 								error={errors.passportNo?.message}
 							>
 								<Controller
@@ -165,7 +160,7 @@ export function ClientContactStep({
 							</FormField>
 						</div>
 						<p className="text-xs text-muted-foreground">
-							Provide either National ID or Passport Number to continue.
+							Provide either National ID or Passport Number, but not both.
 						</p>
 					</>
 				) : (

@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { AuditTrailViewer } from "@/components/loans/audit-trail-viewer";
+import { PostRepaymentSheet } from "@/components/loans/dialogs/PostRepaymentSheet";
 import { KpiCard, KpiCardSkeleton } from "@/components/loans/kpi-card";
 import { LoanCommandDialog } from "@/components/loans/loan-command-dialog";
 import { StatusChip } from "@/components/loans/status-chip";
@@ -86,6 +87,24 @@ type TabValue =
 	| "documents"
 	| "audit";
 
+type LoanDownloadType = "schedule" | "statement";
+type LoanDownloadFormat = "pdf" | "xlsx" | "csv";
+
+const LOAN_REPORT_NAMES: Record<LoanDownloadType, string> = {
+	schedule:
+		process.env.NEXT_PUBLIC_LOAN_SCHEDULE_REPORT_NAME ||
+		"Loan Repayment Schedule",
+	statement:
+		process.env.NEXT_PUBLIC_LOAN_STATEMENT_REPORT_NAME ||
+		"Loan Transaction Statement",
+};
+
+function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
+	if (format === "pdf") return "PDF";
+	if (format === "xlsx") return "XLSX";
+	return "CSV";
+}
+
 function getAvailableActions(loan: GetLoansLoanIdResponse | undefined) {
 	if (!loan?.status) return [];
 
@@ -115,6 +134,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		open: boolean;
 		type: "approve" | "disburse" | "reject" | "withdraw";
 	}>({ open: false, type: "approve" });
+	const [repaymentSheetOpen, setRepaymentSheetOpen] = useState(false);
 
 	const [isDownloading, setIsDownloading] = useState(false);
 
@@ -204,19 +224,33 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	const handleCommandSuccess = () => {
 		queryClient.invalidateQueries({ queryKey: ["loan", loanId] });
+		queryClient.invalidateQueries({
+			queryKey: ["loan", loanId, "transactions"],
+		});
+		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "schedule"] });
+		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "charges"] });
 		queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
 	};
 
 	const handleDownloadExport = async (
-		exportType: "schedule" | "statement",
-		format: "pdf" | "xlsx" | "csv",
+		exportType: LoanDownloadType,
+		format: LoanDownloadFormat,
 	) => {
 		if (!loan) return;
 
 		setIsDownloading(true);
 		try {
-			// Use the new BFF export endpoints (no Pentaho required)
-			const url = `/api/loans/${loanId}/exports/${exportType}.${format}`;
+			const reportName = LOAN_REPORT_NAMES[exportType];
+			const params = new URLSearchParams({
+				"output-type": getOutputType(format),
+				R_loanId: loanId,
+			});
+
+			if (format === "csv") {
+				params.set("exportCSV", "true");
+			}
+
+			const url = `${BFF_ROUTES.runReport(reportName)}?${params.toString()}`;
 
 			const response = await fetch(url, {
 				headers: { "fineract-platform-tenantid": tenantId },
@@ -224,7 +258,9 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 			if (!response.ok) {
 				const error = await response.json();
-				throw new Error(error.message || "Failed to download export");
+				throw new Error(
+					error.message || error.error || "Failed to download report",
+				);
 			}
 
 			// Get the blob and download
@@ -354,6 +390,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			</PageShell>
 		);
 	}
+
+	const numericLoanId = Number.parseInt(loanId, 10);
 
 	return (
 		<PageShell
@@ -506,6 +544,12 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 										Reject
 									</Button>
 								)}
+								{availableActions.includes("addRepayment") && (
+									<Button size="sm" onClick={() => setRepaymentSheetOpen(true)}>
+										<Banknote className="w-4 h-4 mr-2" />
+										Post Repayment
+									</Button>
+								)}
 							</div>
 						</CardContent>
 					</Card>
@@ -633,7 +677,14 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				open={commandDialog.open}
 				onOpenChange={(open) => setCommandDialog({ ...commandDialog, open })}
 				commandType={commandDialog.type}
-				loanId={parseInt(loanId)}
+				loanId={numericLoanId}
+				onSuccess={handleCommandSuccess}
+			/>
+			<PostRepaymentSheet
+				open={repaymentSheetOpen}
+				onOpenChange={setRepaymentSheetOpen}
+				loanId={numericLoanId}
+				currency={currency}
 				onSuccess={handleCommandSuccess}
 			/>
 		</PageShell>

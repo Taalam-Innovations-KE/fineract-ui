@@ -56,7 +56,23 @@ export const loanWithdrawalSchema = z.object({
 	note: z.string().optional(),
 });
 
+export const loanRepaymentSchema = z.object({
+	transactionDate: z.string().min(1, "Repayment date is required"),
+	transactionAmount: z.number().positive("Repayment amount must be positive"),
+	paymentTypeId: z.number().int().positive().optional(),
+	accountNumber: z.string().optional(),
+	bankNumber: z.string().optional(),
+	checkNumber: z.string().optional(),
+	receiptNumber: z.string().optional(),
+	routingCode: z.string().optional(),
+	externalId: z.string().optional(),
+	dateFormat: z.string().default("dd MMMM yyyy"),
+	locale: z.string().default("en"),
+	note: z.string().optional(),
+});
+
 export type LoanApprovalFormData = z.infer<typeof loanApprovalSchema>;
 export type LoanDisbursementFormData = z.infer<typeof loanDisbursementSchema>;
 export type LoanRejectionFormData = z.infer<typeof loanRejectionSchema>;
 export type LoanWithdrawalFormData = z.infer<typeof loanWithdrawalSchema>;
+export type LoanRepaymentFormData = z.infer<typeof loanRepaymentSchema>;

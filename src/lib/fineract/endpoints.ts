@@ -47,6 +47,10 @@ export const FINERACT_ENDPOINTS = {
 	loanCollaterals: (loanId: number) => `/v1/loans/${loanId}/collaterals`,
 	loanCollateralTemplate: (loanId: number) =>
 		`/v1/loans/${loanId}/collaterals/template`,
+	loanTransactions: (loanId: number | string) =>
+		`/v1/loans/${loanId}/transactions`,
+	loanTransactionTemplate: (loanId: number | string) =>
+		`/v1/loans/${loanId}/transactions/template`,
 
 	// Operations - COB
 	loansCatchUp: "/v1/loans/catch-up",
@@ -140,6 +144,10 @@ export const BFF_ROUTES = {
 		`/api/fineract/loans/${loanId}/collaterals`,
 	loanCollateralTemplate: (loanId: number) =>
 		`/api/fineract/loans/${loanId}/collaterals/template`,
+	loanTransactions: (loanId: number | string) =>
+		`/api/fineract/loans/${loanId}/transactions`,
+	loanTransactionTemplate: (loanId: number | string) =>
+		`/api/fineract/loans/${loanId}/transactions/template`,
 
 	// Operations - COB
 	loansCatchUp: "/api/fineract/loans/catch-up",

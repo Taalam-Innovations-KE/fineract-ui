@@ -16,6 +16,27 @@ import type { Permission } from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 import { useTenantStore } from "@/store/tenant";
 
+function toTitleCase(value: string): string {
+	return value
+		.split(" ")
+		.filter(Boolean)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.join(" ");
+}
+
+function parsePermissionCode(code: string) {
+	const normalized = code.replace(/[._-]+/g, " ").trim();
+	const words = normalized.split(" ").filter(Boolean);
+	const action = words[0] ? toTitleCase(words[0]) : "Action";
+	const resource = words.slice(1).join(" ");
+
+	return {
+		label: toTitleCase(normalized || code),
+		action,
+		resource: resource ? toTitleCase(resource) : "General",
+	};
+}
+
 export default function TasksPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
@@ -199,6 +220,9 @@ export default function TasksPage() {
 							const stats = getGroupStats(perms);
 							const allSelected = stats.enabled === stats.total;
 							const noneSelected = stats.enabled === 0;
+							const sortedPerms = [...perms].sort((a, b) =>
+								a.code.localeCompare(b.code),
+							);
 
 							return (
 								<div key={group} className="border rounded-lg p-4">
@@ -248,21 +272,42 @@ export default function TasksPage() {
 										</div>
 									</div>
 
-									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ml-8">
-										{perms.map((perm) => (
-											<div
-												key={perm.code}
-												className="flex items-center space-x-2"
-											>
-												<Checkbox
-													checked={perm.selected}
-													onCheckedChange={(checked) =>
-														handleToggle(perm.code, checked as boolean)
-													}
-												/>
-												<label className="text-sm">{perm.code}</label>
-											</div>
-										))}
+									<div className="space-y-2">
+										{sortedPerms.map((perm) => {
+											const parsed = parsePermissionCode(perm.code);
+											return (
+												<div
+													key={perm.code}
+													className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
+												>
+													<Checkbox
+														checked={perm.selected}
+														onCheckedChange={(checked) =>
+															handleToggle(perm.code, checked as boolean)
+														}
+													/>
+													<div className="min-w-0 flex-1 space-y-1">
+														<p className="text-sm font-medium leading-5">
+															{parsed.label}
+														</p>
+														<div className="flex flex-wrap items-center gap-1.5">
+															<Badge variant="secondary">{parsed.action}</Badge>
+															<Badge variant="outline">{parsed.resource}</Badge>
+															<Badge
+																variant={
+																	perm.selected ? "success" : "secondary"
+																}
+															>
+																{perm.selected ? "Enabled" : "Disabled"}
+															</Badge>
+														</div>
+														<p className="break-all font-mono text-xs text-muted-foreground">
+															{perm.code}
+														</p>
+													</div>
+												</div>
+											);
+										})}
 									</div>
 								</div>
 							);

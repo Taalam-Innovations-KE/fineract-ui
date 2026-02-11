@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, FileBarChart2, Play, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ import type {
 	ReportExportType,
 	RunReportsResponse,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type ReportOutputType = "JSON" | "PDF" | "XLS" | "XLSX" | "CSV" | "HTML";
@@ -515,64 +518,97 @@ export default function ReportsPage() {
 
 	const runReportMutation = useMutation({
 		mutationFn: async () => {
-			if (!selectedReport?.reportName) {
-				throw new Error("Report name is missing");
-			}
-
-			const params = new URLSearchParams();
-
-			for (const field of selectedParameterFields) {
-				const value = (parameterValues[field.queryKey] || "").trim();
-				if (value) {
-					params.append(field.queryKey, value);
+			try {
+				if (!selectedReport?.reportName) {
+					throw toSubmitActionError(
+						{
+							code: "INVALID_REQUEST",
+							message: "Report name is missing",
+							statusCode: 400,
+						},
+						{
+							action: "runReport",
+							endpoint: "/api/fineract/reports/run/[reportName]",
+							method: "POST",
+							tenantId,
+						},
+					);
 				}
-			}
 
-			for (const [key, value] of parseAdditionalParams(additionalParams)) {
-				params.append(key, value);
-			}
+				const params = new URLSearchParams();
 
-			if (selectedOutput !== "JSON") {
-				params.set("output-type", selectedOutput);
-				if (selectedOutput === "CSV") {
-					params.set("exportCSV", "true");
+				for (const field of selectedParameterFields) {
+					const value = (parameterValues[field.queryKey] || "").trim();
+					if (value) {
+						params.append(field.queryKey, value);
+					}
 				}
+
+				for (const [key, value] of parseAdditionalParams(additionalParams)) {
+					params.append(key, value);
+				}
+
+				if (selectedOutput !== "JSON") {
+					params.set("output-type", selectedOutput);
+					if (selectedOutput === "CSV") {
+						params.set("exportCSV", "true");
+					}
+				}
+
+				const endpoint = BFF_ROUTES.runReport(selectedReport.reportName);
+				const url = `${endpoint}?${params.toString()}`;
+				const response = await fetch(url, {
+					headers: {
+						"x-tenant-id": tenantId,
+					},
+				});
+
+				if (!response.ok) {
+					const payload = await response
+						.json()
+						.catch(() => ({ message: "Failed to execute report on backend" }));
+					throw toSubmitActionError(
+						{
+							...(payload as Record<string, unknown>),
+							statusCode: response.status,
+							httpStatusCode: response.status,
+							statusText: response.statusText,
+						},
+						{
+							action: "runReport",
+							endpoint,
+							method: "POST",
+							tenantId,
+						},
+					);
+				}
+
+				if (selectedOutput === "JSON") {
+					const payload = (await response.json()) as RunReportsResponse;
+					setRunResult(payload);
+					return;
+				}
+
+				const blob = await response.blob();
+				const blobUrl = window.URL.createObjectURL(blob);
+				const anchor = document.createElement("a");
+				anchor.href = blobUrl;
+				anchor.download = getFilenameFromContentDisposition(
+					response.headers.get("Content-Disposition"),
+					`${selectedReport.reportName}_${Date.now()}.${selectedOutput.toLowerCase()}`,
+				);
+				document.body.appendChild(anchor);
+				anchor.click();
+				window.URL.revokeObjectURL(blobUrl);
+				document.body.removeChild(anchor);
+			} catch (error) {
+				throw toSubmitActionError(error, {
+					action: "runReport",
+					endpoint: "/api/fineract/reports/run/[reportName]",
+					method: "POST",
+					tenantId,
+				});
 			}
-
-			const url = `${BFF_ROUTES.runReport(selectedReport.reportName)}?${params.toString()}`;
-			const response = await fetch(url, {
-				headers: {
-					"x-tenant-id": tenantId,
-				},
-			});
-
-			if (!response.ok) {
-				const payload = await response.json();
-				const message =
-					payload.message ||
-					payload.error ||
-					"Failed to execute report on backend";
-				throw new Error(message);
-			}
-
-			if (selectedOutput === "JSON") {
-				const payload = (await response.json()) as RunReportsResponse;
-				setRunResult(payload);
-				return;
-			}
-
-			const blob = await response.blob();
-			const blobUrl = window.URL.createObjectURL(blob);
-			const anchor = document.createElement("a");
-			anchor.href = blobUrl;
-			anchor.download = getFilenameFromContentDisposition(
-				response.headers.get("Content-Disposition"),
-				`${selectedReport.reportName}_${Date.now()}.${selectedOutput.toLowerCase()}`,
-			);
-			document.body.appendChild(anchor);
-			anchor.click();
-			window.URL.revokeObjectURL(blobUrl);
-			document.body.removeChild(anchor);
 		},
 	});
 
@@ -919,16 +955,10 @@ export default function ReportsPage() {
 									</Button>
 								</div>
 
-								{runReportMutation.error && (
-									<Alert variant="destructive">
-										<AlertTitle>Report Execution Failed</AlertTitle>
-										<AlertDescription>
-											{runReportMutation.error instanceof Error
-												? runReportMutation.error.message
-												: "Unexpected error while running report"}
-										</AlertDescription>
-									</Alert>
-								)}
+								<SubmitErrorAlert
+									error={runReportMutation.error as SubmitActionError | null}
+									title="Report Execution Failed"
+								/>
 
 								{selectedOutput === "JSON" && runResult && (
 									<Card>

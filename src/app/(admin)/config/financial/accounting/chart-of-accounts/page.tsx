@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
+	ChevronDown,
+	ChevronRight,
 	Download,
 	FileUp,
 	Plus,
@@ -310,6 +312,9 @@ export default function ChartOfAccountsPage() {
 	const [usageFilter, setUsageFilter] = useState("all");
 	const [disabledFilter, setDisabledFilter] = useState("active");
 	const [viewMode, setViewMode] = useState<"table" | "tree">("table");
+	const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(
+		() => new Set(),
+	);
 
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [editingAccount, setEditingAccount] =
@@ -409,6 +414,27 @@ export default function ChartOfAccountsPage() {
 		() => buildAccountTree(filteredAccounts),
 		[filteredAccounts],
 	);
+	const treeParentIds = useMemo(() => {
+		const ids: number[] = [];
+		const visit = (nodes: TreeNode[]) => {
+			for (const node of nodes) {
+				if (!node.id) continue;
+				if (node.children.length > 0) {
+					ids.push(node.id);
+					visit(node.children);
+				}
+			}
+		};
+		visit(accountTree);
+		return ids;
+	}, [accountTree]);
+
+	useEffect(() => {
+		const rootParentIds = accountTree
+			.filter((node) => node.id && node.children.length > 0)
+			.map((node) => node.id as number);
+		setExpandedNodeIds(new Set(rootParentIds));
+	}, [accountTree]);
 
 	const selectedTypeId = Number(formState.type || 0);
 	const parentOptions = getHeaderOptionsByType(template, selectedTypeId);
@@ -656,14 +682,50 @@ export default function ChartOfAccountsPage() {
 		},
 	];
 
+	const toggleNode = (nodeId: number) => {
+		setExpandedNodeIds((current) => {
+			const next = new Set(current);
+			if (next.has(nodeId)) {
+				next.delete(nodeId);
+			} else {
+				next.add(nodeId);
+			}
+			return next;
+		});
+	};
+
 	const renderTreeNode = (node: TreeNode, depth: number): React.ReactNode => {
+		if (!node.id) return null;
+		const hasChildren = node.children.length > 0;
+		const isExpanded = expandedNodeIds.has(node.id);
+
 		return (
 			<div key={node.id} className="space-y-1">
 				<div
 					className="flex items-center justify-between rounded-sm border border-border/60 px-3 py-2"
-					style={{ marginLeft: `${depth * 16}px` }}
+					style={{ paddingLeft: `${depth * 16 + 12}px` }}
 				>
 					<div className="flex items-center gap-2">
+						{hasChildren ? (
+							<Button
+								type="button"
+								size="icon"
+								variant="ghost"
+								className="h-6 w-6"
+								onClick={() => toggleNode(node.id)}
+								aria-label={
+									isExpanded ? "Collapse children" : "Expand children"
+								}
+							>
+								{isExpanded ? (
+									<ChevronDown className="h-4 w-4" />
+								) : (
+									<ChevronRight className="h-4 w-4" />
+								)}
+							</Button>
+						) : (
+							<span className="h-6 w-6" />
+						)}
 						<Workflow className="h-4 w-4 text-muted-foreground" />
 						<div>
 							<div className="text-sm font-medium">{node.name}</div>
@@ -673,11 +735,33 @@ export default function ChartOfAccountsPage() {
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
+						<Badge variant={node.disabled ? "destructive" : "success"}>
+							{node.disabled ? "Disabled" : "Active"}
+						</Badge>
 						<Badge variant="outline">{node.type?.value}</Badge>
 						<Badge variant="secondary">{node.usage?.value}</Badge>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => openEditSheet(node)}
+						>
+							Edit
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => handleDelete(node)}
+							disabled={deleteMutation.isPending}
+						>
+							<Trash2 className="h-3.5 w-3.5" />
+						</Button>
 					</div>
 				</div>
-				{node.children.map((child) => renderTreeNode(child, depth + 1))}
+				{hasChildren && isExpanded && (
+					<div className="space-y-1">
+						{node.children.map((child) => renderTreeNode(child, depth + 1))}
+					</div>
+				)}
 			</div>
 		);
 	};
@@ -859,6 +943,22 @@ export default function ChartOfAccountsPage() {
 								>
 									Hierarchy View
 								</Button>
+								{viewMode === "tree" && accountTree.length > 0 && (
+									<>
+										<Button
+											variant="outline"
+											onClick={() => setExpandedNodeIds(new Set(treeParentIds))}
+										>
+											Expand All
+										</Button>
+										<Button
+											variant="outline"
+											onClick={() => setExpandedNodeIds(new Set())}
+										>
+											Collapse All
+										</Button>
+									</>
+								)}
 							</div>
 
 							{accountsQuery.isLoading || templateQuery.isLoading ? (

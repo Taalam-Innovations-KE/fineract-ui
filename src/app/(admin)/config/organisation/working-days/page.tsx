@@ -25,28 +25,20 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type { FineractError } from "@/lib/fineract/error-mapping";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	EnumOptionData,
 	GetWorkingDaysTemplateResponse,
 	PutWorkingDaysRequest,
 	WorkingDaysData,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type WorkingDaysForm = {
 	recurrence: string;
 	extendTermForDailyRepayments: boolean;
 	repaymentRescheduleType?: EnumOptionData;
-};
-
-type WorkingDaysSubmitError = FineractError & {
-	action: string;
-	endpoint: string;
-	method: "PUT";
-	timestamp: string;
-	tenantId?: string;
 };
 
 const DAYS_OF_WEEK = [
@@ -211,7 +203,7 @@ export default function WorkingDaysPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
-	const [submitError, setSubmitError] = useState<WorkingDaysSubmitError | null>(
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
 	const [formState, setFormState] = useState<WorkingDaysForm | null>(null);
@@ -251,17 +243,13 @@ export default function WorkingDaysPage() {
 			setSuccessMessage("Working days configuration saved.");
 		},
 		onError: (error) => {
-			const mappedError = mapFineractError(error);
 			setSuccessMessage(null);
-			const trackedError: WorkingDaysSubmitError = {
-				...mappedError,
+			const trackedError = toSubmitActionError(error, {
 				action: "updateWorkingDays",
 				endpoint: BFF_ROUTES.workingDays,
 				method: "PUT",
-				timestamp: new Date().toISOString(),
 				tenantId,
-			};
-			console.error("submit-error", trackedError);
+			});
 			setSubmitError(trackedError);
 		},
 	});

@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,12 +16,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type { FineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetRolesResponse,
 	GetUsersResponse,
 	OfficeData,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { FINERACT_PASSWORD_MESSAGE } from "@/lib/schemas/password";
 import {
 	type CreateTeamMemberFormData,
@@ -65,7 +66,9 @@ export function TeamMemberForm({
 	);
 	const [selectedRoles, setSelectedRoles] =
 		useState<Set<number>>(initialRoleIds);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		register,
@@ -108,7 +111,8 @@ export function TeamMemberForm({
 	};
 
 	const applyServerErrors = (
-		error: FineractError & { rollbackSuggestion?: string },
+		error: SubmitActionError,
+		rollbackSuggestion?: string,
 	) => {
 		let fieldErrorApplied = false;
 
@@ -121,7 +125,10 @@ export function TeamMemberForm({
 				const mappedField = SERVER_FIELD_MAP[field];
 				if (!mappedField) {
 					if (field === "general") {
-						setSubmitError(messages[0]);
+						setSubmitError({
+							...error,
+							message: messages[0],
+						});
 					}
 					return;
 				}
@@ -131,15 +138,21 @@ export function TeamMemberForm({
 			});
 		}
 
-		const fallbackMessage = [error.message, error.rollbackSuggestion]
+		const fallbackMessage = [error.message, rollbackSuggestion]
 			.filter(Boolean)
 			.join(" ");
-		if (error.rollbackSuggestion) {
-			setSubmitError(fallbackMessage);
+		if (rollbackSuggestion) {
+			setSubmitError({
+				...error,
+				message: fallbackMessage,
+			});
 			return;
 		}
 		if (!fieldErrorApplied && fallbackMessage) {
-			setSubmitError(fallbackMessage);
+			setSubmitError({
+				...error,
+				message: fallbackMessage,
+			});
 		}
 	};
 
@@ -150,20 +163,22 @@ export function TeamMemberForm({
 			const requestData = teamMemberFormToRequest(data);
 			await onSubmit(requestData);
 		} catch (error) {
-			const fineractError = error as FineractError & {
-				rollbackSuggestion?: string;
-			};
-			if (
-				fineractError &&
-				typeof fineractError === "object" &&
-				"message" in fineractError
-			) {
-				applyServerErrors(fineractError);
-			} else if (error instanceof Error) {
-				setSubmitError(error.message);
-			} else {
-				setSubmitError("Failed to create team member. Please try again.");
-			}
+			const rollbackSuggestion =
+				typeof (error as { rollbackSuggestion?: unknown })
+					?.rollbackSuggestion === "string"
+					? (error as { rollbackSuggestion?: string }).rollbackSuggestion
+					: undefined;
+
+			const trackedError = toSubmitActionError(error, {
+				action: isEditing ? "updateTeamMember" : "createTeamMember",
+				endpoint:
+					isEditing && initialData?.id
+						? `/api/fineract/users/${initialData.id}`
+						: "/api/fineract/onboarding",
+				method: isEditing ? "PUT" : "POST",
+			});
+
+			applyServerErrors(trackedError, rollbackSuggestion);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -171,12 +186,10 @@ export function TeamMemberForm({
 
 	return (
 		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-			{submitError && (
-				<Alert variant="destructive">
-					<AlertTitle>Creation failed</AlertTitle>
-					<AlertDescription>{submitError}</AlertDescription>
-				</Alert>
-			)}
+			<SubmitErrorAlert
+				error={submitError}
+				title={isEditing ? "Update failed" : "Creation failed"}
+			/>
 
 			<div className="space-y-4">
 				<div className="text-sm font-semibold text-muted-foreground">

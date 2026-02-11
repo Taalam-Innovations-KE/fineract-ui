@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleHelp, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,8 @@ import type {
 	EnumOptionData,
 	GetAccountNumberFormatsResponseTemplate,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type CreateAccountNumberFormatFormData,
 	createAccountNumberFormatSchema,
@@ -90,7 +92,9 @@ export function AccountNumberFormatForm({
 	onCancel,
 }: AccountNumberFormatFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [selectedAccountType, setSelectedAccountType] = useState<
 		number | undefined
 	>(initialData?.accountType?.id);
@@ -164,9 +168,16 @@ export function AccountNumberFormatForm({
 			await onSubmit(requestData);
 		} catch (error) {
 			setSubmitError(
-				error instanceof Error
-					? error.message
-					: "Failed to save account number format",
+				toSubmitActionError(error, {
+					action: isEditing
+						? "updateAccountNumberFormat"
+						: "createAccountNumberFormat",
+					endpoint:
+						isEditing && initialData?.id
+							? `/api/fineract/accountnumberformats/${initialData.id}`
+							: "/api/fineract/accountnumberformats",
+					method: isEditing ? "PUT" : "POST",
+				}),
 			);
 		} finally {
 			setIsSubmitting(false);
@@ -186,9 +197,14 @@ export function AccountNumberFormatForm({
 			await onDelete();
 		} catch (error) {
 			setSubmitError(
-				error instanceof Error
-					? error.message
-					: "Failed to delete account number format",
+				toSubmitActionError(error, {
+					action: "deleteAccountNumberFormat",
+					endpoint:
+						initialData?.id !== undefined
+							? `/api/fineract/accountnumberformats/${initialData.id}`
+							: "/api/fineract/accountnumberformats",
+					method: "DELETE",
+				}),
 			);
 		} finally {
 			setIsSubmitting(false);
@@ -202,12 +218,10 @@ export function AccountNumberFormatForm({
 	return (
 		<TooltipProvider>
 			<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-				{submitError && (
-					<Alert variant="destructive">
-						<AlertTitle>Unable to complete request</AlertTitle>
-						<AlertDescription>{submitError}</AlertDescription>
-					</Alert>
-				)}
+				<SubmitErrorAlert
+					error={submitError}
+					title="Unable to save account number format"
+				/>
 				<div className="space-y-2">
 					<div className="flex items-center gap-1.5">
 						<Label htmlFor="accountType">

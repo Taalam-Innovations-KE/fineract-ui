@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type {
 	CollateralInput,
 	CollateralTemplateResponse,
@@ -58,7 +61,9 @@ export function AddCollateralDialog({
 }: AddCollateralDialogProps) {
 	const { tenantId } = useTenantStore();
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const templateQuery = useQuery({
 		queryKey: ["collateralTemplate", loanId, tenantId],
@@ -94,12 +99,10 @@ export function AddCollateralDialog({
 			});
 
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(
-					error.message ||
-						error.errors?.[0]?.defaultUserMessage ||
-						"Failed to add collateral",
-				);
+				const errorPayload = await response
+					.json()
+					.catch(() => ({ message: "Failed to add collateral" }));
+				throw errorPayload;
 			}
 
 			onSuccess();
@@ -107,7 +110,12 @@ export function AddCollateralDialog({
 			form.reset();
 		} catch (error) {
 			setSubmitError(
-				error instanceof Error ? error.message : "Failed to add collateral",
+				toSubmitActionError(error, {
+					action: "addLoanCollateral",
+					endpoint: BFF_ROUTES.loanCollaterals(loanId),
+					method: "POST",
+					tenantId,
+				}),
 			);
 		} finally {
 			setIsSubmitting(false);
@@ -248,12 +256,10 @@ export function AddCollateralDialog({
 								)}
 							/>
 
-							{submitError && (
-								<Alert variant="destructive">
-									<AlertTitle>Error</AlertTitle>
-									<AlertDescription>{submitError}</AlertDescription>
-								</Alert>
-							)}
+							<SubmitErrorAlert
+								error={submitError}
+								title="Unable to add collateral"
+							/>
 
 							<SheetFooter>
 								<Button

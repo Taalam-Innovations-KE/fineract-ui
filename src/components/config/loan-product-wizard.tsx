@@ -5,12 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsInterestRecalculationData,
 	GetLoanProductsProductIdResponse,
@@ -21,6 +21,8 @@ import {
 	buildLoanProductRequest,
 	loanProductsApi,
 } from "@/lib/fineract/loan-products";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type CreateLoanProductFormData,
 	createLoanProductSchema,
@@ -231,7 +233,9 @@ export function LoanProductWizard({
 	const { tenantId } = useTenantStore();
 	const [currentStep, setCurrentStep] = useState(1);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [draftMessage, setDraftMessage] = useState<string | null>(null);
 
 	const templateQuery = useQuery({
@@ -1122,7 +1126,21 @@ export function LoanProductWizard({
 				const errorMessages = Object.entries(errors)
 					.map(([key, error]) => `${key}: ${error?.message || "Invalid"}`)
 					.join(", ");
-				setSubmitError(`Validation failed: ${errorMessages}`);
+				setSubmitError(
+					toSubmitActionError(
+						{
+							code: "VALIDATION_ERROR",
+							message: `Validation failed: ${errorMessages}`,
+							statusCode: 400,
+						},
+						{
+							action: isEditMode ? "updateLoanProduct" : "createLoanProduct",
+							endpoint: "/api/fineract/loanproducts",
+							method: isEditMode ? "PUT" : "POST",
+							tenantId,
+						},
+					),
+				);
 				setIsSubmitting(false);
 				return;
 			}
@@ -1138,8 +1156,14 @@ export function LoanProductWizard({
 
 			localStorage.removeItem("loanProductDraft");
 		} catch (error) {
-			const mapped = mapFineractError(error);
-			setSubmitError(mapped.message);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: isEditMode ? "updateLoanProduct" : "createLoanProduct",
+					endpoint: "/api/fineract/loanproducts",
+					method: isEditMode ? "PUT" : "POST",
+					tenantId,
+				}),
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -1267,12 +1291,12 @@ export function LoanProductWizard({
 								<LoanProductAccountingStep template={template} />
 							)}
 
-							{submitError && (
-								<Alert variant="destructive" className="mt-4">
-									<AlertTitle>{submitErrorTitle}</AlertTitle>
-									<AlertDescription>{submitError}</AlertDescription>
-								</Alert>
-							)}
+							<div className="mt-4">
+								<SubmitErrorAlert
+									error={submitError}
+									title={submitErrorTitle}
+								/>
+							</div>
 
 							{draftMessage && (
 								<Alert variant="default" className="mt-4">

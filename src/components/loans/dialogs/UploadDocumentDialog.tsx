@@ -5,7 +5,7 @@ import { File, FileText, Image, Upload, X } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import {
 	Form,
@@ -26,6 +26,8 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { uploadDocument } from "@/lib/fineract/upload";
 import type { DocumentUploadInput } from "@/lib/schemas/loan-metadata";
 import { documentUploadSchema } from "@/lib/schemas/loan-metadata";
@@ -76,7 +78,9 @@ export function UploadDocumentDialog({
 	const { tenantId } = useTenantStore();
 	const [isUploading, setIsUploading] = useState(false);
 	const [uploadProgress, setUploadProgress] = useState(0);
-	const [uploadError, setUploadError] = useState<string | null>(null);
+	const [uploadError, setUploadError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -137,7 +141,21 @@ export function UploadDocumentDialog({
 
 	const handleSubmit = async (data: DocumentUploadInput) => {
 		if (!selectedFile) {
-			setUploadError("Please select a file");
+			setUploadError(
+				toSubmitActionError(
+					{
+						code: "VALIDATION_ERROR",
+						message: "Please select a file",
+						statusCode: 400,
+					},
+					{
+						action: "uploadLoanDocument",
+						endpoint: `/api/fineract/loans/${loanId}/documents`,
+						method: "POST",
+						tenantId,
+					},
+				),
+			);
 			return;
 		}
 
@@ -171,7 +189,14 @@ export function UploadDocumentDialog({
 			setPreviewUrl(null);
 			setUploadProgress(0);
 		} catch (error) {
-			setUploadError(error instanceof Error ? error.message : "Upload failed");
+			setUploadError(
+				toSubmitActionError(error, {
+					action: "uploadLoanDocument",
+					endpoint: `/api/fineract/loans/${loanId}/documents`,
+					method: "POST",
+					tenantId,
+				}),
+			);
 			setUploadProgress(0);
 		} finally {
 			setIsUploading(false);
@@ -316,12 +341,7 @@ export function UploadDocumentDialog({
 							</div>
 						)}
 
-						{uploadError && (
-							<Alert variant="destructive">
-								<AlertTitle>Upload Failed</AlertTitle>
-								<AlertDescription>{uploadError}</AlertDescription>
-							</Alert>
-						)}
+						<SubmitErrorAlert error={uploadError} title="Upload Failed" />
 
 						<SheetFooter>
 							<Button

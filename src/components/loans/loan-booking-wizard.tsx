@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import {
 	LoanAdvancedStep,
 	LoanChargesStep,
@@ -20,8 +21,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type { PostLoansRequest } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { LoanApplicationInput } from "@/lib/schemas/loan-application";
 import {
 	baseLoanApplicationSchema,
@@ -109,7 +111,9 @@ export function LoanBookingWizard({
 	const { tenantId } = useTenantStore();
 	const [currentStep, setCurrentStep] = useState(0);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [draftMessage, setDraftMessage] = useState<string | null>(null);
 	const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(
 		null,
@@ -354,8 +358,14 @@ export function LoanBookingWizard({
 			await onSubmit(payload);
 			localStorage.removeItem("loanApplicationDraft");
 		} catch (error) {
-			const mapped = mapFineractError(error);
-			setSubmitError(mapped.message);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "createLoan",
+					endpoint: BFF_ROUTES.loans,
+					method: "POST",
+					tenantId,
+				}),
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -454,12 +464,12 @@ export function LoanBookingWizard({
 						/>
 					)}
 
-					{submitError && (
-						<Alert variant="destructive" className="mt-4">
-							<AlertTitle>Failed to submit loan application</AlertTitle>
-							<AlertDescription>{submitError}</AlertDescription>
-						</Alert>
-					)}
+					<div className="mt-4">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Failed to submit loan application"
+						/>
+					</div>
 
 					{draftMessage && (
 						<Alert variant="default" className="mt-4">

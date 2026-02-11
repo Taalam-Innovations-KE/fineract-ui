@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { Resolver } from "react-hook-form";
 import { useForm, useFormContext } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,6 +33,8 @@ import {
 	type SavingsProductRequestPayload,
 	savingsProductsApi,
 } from "@/lib/fineract/savings-products";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type SavingsProductFormData,
 	savingsProductSchema,
@@ -54,41 +57,6 @@ interface SavingsProductFormProps {
 
 function getOptionLabel(option: SelectOption): string {
 	return option.name || option.value || "Unnamed";
-}
-
-function getErrorMessage(error: unknown): string {
-	if (!error || typeof error !== "object") {
-		return "Failed to save savings product.";
-	}
-
-	const fineractError = error as Record<string, unknown>;
-
-	const nestedErrors = fineractError.errors;
-	if (Array.isArray(nestedErrors) && nestedErrors.length > 0) {
-		const firstError = nestedErrors[0];
-		if (firstError && typeof firstError === "object") {
-			const firstErrorMessage = (firstError as Record<string, unknown>)
-				.defaultUserMessage;
-			if (
-				typeof firstErrorMessage === "string" &&
-				firstErrorMessage.length > 0
-			) {
-				return firstErrorMessage;
-			}
-		}
-	}
-
-	const defaultUserMessage = fineractError.defaultUserMessage;
-	if (typeof defaultUserMessage === "string" && defaultUserMessage.length > 0) {
-		return defaultUserMessage;
-	}
-
-	const message = fineractError.message;
-	if (typeof message === "string" && message.length > 0) {
-		return message;
-	}
-
-	return "Failed to save savings product.";
 }
 
 function readUnknownBooleanProperty(source: object, property: string): boolean {
@@ -261,7 +229,9 @@ export function SavingsProductForm({
 	onCancel,
 }: SavingsProductFormProps) {
 	const { tenantId } = useTenantStore();
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const templateQuery = useQuery({
@@ -447,7 +417,14 @@ export function SavingsProductForm({
 			const payload = buildSavingsProductRequest(values);
 			await onSubmit(payload);
 		} catch (error) {
-			setSubmitError(getErrorMessage(error));
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: isEditMode ? "updateSavingsProduct" : "createSavingsProduct",
+					endpoint: "/api/fineract/savingsproducts",
+					method: isEditMode ? "PUT" : "POST",
+					tenantId,
+				}),
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -768,7 +745,7 @@ export function SavingsProductForm({
 								control={form.control}
 								name="withdrawalFeeForTransfers"
 								render={({ field }) => (
-									<FormItem className="flex items-center gap-2 space-y-0 rounded-sm border p-3">
+									<FormItem className="flex items-center gap-2 rounded-sm border p-3">
 										<FormControl>
 											<Checkbox
 												checked={field.value}
@@ -788,7 +765,7 @@ export function SavingsProductForm({
 								control={form.control}
 								name="withHoldTax"
 								render={({ field }) => (
-									<FormItem className="flex items-center gap-2 space-y-0 rounded-sm border p-3">
+									<FormItem className="flex items-center gap-2 rounded-sm border p-3">
 										<FormControl>
 											<Checkbox
 												checked={field.value}
@@ -806,7 +783,7 @@ export function SavingsProductForm({
 								control={form.control}
 								name="allowOverdraft"
 								render={({ field }) => (
-									<FormItem className="flex items-center gap-2 space-y-0 rounded-sm border p-3">
+									<FormItem className="flex items-center gap-2 rounded-sm border p-3">
 										<FormControl>
 											<Checkbox
 												checked={field.value}
@@ -826,7 +803,7 @@ export function SavingsProductForm({
 								control={form.control}
 								name="isDormancyTrackingActive"
 								render={({ field }) => (
-									<FormItem className="flex items-center gap-2 space-y-0 rounded-sm border p-3">
+									<FormItem className="flex items-center gap-2 rounded-sm border p-3">
 										<FormControl>
 											<Checkbox
 												checked={field.value}
@@ -897,9 +874,14 @@ export function SavingsProductForm({
 					</Card>
 				) : null}
 
-				{submitError ? (
-					<p className="text-sm text-destructive">{submitError}</p>
-				) : null}
+				<SubmitErrorAlert
+					error={submitError}
+					title={
+						isEditMode
+							? "Failed to update savings product"
+							: "Failed to create savings product"
+					}
+				/>
 
 				<div className="flex items-center justify-end gap-2">
 					<Button type="button" variant="outline" onClick={onCancel}>

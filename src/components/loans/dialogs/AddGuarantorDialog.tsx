@@ -6,6 +6,7 @@ import { Building2, User, Users } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type {
 	GuarantorInput,
 	GuarantorTemplateResponse,
@@ -73,7 +76,9 @@ export function AddGuarantorDialog({
 	const { tenantId } = useTenantStore();
 	const [guarantorType, setGuarantorType] = useState<GuarantorType>("client");
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [submitError, setSubmitError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const templateQuery = useQuery({
 		queryKey: ["guarantorTemplate", loanId, tenantId],
@@ -154,12 +159,10 @@ export function AddGuarantorDialog({
 			});
 
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(
-					error.message ||
-						error.errors?.[0]?.defaultUserMessage ||
-						"Failed to add guarantor",
-				);
+				const errorPayload = await response
+					.json()
+					.catch(() => ({ message: "Failed to add guarantor" }));
+				throw errorPayload;
 			}
 
 			onSuccess();
@@ -167,7 +170,12 @@ export function AddGuarantorDialog({
 			form.reset();
 		} catch (error) {
 			setSubmitError(
-				error instanceof Error ? error.message : "Failed to add guarantor",
+				toSubmitActionError(error, {
+					action: "addLoanGuarantor",
+					endpoint: BFF_ROUTES.loanGuarantors(loanId),
+					method: "POST",
+					tenantId,
+				}),
 			);
 		} finally {
 			setIsSubmitting(false);
@@ -504,12 +512,10 @@ export function AddGuarantorDialog({
 								/>
 							</div>
 
-							{submitError && (
-								<Alert variant="destructive">
-									<AlertTitle>Error</AlertTitle>
-									<AlertDescription>{submitError}</AlertDescription>
-								</Alert>
-							)}
+							<SubmitErrorAlert
+								error={submitError}
+								title="Unable to add guarantor"
+							/>
 
 							<SheetFooter>
 								<Button

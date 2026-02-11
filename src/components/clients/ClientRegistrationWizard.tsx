@@ -25,7 +25,6 @@ interface ClientRegistrationWizardProps {
 	clientTypeOptions: Array<{ id?: number; name?: string }>;
 	clientClassificationOptions: Array<{ id?: number; name?: string }>;
 	countryOptions: Array<{ id?: number; name?: string }>;
-	isAddressEnabled: boolean;
 	canCreateBusinessClient: boolean;
 	hasBusinessTypeConfiguration: boolean;
 	isOpen: boolean;
@@ -60,7 +59,6 @@ export function ClientRegistrationWizard({
 	clientTypeOptions,
 	clientClassificationOptions,
 	countryOptions,
-	isAddressEnabled,
 	canCreateBusinessClient,
 	hasBusinessTypeConfiguration,
 	isOpen,
@@ -189,7 +187,6 @@ export function ClientRegistrationWizard({
 					<ClientAddressStep
 						control={control}
 						errors={errors}
-						isAddressEnabled={isAddressEnabled}
 						countryOptions={countryOptions}
 					/>
 				)}

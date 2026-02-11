@@ -23,14 +23,12 @@ import type { ClientFormData } from "../../lib/schemas/client";
 interface ClientAddressStepProps {
 	control: Control<ClientFormData>;
 	errors: Record<string, { message?: string }>;
-	isAddressEnabled: boolean;
 	countryOptions: Array<{ id?: number; name?: string }>;
 }
 
 export function ClientAddressStep({
 	control,
 	errors,
-	isAddressEnabled,
 	countryOptions,
 }: ClientAddressStepProps) {
 	const activeFieldId = "client-active";
@@ -44,65 +42,52 @@ export function ClientAddressStep({
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{isAddressEnabled && (
-					<>
-						<FormField label="Address Line 1">
-							<Controller
-								control={control}
-								name="addressLine1"
-								render={({ field }) => (
-									<Input {...field} placeholder="Enter street address" />
-								)}
-							/>
-						</FormField>
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<FormField label="City" required error={errors.city?.message}>
-								<Controller
-									control={control}
-									name="city"
-									render={({ field }) => (
-										<Input {...field} placeholder="Enter city" />
-									)}
-								/>
-							</FormField>
-							<FormField
-								label="Country"
-								required
-								error={errors.countryId?.message}
-							>
-								<Controller
-									control={control}
-									name="countryId"
-									render={({ field }) => (
-										<Select
-											value={
-												field.value !== undefined ? String(field.value) : ""
-											}
-											onValueChange={(value) => field.onChange(Number(value))}
-											disabled={!countryOptions.length}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="Select country" />
-											</SelectTrigger>
-											<SelectContent>
-												{countryOptions
-													.filter((option) => option.id !== undefined)
-													.map((option) => (
-														<SelectItem
-															key={option.id}
-															value={String(option.id)}
-														>
-															{option.name || "Unnamed"}
-														</SelectItem>
-													))}
-											</SelectContent>
-										</Select>
-									)}
-								/>
-							</FormField>
-						</div>
-					</>
-				)}
+				<FormField label="Address Line 1">
+					<Controller
+						control={control}
+						name="addressLine1"
+						render={({ field }) => (
+							<Input {...field} placeholder="Enter street address" />
+						)}
+					/>
+				</FormField>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<FormField label="City" required error={errors.city?.message}>
+						<Controller
+							control={control}
+							name="city"
+							render={({ field }) => (
+								<Input {...field} placeholder="Enter city" />
+							)}
+						/>
+					</FormField>
+					<FormField label="Country" required error={errors.countryId?.message}>
+						<Controller
+							control={control}
+							name="countryId"
+							render={({ field }) => (
+								<Select
+									value={field.value !== undefined ? String(field.value) : ""}
+									onValueChange={(value) => field.onChange(Number(value))}
+									disabled={!countryOptions.length}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select country" />
+									</SelectTrigger>
+									<SelectContent>
+										{countryOptions
+											.filter((option) => option.id !== undefined)
+											.map((option) => (
+												<SelectItem key={option.id} value={String(option.id)}>
+													{option.name || "Unnamed"}
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+					</FormField>
+				</div>
 
 				<div className="space-y-3 border-t pt-4">
 					<div className="flex items-center gap-2">

@@ -774,10 +774,9 @@ export default function ClientsPage() {
 		isEditMode ? editAddressesQuery.error : null,
 	].filter(Boolean) as Error[];
 
-	const isAddressEnabled = Boolean(clientTemplate?.isAddressEnabled);
 	const clientKind = watch("clientKind");
 	const isBusiness = clientKind === "business";
-	const hasMissingCountry = isAddressEnabled && !countryOptions.length;
+	const hasMissingCountry = !countryOptions.length;
 	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
 	const activeMutationError = isEditMode
 		? updateMutation.error
@@ -1131,20 +1130,18 @@ export default function ClientsPage() {
 		}
 
 		if (uptoStep >= 4) {
-			if (isAddressEnabled) {
-				if (!countryOptions.length) {
-					pushError(
-						4,
-						"countryId",
-						"Country lookup values are missing. Configure countries first.",
-					);
-				}
-				if (!data.city?.trim()) {
-					pushError(4, "city", "City is required.");
-				}
-				if (!data.countryId) {
-					pushError(4, "countryId", "Country is required.");
-				}
+			if (!countryOptions.length) {
+				pushError(
+					4,
+					"countryId",
+					"Country lookup values are missing. Configure countries first.",
+				);
+			}
+			if (!data.city?.trim()) {
+				pushError(4, "city", "City is required.");
+			}
+			if (!data.countryId) {
+				pushError(4, "countryId", "Country is required.");
 			}
 
 			if (Boolean(data.active) && !data.activationDate) {
@@ -1218,19 +1215,13 @@ export default function ClientsPage() {
 			payload.dateFormat = "dd MMMM yyyy";
 		}
 
-		const hasAddressValues = Boolean(
-			data.addressLine1?.trim() || data.city?.trim() || data.countryId,
-		);
-
-		if (isAddressEnabled && hasAddressValues) {
-			payload.address = [
-				{
-					addressLine1: data.addressLine1?.trim() || undefined,
-					city: data.city?.trim() || undefined,
-					countryId: data.countryId,
-				},
-			];
-		}
+		payload.address = [
+			{
+				addressLine1: data.addressLine1?.trim() || undefined,
+				city: data.city?.trim() || undefined,
+				countryId: data.countryId,
+			},
+		];
 
 		const identifiers: IdentifierInput[] = [];
 
@@ -1279,14 +1270,11 @@ export default function ClientsPage() {
 			const updatePayload: ClientCreatePayload = { ...payload };
 			delete updatePayload.address;
 
-			const updateAddress =
-				isAddressEnabled && hasAddressValues
-					? {
-							addressLine1: data.addressLine1?.trim() || undefined,
-							city: data.city?.trim() || undefined,
-							countryId: data.countryId,
-						}
-					: undefined;
+			const updateAddress = {
+				addressLine1: data.addressLine1?.trim() || undefined,
+				city: data.city?.trim() || undefined,
+				countryId: data.countryId,
+			};
 
 			updateMutation.mutate({
 				clientId: editClientId,
@@ -1402,7 +1390,6 @@ export default function ClientsPage() {
 									(o) => o.id,
 								)}
 								countryOptions={countryOptions.filter((o) => o.id)}
-								isAddressEnabled={isAddressEnabled}
 								canCreateBusinessClient={businessLineOptions.length > 0}
 								hasBusinessTypeConfiguration={businessLineOptions.length > 0}
 								isOpen={isDrawerOpen}

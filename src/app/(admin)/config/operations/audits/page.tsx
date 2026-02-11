@@ -30,6 +30,7 @@ import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { useTenantStore } from "@/store/tenant";
 
 const AUDITS_PAGE_SIZE = 10;
+const ALL_FILTER_OPTION = "__all__";
 
 interface AuditEntry {
 	id?: number;
@@ -66,9 +67,15 @@ async function fetchAudits(
 	if (params?.officeId)
 		queryParams.append("officeId", params.officeId.toString());
 	if (params?.makerDateTimeFrom)
-		queryParams.append("makerDateTimeFrom", params.makerDateTimeFrom);
+		queryParams.append(
+			"makerDateTimeFrom",
+			formatDateTimeForAuditFilter(params.makerDateTimeFrom),
+		);
 	if (params?.makerDateTimeTo)
-		queryParams.append("makerDateTimeTo", params.makerDateTimeTo);
+		queryParams.append(
+			"makerDateTimeTo",
+			formatDateTimeForAuditFilter(params.makerDateTimeTo),
+		);
 	if (params?.processingResult)
 		queryParams.append("processingResult", params.processingResult);
 	if (params?.offset !== undefined)
@@ -80,7 +87,7 @@ async function fetchAudits(
 
 	const response = await fetch(url, {
 		headers: {
-			"x-tenant-id": tenantId,
+			"fineract-platform-tenantid": tenantId,
 		},
 	});
 
@@ -99,7 +106,7 @@ async function fetchAuditSearchTemplate(tenantId: string): Promise<{
 }> {
 	const response = await fetch(`${BFF_ROUTES.audits}/searchtemplate`, {
 		headers: {
-			"x-tenant-id": tenantId,
+			"fineract-platform-tenantid": tenantId,
 		},
 	});
 
@@ -339,16 +346,21 @@ export default function AuditLogsPage() {
 							<div className="space-y-2">
 								<Label htmlFor="action-filter">Action</Label>
 								<Select
-									value={filters.actionName}
+									value={filters.actionName || ALL_FILTER_OPTION}
 									onValueChange={(value) =>
-										updateFilters({ ...filters, actionName: value })
+										updateFilters({
+											...filters,
+											actionName: value === ALL_FILTER_OPTION ? "" : value,
+										})
 									}
 								>
 									<SelectTrigger>
 										<SelectValue placeholder="All Actions" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">All Actions</SelectItem>
+										<SelectItem value={ALL_FILTER_OPTION}>
+											All Actions
+										</SelectItem>
 										{searchTemplate?.actionNames?.map((action) => (
 											<SelectItem key={action} value={action}>
 												{action}
@@ -361,16 +373,21 @@ export default function AuditLogsPage() {
 							<div className="space-y-2">
 								<Label htmlFor="entity-filter">Entity</Label>
 								<Select
-									value={filters.entityName}
+									value={filters.entityName || ALL_FILTER_OPTION}
 									onValueChange={(value) =>
-										updateFilters({ ...filters, entityName: value })
+										updateFilters({
+											...filters,
+											entityName: value === ALL_FILTER_OPTION ? "" : value,
+										})
 									}
 								>
 									<SelectTrigger>
 										<SelectValue placeholder="All Entities" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">All Entities</SelectItem>
+										<SelectItem value={ALL_FILTER_OPTION}>
+											All Entities
+										</SelectItem>
 										{searchTemplate?.entityNames?.map((entity) => (
 											<SelectItem key={entity} value={entity}>
 												{entity}
@@ -383,16 +400,22 @@ export default function AuditLogsPage() {
 							<div className="space-y-2">
 								<Label htmlFor="status-filter">Processing Result</Label>
 								<Select
-									value={filters.processingResult}
+									value={filters.processingResult || ALL_FILTER_OPTION}
 									onValueChange={(value) =>
-										updateFilters({ ...filters, processingResult: value })
+										updateFilters({
+											...filters,
+											processingResult:
+												value === ALL_FILTER_OPTION ? "" : value,
+										})
 									}
 								>
 									<SelectTrigger>
 										<SelectValue placeholder="All Results" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">All Results</SelectItem>
+										<SelectItem value={ALL_FILTER_OPTION}>
+											All Results
+										</SelectItem>
 										<SelectItem value="processed">Processed</SelectItem>
 										<SelectItem value="error">Error</SelectItem>
 										<SelectItem value="rejected">Rejected</SelectItem>
@@ -473,7 +496,8 @@ export default function AuditLogsPage() {
 							totalRows={totalRecords}
 							onPageChange={setPageIndex}
 							getRowId={(audit: AuditEntry) =>
-								audit.id?.toString() || `audit-${Math.random()}`
+								audit.id?.toString() ||
+								`${audit.madeOnDate || "unknown"}-${audit.actionName || "unknown"}-${audit.resourceId || "unknown"}`
 							}
 							emptyMessage="No audit entries found matching the current filters."
 						/>
@@ -482,4 +506,14 @@ export default function AuditLogsPage() {
 			</div>
 		</PageShell>
 	);
+}
+
+function formatDateTimeForAuditFilter(value: string): string {
+	if (!value) return value;
+
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+
+	const pad = (num: number) => num.toString().padStart(2, "0");
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }

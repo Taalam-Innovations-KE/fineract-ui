@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,8 @@ import type {
 	PostRolesRequest,
 	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
@@ -64,6 +67,9 @@ async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
 export default function RolesPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	async function createRole(data: PostRolesRequest): Promise<GetRolesResponse> {
 		const response = await fetch(BFF_ROUTES.roles, {
@@ -76,7 +82,10 @@ export default function RolesPage() {
 		});
 
 		if (!response.ok) {
-			throw new Error("Failed to create role");
+			const payload = await response
+				.json()
+				.catch(() => ({ message: "Failed to create role" }));
+			throw payload;
 		}
 
 		return response.json();
@@ -107,11 +116,23 @@ export default function RolesPage() {
 			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
 			setCreateDialogOpen(false);
 			setFormData({ name: "", description: "" });
+			setSubmitError(null);
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "createRole",
+					endpoint: BFF_ROUTES.roles,
+					method: "POST",
+					tenantId,
+				}),
+			);
 		},
 	});
 
 	const handleCreateSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+		setSubmitError(null);
 		createMutation.mutate({
 			name: formData.name,
 			description: formData.description,
@@ -232,6 +253,10 @@ export default function RolesPage() {
 										onSubmit={handleCreateSubmit}
 										className="space-y-4 mt-6"
 									>
+										<SubmitErrorAlert
+											error={submitError}
+											title="Failed to create role"
+										/>
 										<div>
 											<label className="text-sm font-medium">
 												Template (Optional)

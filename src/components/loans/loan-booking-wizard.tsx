@@ -284,7 +284,21 @@ export function LoanBookingWizard({
 				const errorMessages = Object.entries(errors)
 					.map(([key, error]) => `${key}: ${error?.message || "Invalid"}`)
 					.join(", ");
-				setSubmitError(`Validation failed: ${errorMessages}`);
+				setSubmitError(
+					toSubmitActionError(
+						{
+							code: "VALIDATION_ERROR",
+							message: `Validation failed: ${errorMessages}`,
+							statusCode: 400,
+						},
+						{
+							action: "createLoan",
+							endpoint: BFF_ROUTES.loans,
+							method: "POST",
+							tenantId,
+						},
+					),
+				);
 				setIsSubmitting(false);
 				return;
 			}

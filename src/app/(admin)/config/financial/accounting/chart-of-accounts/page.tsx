@@ -695,12 +695,13 @@ export default function ChartOfAccountsPage() {
 	};
 
 	const renderTreeNode = (node: TreeNode, depth: number): React.ReactNode => {
-		if (!node.id) return null;
+		const nodeId = node.id;
+		if (nodeId === undefined) return null;
 		const hasChildren = node.children.length > 0;
-		const isExpanded = expandedNodeIds.has(node.id);
+		const isExpanded = expandedNodeIds.has(nodeId);
 
 		return (
-			<div key={node.id} className="space-y-1">
+			<div key={nodeId} className="space-y-1">
 				<div
 					className="flex items-center justify-between rounded-sm border border-border/60 px-3 py-2"
 					style={{ paddingLeft: `${depth * 16 + 12}px` }}
@@ -712,7 +713,7 @@ export default function ChartOfAccountsPage() {
 								size="icon"
 								variant="ghost"
 								className="h-6 w-6"
-								onClick={() => toggleNode(node.id)}
+								onClick={() => toggleNode(nodeId)}
 								aria-label={
 									isExpanded ? "Collapse children" : "Expand children"
 								}

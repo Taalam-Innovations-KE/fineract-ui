@@ -1,10 +1,19 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { CalendarDays, Clock3, RotateCcw, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -15,15 +24,40 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { FineractError } from "@/lib/fineract/error-mapping";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
+	EnumOptionData,
 	GetWorkingDaysTemplateResponse,
 	PutWorkingDaysRequest,
 	WorkingDaysData,
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
+
+type WorkingDaysForm = {
+	recurrence: string;
+	extendTermForDailyRepayments: boolean;
+	repaymentRescheduleType?: EnumOptionData;
+};
+
+type WorkingDaysSubmitError = FineractError & {
+	action: string;
+	endpoint: string;
+	method: "PUT";
+	timestamp: string;
+	tenantId?: string;
+};
+
+const DAYS_OF_WEEK = [
+	{ value: "MO", label: "Monday" },
+	{ value: "TU", label: "Tuesday" },
+	{ value: "WE", label: "Wednesday" },
+	{ value: "TH", label: "Thursday" },
+	{ value: "FR", label: "Friday" },
+	{ value: "SA", label: "Saturday" },
+	{ value: "SU", label: "Sunday" },
+] as const;
 
 async function fetchWorkingDays(tenantId: string): Promise<WorkingDaysData> {
 	const response = await fetch(BFF_ROUTES.workingDays, {
@@ -80,23 +114,17 @@ async function updateWorkingDays(
 	}
 }
 
-const DAYS_OF_WEEK = [
-	{ value: "MO", label: "Monday" },
-	{ value: "TU", label: "Tuesday" },
-	{ value: "WE", label: "Wednesday" },
-	{ value: "TH", label: "Thursday" },
-	{ value: "FR", label: "Friday" },
-	{ value: "SA", label: "Saturday" },
-	{ value: "SU", label: "Sunday" },
-];
-
 function parseRecurrenceDays(recurrence?: string): string[] {
-	if (!recurrence) return [];
+	if (!recurrence) {
+		return [];
+	}
 
 	const byDayPart = recurrence
 		.split(";")
 		.find((part) => part.startsWith("BYDAY="));
-	if (!byDayPart) return [];
+	if (!byDayPart) {
+		return [];
+	}
 
 	return byDayPart.replace("BYDAY=", "").split(",").filter(Boolean);
 }
@@ -109,15 +137,89 @@ function buildRecurrence(days: string[]): string {
 	return `FREQ=WEEKLY;INTERVAL=1;BYDAY=${orderedDays.join(",")}`;
 }
 
+function getInitialFormState(data: WorkingDaysData): WorkingDaysForm {
+	return {
+		recurrence:
+			data.recurrence || buildRecurrence(["MO", "TU", "WE", "TH", "FR"]),
+		extendTermForDailyRepayments: Boolean(data.extendTermForDailyRepayments),
+		repaymentRescheduleType: data.repaymentRescheduleType,
+	};
+}
+
+function WorkingDaysPageSkeleton() {
+	return (
+		<div className="space-y-6">
+			<div className="grid gap-4 md:grid-cols-3">
+				{["overview-a", "overview-b", "overview-c"].map((key) => (
+					<Card key={key}>
+						<CardContent className="pt-6">
+							<Skeleton className="h-4 w-28" />
+							<Skeleton className="mt-3 h-8 w-16" />
+							<Skeleton className="mt-2 h-4 w-32" />
+						</CardContent>
+					</Card>
+				))}
+			</div>
+
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-5 w-40" />
+					<Skeleton className="h-4 w-64" />
+				</CardHeader>
+				<CardContent className="grid gap-3 grid-cols-2 md:grid-cols-4">
+					{DAYS_OF_WEEK.map((day) => (
+						<div
+							key={day.value}
+							className="flex items-center gap-2 rounded-sm border p-3"
+						>
+							<Skeleton className="h-4 w-4 rounded-sm" />
+							<Skeleton className="h-4 w-20" />
+						</div>
+					))}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-5 w-56" />
+					<Skeleton className="h-4 w-72" />
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="flex items-start gap-3 rounded-sm border p-4">
+						<Skeleton className="h-4 w-4 rounded-sm" />
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-48" />
+							<Skeleton className="h-4 w-64" />
+						</div>
+					</div>
+					<div className="space-y-2">
+						<Skeleton className="h-4 w-44" />
+						<Skeleton className="h-10 w-full" />
+					</div>
+				</CardContent>
+			</Card>
+
+			<div className="flex justify-end gap-2">
+				<Skeleton className="h-10 w-24" />
+				<Skeleton className="h-10 w-40" />
+			</div>
+		</div>
+	);
+}
+
 export default function WorkingDaysPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
+	const [successMessage, setSuccessMessage] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<WorkingDaysSubmitError | null>(
+		null,
+	);
+	const [formState, setFormState] = useState<WorkingDaysForm | null>(null);
 
 	const {
 		data: workingDays,
-		isLoading: isLoadingDays,
-		error: daysError,
+		isLoading: isWorkingDaysLoading,
+		error: workingDaysError,
 	} = useQuery({
 		queryKey: ["working-days", tenantId],
 		queryFn: () => fetchWorkingDays(tenantId),
@@ -125,241 +227,371 @@ export default function WorkingDaysPage() {
 
 	const {
 		data: template,
-		isLoading: isLoadingTemplate,
+		isLoading: isTemplateLoading,
 		error: templateError,
 	} = useQuery({
 		queryKey: ["working-days-template", tenantId],
 		queryFn: () => fetchWorkingDaysTemplate(tenantId),
 	});
 
+	const repaymentOptions = useMemo(
+		() =>
+			template?.repaymentRescheduleOptions ||
+			workingDays?.repaymentRescheduleOptions ||
+			[],
+		[template, workingDays],
+	);
+
 	const updateMutation = useMutation({
 		mutationFn: (updates: PutWorkingDaysRequest) =>
 			updateWorkingDays(tenantId, updates),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["working-days"] });
-			setToastMessage("Working days updated successfully");
+			queryClient.invalidateQueries({ queryKey: ["working-days", tenantId] });
+			setSubmitError(null);
+			setSuccessMessage("Working days configuration saved.");
 		},
 		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+			const mappedError = mapFineractError(error);
+			setSuccessMessage(null);
+			const trackedError: WorkingDaysSubmitError = {
+				...mappedError,
+				action: "updateWorkingDays",
+				endpoint: BFF_ROUTES.workingDays,
+				method: "PUT",
+				timestamp: new Date().toISOString(),
+				tenantId,
+			};
+			console.error("submit-error", trackedError);
+			setSubmitError(trackedError);
 		},
 	});
 
 	useEffect(() => {
-		if (toastMessage) {
-			const timer = setTimeout(() => setToastMessage(null), 5000);
-			return () => clearTimeout(timer);
+		if (!workingDays) {
+			return;
 		}
-	}, [toastMessage]);
 
-	const isLoading = isLoadingDays || isLoadingTemplate;
-	const error = daysError || templateError;
-
-	const [localConfig, setLocalConfig] = useState<
-		Partial<PutWorkingDaysRequest>
-	>({});
-
-	useEffect(() => {
-		if (workingDays) {
-			setLocalConfig({
-				recurrence: workingDays.recurrence,
-				extendTermForDailyRepayments: workingDays.extendTermForDailyRepayments,
-				repaymentRescheduleType: workingDays.repaymentRescheduleType,
-			});
-		}
+		setFormState(getInitialFormState(workingDays));
 	}, [workingDays]);
 
-	const handleSave = () => {
-		updateMutation.mutate(localConfig as PutWorkingDaysRequest);
-	};
+	useEffect(() => {
+		if (!successMessage) {
+			return;
+		}
 
-	const selectedDays = parseRecurrenceDays(localConfig.recurrence);
+		const timeout = setTimeout(() => setSuccessMessage(null), 5000);
+		return () => clearTimeout(timeout);
+	}, [successMessage]);
 
-	const hasChanges =
-		localConfig.recurrence !== workingDays?.recurrence ||
-		localConfig.extendTermForDailyRepayments !==
-			workingDays?.extendTermForDailyRepayments ||
-		localConfig.repaymentRescheduleType?.id !==
-			workingDays?.repaymentRescheduleType?.id;
+	const isLoading = isWorkingDaysLoading || isTemplateLoading;
+	const initialLoadError = workingDaysError || templateError;
 
 	if (isLoading) {
 		return (
 			<PageShell
 				title="Working Days"
-				subtitle="Configure the days of the week that are considered working days for your organisation"
+				subtitle="Configure which weekdays are available for business operations and repayment scheduling."
 			>
-				<div className="max-w-2xl space-y-6">
-					<div className="space-y-4">
-						<Skeleton className="h-6 w-36" />
-						<Skeleton className="h-4 w-80" />
-						<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-							{Array.from({ length: 8 }).map((_, index) => (
-								<div
-									key={`working-day-skeleton-${index}`}
-									className="flex items-center gap-2"
-								>
-									<Skeleton className="h-4 w-4 rounded-sm" />
-									<Skeleton className="h-4 w-16" />
-								</div>
-							))}
-						</div>
-					</div>
-					<div className="space-y-3">
-						<div className="flex items-start gap-2">
-							<Skeleton className="h-4 w-4 rounded-sm" />
-							<div className="space-y-2">
-								<Skeleton className="h-4 w-56" />
-								<Skeleton className="h-4 w-72" />
-							</div>
-						</div>
-						<div className="space-y-2">
-							<Skeleton className="h-4 w-48" />
-							<Skeleton className="h-10 w-full" />
-						</div>
-					</div>
-				</div>
+				<WorkingDaysPageSkeleton />
 			</PageShell>
 		);
 	}
 
-	if (error) {
+	if (initialLoadError || !workingDays || !formState) {
 		return (
 			<PageShell
 				title="Working Days"
-				subtitle="Configure organisation working days"
+				subtitle="Configure which weekdays are available for business operations and repayment scheduling."
 			>
-				<Alert>
-					<AlertTitle>Error</AlertTitle>
+				<Alert variant="destructive">
+					<AlertTitle>Unable to load working days</AlertTitle>
 					<AlertDescription>
-						Failed to load working days configuration. Please try again.
+						The configuration could not be fetched right now. Refresh the page
+						and try again.
 					</AlertDescription>
 				</Alert>
 			</PageShell>
 		);
 	}
 
+	const selectedDays = parseRecurrenceDays(formState.recurrence);
+	const selectedDayLabels = DAYS_OF_WEEK.filter((day) =>
+		selectedDays.includes(day.value),
+	).map((day) => day.label);
+
+	const selectedRescheduleTypeLabel =
+		formState.repaymentRescheduleType?.value || "Not selected";
+	const hasChanges =
+		formState.recurrence !== workingDays.recurrence ||
+		formState.extendTermForDailyRepayments !==
+			Boolean(workingDays.extendTermForDailyRepayments) ||
+		formState.repaymentRescheduleType?.id !==
+			workingDays.repaymentRescheduleType?.id;
+	const canSubmit = hasChanges && selectedDays.length > 0;
+
+	const handleToggleDay = (dayValue: string, checked: boolean) => {
+		const nextDays = checked
+			? Array.from(new Set([...selectedDays, dayValue]))
+			: selectedDays.filter((day) => day !== dayValue);
+
+		setFormState((current) =>
+			current
+				? {
+						...current,
+						recurrence: buildRecurrence(nextDays),
+					}
+				: current,
+		);
+		setSuccessMessage(null);
+		setSubmitError(null);
+	};
+
+	const handleReset = () => {
+		setFormState(getInitialFormState(workingDays));
+		setSuccessMessage(null);
+		setSubmitError(null);
+	};
+
+	const handleSave = () => {
+		if (selectedDays.length === 0) {
+			setSubmitError({
+				action: "updateWorkingDays",
+				code: "validation.workingDays.required",
+				endpoint: BFF_ROUTES.workingDays,
+				message: "Select at least one working day before saving.",
+				method: "PUT",
+				statusCode: 400,
+				timestamp: new Date().toISOString(),
+				tenantId,
+			});
+			setSuccessMessage(null);
+			return;
+		}
+
+		updateMutation.mutate({
+			recurrence: formState.recurrence,
+			extendTermForDailyRepayments: formState.extendTermForDailyRepayments,
+			repaymentRescheduleType: formState.repaymentRescheduleType,
+		});
+	};
+
 	return (
 		<PageShell
 			title="Working Days"
-			subtitle="Configure the days of the week that are considered working days for your organisation"
+			subtitle="Configure which weekdays are available for business operations and repayment scheduling."
 		>
-			<div className="max-w-2xl space-y-6">
-				<div className="space-y-4">
-					<div>
-						<Label className="text-base font-semibold">Working Days</Label>
-						<p className="text-sm text-muted-foreground mb-3">
-							Select which days of the week are considered working days
-						</p>
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-							{DAYS_OF_WEEK.map((day) => (
-								<div key={day.value} className="flex items-center space-x-2">
-									<Checkbox
-										id={day.value}
-										checked={selectedDays.includes(day.value)}
-										onCheckedChange={(checked: boolean) => {
-											const currentDays = parseRecurrenceDays(
-												localConfig.recurrence,
-											);
-											let nextDays: string[];
-
-											if (checked) {
-												nextDays = Array.from(
-													new Set([...currentDays, day.value]),
-												);
-											} else {
-												nextDays = currentDays.filter((d) => d !== day.value);
-											}
-
-											setLocalConfig({
-												...localConfig,
-												recurrence: buildRecurrence(nextDays),
-											});
-										}}
-									/>
-									<Label htmlFor={day.value} className="text-sm">
-										{day.label}
-									</Label>
+			<div className="space-y-6">
+				<div className="grid gap-4 md:grid-cols-3">
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<CalendarDays className="h-5 w-5 text-primary" />
 								</div>
-							))}
-						</div>
-					</div>
+								<div>
+									<p className="text-2xl font-bold">{selectedDays.length}</p>
+									<p className="text-sm text-muted-foreground">
+										Working days selected
+									</p>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<Clock3 className="h-5 w-5 text-primary" />
+								</div>
+								<div>
+									<Badge
+										variant={
+											formState.extendTermForDailyRepayments
+												? "success"
+												: "secondary"
+										}
+									>
+										{formState.extendTermForDailyRepayments
+											? "Enabled"
+											: "Disabled"}
+									</Badge>
+									<p className="mt-1 text-sm text-muted-foreground">
+										Daily repayment extension
+									</p>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<p className="text-sm text-muted-foreground">Reschedule policy</p>
+							<p className="mt-2 font-semibold">
+								{selectedRescheduleTypeLabel}
+							</p>
+						</CardContent>
+					</Card>
+				</div>
 
-					<div className="space-y-3">
-						<div className="flex items-center space-x-2">
+				{successMessage && (
+					<Alert>
+						<AlertTitle>Saved</AlertTitle>
+						<AlertDescription>{successMessage}</AlertDescription>
+					</Alert>
+				)}
+
+				{submitError && (
+					<Alert variant="destructive">
+						<AlertTitle>Failed to update working days</AlertTitle>
+						<AlertDescription className="space-y-2">
+							<p>{submitError.message}</p>
+							{submitError.details &&
+								Object.values(submitError.details).flat().length > 0 && (
+									<ul className="list-disc space-y-1 pl-5 text-xs">
+										{Array.from(
+											new Set(Object.values(submitError.details).flat()),
+										).map((message) => (
+											<li key={message}>{message}</li>
+										))}
+									</ul>
+								)}
+						</AlertDescription>
+					</Alert>
+				)}
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Working week calendar</CardTitle>
+						<CardDescription>
+							Choose the weekdays available for transactions, schedules, and
+							processing.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+							{DAYS_OF_WEEK.map((day) => {
+								const isChecked = selectedDays.includes(day.value);
+
+								return (
+									<label
+										key={day.value}
+										htmlFor={`working-day-${day.value}`}
+										className="flex cursor-pointer items-center gap-2 rounded-sm border p-3"
+									>
+										<Checkbox
+											id={`working-day-${day.value}`}
+											checked={isChecked}
+											onCheckedChange={(checked) =>
+												handleToggleDay(day.value, Boolean(checked))
+											}
+										/>
+										<span className="text-sm font-medium">{day.label}</span>
+									</label>
+								);
+							})}
+						</div>
+						<p className="text-sm text-muted-foreground">
+							{selectedDayLabels.length > 0
+								? `Selected: ${selectedDayLabels.join(", ")}`
+								: "No days selected"}
+						</p>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Repayment handling</CardTitle>
+						<CardDescription>
+							Define how repayments are handled when they fall on non-working
+							days.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="flex items-start gap-3 rounded-sm border p-4">
 							<Checkbox
 								id="extend-daily"
-								checked={localConfig.extendTermForDailyRepayments || false}
-								onCheckedChange={(checked: boolean) =>
-									setLocalConfig({
-										...localConfig,
-										extendTermForDailyRepayments: checked,
-									})
-								}
+								checked={formState.extendTermForDailyRepayments}
+								onCheckedChange={(checked) => {
+									setFormState((current) =>
+										current
+											? {
+													...current,
+													extendTermForDailyRepayments: Boolean(checked),
+												}
+											: current,
+									);
+									setSuccessMessage(null);
+									setSubmitError(null);
+								}}
 							/>
-							<div>
-								<Label htmlFor="extend-daily" className="text-sm font-medium">
+							<div className="space-y-1">
+								<Label htmlFor="extend-daily" className="font-medium">
 									Extend term for daily repayments
 								</Label>
-								<p className="text-xs text-muted-foreground">
-									Allow loan terms to be extended when repayments fall on
-									non-working days
+								<p className="text-sm text-muted-foreground">
+									Allows loan terms to extend when repayment dates land on
+									non-working days.
 								</p>
 							</div>
 						</div>
-					</div>
 
-					{template?.repaymentRescheduleOptions && (
 						<div className="space-y-2">
-							<Label htmlFor="reschedule-type">Repayment Reschedule Type</Label>
+							<Label htmlFor="reschedule-type">Repayment reschedule type</Label>
 							<Select
-								value={
-									localConfig.repaymentRescheduleType?.id?.toString() || ""
-								}
+								value={formState.repaymentRescheduleType?.id?.toString() || ""}
 								onValueChange={(value) => {
-									const selectedOption =
-										template?.repaymentRescheduleOptions?.find(
-											(option) => option.id?.toString() === value,
-										);
-									setLocalConfig({
-										...localConfig,
-										repaymentRescheduleType: selectedOption,
-									});
+									const selectedOption = repaymentOptions.find(
+										(option) => option.id?.toString() === value,
+									);
+									setFormState((current) =>
+										current
+											? {
+													...current,
+													repaymentRescheduleType: selectedOption,
+												}
+											: current,
+									);
+									setSuccessMessage(null);
+									setSubmitError(null);
 								}}
 							>
-								<SelectTrigger>
+								<SelectTrigger id="reschedule-type">
 									<SelectValue placeholder="Select reschedule type" />
 								</SelectTrigger>
 								<SelectContent>
-									{template.repaymentRescheduleOptions.map((option) => (
+									{repaymentOptions.map((option) => (
 										<SelectItem
 											key={option.id}
 											value={option.id?.toString() || ""}
 										>
-											{option.value}
+											{option.value || "Unnamed option"}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
 						</div>
-					)}
-				</div>
+					</CardContent>
+				</Card>
 
-				{hasChanges && (
-					<div className="flex justify-end">
-						<Button onClick={handleSave} disabled={updateMutation.isPending}>
-							{updateMutation.isPending ? "Updating..." : "Save Changes"}
-						</Button>
-					</div>
-				)}
+				<div className="flex justify-end gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						onClick={handleReset}
+						disabled={!hasChanges || updateMutation.isPending}
+					>
+						<RotateCcw className="mr-2 h-4 w-4" />
+						Reset
+					</Button>
+					<Button
+						type="button"
+						onClick={handleSave}
+						disabled={!canSubmit || updateMutation.isPending}
+					>
+						<Save className="mr-2 h-4 w-4" />
+						{updateMutation.isPending ? "Saving..." : "Save Changes"}
+					</Button>
+				</div>
 			</div>
-
-			{toastMessage && (
-				<div className="fixed bottom-4 right-4 z-50">
-					<Alert>
-						<AlertTitle>Notification</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</PageShell>
 	);
 }

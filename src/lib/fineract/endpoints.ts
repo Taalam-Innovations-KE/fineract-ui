@@ -13,6 +13,8 @@ export const FINERACT_ENDPOINTS = {
 	codes: "/v1/codes",
 	workingDays: "/v1/workingdays",
 	holidays: "/v1/holidays",
+	delinquencyBuckets: "/v1/delinquency/buckets",
+	delinquencyRanges: "/v1/delinquency/ranges",
 	businessDate: "/v1/businessdate",
 	configurations: "/v1/configurations",
 	accountNumberFormats: "/v1/accountnumberformats",
@@ -76,6 +78,10 @@ export const FINERACT_ENDPOINTS = {
 	glClosures: "/v1/glclosures",
 	glClosureById: (glClosureId: number | string) =>
 		`/v1/glclosures/${glClosureId}`,
+	provisioningCriteria: "/v1/provisioningcriteria",
+	provisioningCriteriaTemplate: "/v1/provisioningcriteria/template",
+	provisioningCriteriaById: (criteriaId: number | string) =>
+		`/v1/provisioningcriteria/${criteriaId}`,
 
 	// Reports
 	reports: "/v1/reports",
@@ -99,6 +105,8 @@ export const BFF_ROUTES = {
 	codes: "/api/fineract/codes",
 	workingDays: "/api/fineract/workingdays",
 	holidays: "/api/fineract/holidays",
+	delinquencyBuckets: "/api/fineract/delinquency/buckets",
+	delinquencyRanges: "/api/fineract/delinquency/ranges",
 	businessDate: "/api/fineract/businessdate",
 	configurations: "/api/fineract/configurations",
 	accountNumberFormats: "/api/fineract/accountnumberformats",
@@ -176,6 +184,10 @@ export const BFF_ROUTES = {
 	glClosures: "/api/fineract/glclosures",
 	glClosureById: (glClosureId: number | string) =>
 		`/api/fineract/glclosures/${glClosureId}`,
+	provisioningCriteria: "/api/fineract/provisioningcriteria",
+	provisioningCriteriaTemplate: "/api/fineract/provisioningcriteria/template",
+	provisioningCriteriaById: (criteriaId: number | string) =>
+		`/api/fineract/provisioningcriteria/${criteriaId}`,
 
 	// Reports
 	reports: "/api/fineract/reports",

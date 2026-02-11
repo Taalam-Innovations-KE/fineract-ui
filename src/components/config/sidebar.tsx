@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	AlertCircle,
 	Banknote,
 	Building2,
 	Calendar,
@@ -104,6 +105,11 @@ const navItems: NavItem[] = [
 				title: "Business Date",
 				href: "/config/organisation/business-date",
 				icon: CalendarDays,
+			},
+			{
+				title: "Delinquency Buckets",
+				href: "/config/organisation/delinquency-buckets",
+				icon: AlertCircle,
 			},
 		],
 	},

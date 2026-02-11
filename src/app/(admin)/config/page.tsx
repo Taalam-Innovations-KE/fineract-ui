@@ -31,6 +31,7 @@ const configModules = [
 			"Working Days",
 			"Holidays",
 			"Business Date",
+			"Delinquency Buckets",
 		],
 	},
 	{

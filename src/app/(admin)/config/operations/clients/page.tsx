@@ -55,6 +55,7 @@ import type {
 	OfficeData,
 	PostClientsRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { ClientFormData } from "@/lib/schemas/client";
 import { useTenantStore } from "@/store/tenant";
 
@@ -203,6 +204,51 @@ function flattenErrorDetails(details?: Record<string, string[]>) {
 		.filter(Boolean);
 }
 
+function isFineractRequestError(error: unknown): error is FineractRequestError {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+
+	const candidate = error as Partial<FineractRequestError>;
+	return (
+		typeof candidate.code === "string" &&
+		typeof candidate.message === "string" &&
+		typeof candidate.action === "string" &&
+		typeof candidate.endpoint === "string" &&
+		typeof candidate.method === "string" &&
+		typeof candidate.timestamp === "string"
+	);
+}
+
+function normalizeClientSubmissionError({
+	error,
+	isEditMode,
+	editClientId,
+	tenantId,
+}: {
+	error: unknown;
+	isEditMode: boolean;
+	editClientId: number | null;
+	tenantId: string;
+}): FineractRequestError {
+	if (isFineractRequestError(error)) {
+		return error;
+	}
+
+	return {
+		code: "UNKNOWN_ERROR",
+		message: error instanceof Error ? error.message : "Failed to submit client",
+		action: isEditMode ? "updateClient" : "createClient",
+		endpoint:
+			isEditMode && editClientId !== null
+				? `${BFF_ROUTES.clients}/${editClientId}`
+				: BFF_ROUTES.clients,
+		method: isEditMode ? "PUT" : "POST",
+		timestamp: new Date().toISOString(),
+		tenantId,
+	};
+}
+
 function toInputDate(value?: string): string {
 	if (!value) {
 		return "";
@@ -324,15 +370,26 @@ async function updateClient(
 		body: JSON.stringify(payload),
 	});
 
-	const data = await response.json();
+	const data = (await response.json()) as Record<string, unknown>;
 	if (!response.ok) {
-		const error = new Error(
-			data.message || "Failed to update client",
-		) as FineractRequestError;
-		error.code = data.code;
-		error.details = data.details;
-		error.statusCode = data.statusCode;
-		throw error;
+		throw toSubmitActionError(
+			{
+				...data,
+				statusCode: response.status,
+				httpStatusCode: response.status,
+				statusText: response.statusText,
+				message:
+					typeof data.message === "string"
+						? data.message
+						: "Failed to update client",
+			},
+			{
+				action: "updateClient",
+				endpoint: `${BFF_ROUTES.clients}/${clientId}`,
+				method: "PUT",
+				tenantId,
+			},
+		);
 	}
 
 	return data;
@@ -787,7 +844,12 @@ export default function ClientsPage() {
 		? updateMutation.isError
 		: createMutation.isError;
 	const submissionError = isMutationError
-		? (activeMutationError as FineractRequestError)
+		? normalizeClientSubmissionError({
+				error: activeMutationError,
+				isEditMode,
+				editClientId,
+				tenantId,
+			})
 		: null;
 	const submissionErrorDetails = flattenErrorDetails(submissionError?.details);
 

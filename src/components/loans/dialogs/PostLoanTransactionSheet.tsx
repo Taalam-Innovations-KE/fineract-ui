@@ -36,13 +36,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
+	GetCodeValuesDataResponse,
+	GetLoanProductsChargeOffReasonOptions,
 	GetLoansLoanIdTransactionsTemplateResponse,
 	GetPaymentTypeOptions,
 	PostLoansLoanIdTransactionsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import {
+	LOAN_TRANSACTION_COMMANDS,
 	type LoanTransactionCommand,
 	type LoanTransactionFormData,
+	type LoanTransactionFormInput,
 	loanTransactionSchema,
 } from "@/lib/schemas/loan-commands";
 import { useTenantStore } from "@/store/tenant";
@@ -55,35 +59,181 @@ interface PostLoanTransactionSheetProps {
 	onSuccess?: () => void;
 }
 
-const COMMAND_OPTIONS: Array<{
+type CommandOption = {
 	value: LoanTransactionCommand;
 	label: string;
 	description: string;
 	submitLabel: string;
 	amountLabel: string;
-}> = [
+	hideAmountField?: boolean;
+	readOnlyTemplateAmount?: boolean;
+	requireTemplateAmount?: boolean;
+	requireAmount?: boolean;
+};
+
+const COMMAND_OPTIONS: Array<CommandOption> = [
 	{
 		value: "repayment",
 		label: "Repayment",
-		description: "Record a repayment transaction from the template defaults.",
+		description: "Record a repayment transaction from template defaults.",
 		submitLabel: "Post Repayment",
 		amountLabel: "Transaction Amount",
+		requireAmount: true,
+	},
+	{
+		value: "merchantIssuedRefund",
+		label: "Merchant Issued Refund",
+		description: "Post merchant-issued refund against this loan.",
+		submitLabel: "Post Merchant Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "payoutRefund",
+		label: "Payout Refund",
+		description: "Post payout refund against this loan.",
+		submitLabel: "Post Payout Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "goodwillCredit",
+		label: "Goodwill Credit",
+		description: "Apply a goodwill credit on the loan account.",
+		submitLabel: "Post Goodwill Credit",
+		amountLabel: "Credit Amount",
+		requireAmount: true,
+	},
+	{
+		value: "chargeRefund",
+		label: "Charge Refund",
+		description: "Refund loan charges.",
+		submitLabel: "Post Charge Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "waiveInterest",
+		label: "Waive Interest",
+		description: "Waive interest amount from the loan account.",
+		submitLabel: "Waive Interest",
+		amountLabel: "Waived Amount",
+		requireAmount: true,
+	},
+	{
+		value: "writeoff",
+		label: "Write Off",
+		description: "Close the loan as written off.",
+		submitLabel: "Write Off Loan",
+		amountLabel: "Write-Off Amount",
+		requireAmount: true,
+	},
+	{
+		value: "close-rescheduled",
+		label: "Close Rescheduled",
+		description: "Close the loan as rescheduled.",
+		submitLabel: "Close as Rescheduled",
+		amountLabel: "Amount",
+		hideAmountField: true,
+	},
+	{
+		value: "close",
+		label: "Close Loan",
+		description: "Close the loan account.",
+		submitLabel: "Close Loan",
+		amountLabel: "Amount",
+		hideAmountField: true,
+	},
+	{
+		value: "undowriteoff",
+		label: "Undo Write Off",
+		description: "Undo a previous write-off transaction.",
+		submitLabel: "Undo Write Off",
+		amountLabel: "Amount",
+		hideAmountField: true,
+	},
+	{
+		value: "recoverypayment",
+		label: "Recovery Payment",
+		description: "Record repayment after write-off.",
+		submitLabel: "Post Recovery Payment",
+		amountLabel: "Recovery Amount",
+		requireAmount: true,
+	},
+	{
+		value: "refundByCash",
+		label: "Refund By Cash",
+		description: "Refund active loan by cash.",
+		submitLabel: "Post Cash Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "refundbytransfer",
+		label: "Refund By Transfer",
+		description: "Refund active loan by transfer.",
+		submitLabel: "Post Transfer Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "foreclosure",
+		label: "Foreclosure",
+		description: "Foreclose this active loan.",
+		submitLabel: "Post Foreclosure",
+		amountLabel: "Foreclosure Amount",
+		requireAmount: true,
+	},
+	{
+		value: "creditBalanceRefund",
+		label: "Credit Balance Refund",
+		description: "Refund available credit balance.",
+		submitLabel: "Post Credit Balance Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: false,
+	},
+	{
+		value: "downPayment",
+		label: "Down Payment",
+		description: "Post a down payment transaction.",
+		submitLabel: "Post Down Payment",
+		amountLabel: "Down Payment Amount",
+		requireAmount: true,
 	},
 	{
 		value: "prepayLoan",
 		label: "Prepay Loan",
 		description:
-			"Use the template's calculated payoff amount for full prepayment.",
+			"Use the template calculated amount as full payoff for prepayment.",
 		submitLabel: "Post Prepayment",
 		amountLabel: "Calculated Payoff Amount",
+		readOnlyTemplateAmount: true,
+		requireTemplateAmount: true,
+		requireAmount: true,
 	},
 	{
-		value: "waiveInterest",
-		label: "Waive Interest",
-		description:
-			"Waive interest using the amount suggested by the transaction template.",
-		submitLabel: "Waive Interest",
-		amountLabel: "Waived Amount",
+		value: "interestPaymentWaiver",
+		label: "Interest Payment Waiver",
+		description: "Post an interest payment waiver transaction.",
+		submitLabel: "Post Interest Payment Waiver",
+		amountLabel: "Waiver Amount",
+		requireAmount: true,
+	},
+	{
+		value: "interest-refund",
+		label: "Interest Refund",
+		description: "Post an interest refund transaction.",
+		submitLabel: "Post Interest Refund",
+		amountLabel: "Refund Amount",
+		requireAmount: true,
+	},
+	{
+		value: "charge-off",
+		label: "Charge Off",
+		description: "Charge off the loan account.",
+		submitLabel: "Charge Off Loan",
+		amountLabel: "Charge-Off Amount",
+		requireAmount: true,
 	},
 ];
 
@@ -134,6 +284,18 @@ function hasPaymentTypeId(
 	return option.id !== undefined;
 }
 
+function hasCodeValueId(
+	option: GetCodeValuesDataResponse,
+): option is GetCodeValuesDataResponse & { id: number } {
+	return option.id !== undefined;
+}
+
+function hasChargeOffReasonId(
+	option: GetLoanProductsChargeOffReasonOptions,
+): option is GetLoanProductsChargeOffReasonOptions & { id: number } {
+	return option.id !== undefined;
+}
+
 function formatAmount(amount?: number): string {
 	if (amount === undefined || amount === null) return "—";
 	return amount.toLocaleString(undefined, {
@@ -142,10 +304,7 @@ function formatAmount(amount?: number): string {
 	});
 }
 
-function getTemplateErrorMessage(
-	fallback: string,
-	errorBody: unknown,
-): string | undefined {
+function getTemplateErrorMessage(fallback: string, errorBody: unknown): string {
 	if (!errorBody || typeof errorBody !== "object") {
 		return fallback;
 	}
@@ -165,6 +324,19 @@ function getTemplateErrorMessage(
 	);
 }
 
+function isSupportedLoanTransactionCommand(
+	value: string,
+): value is LoanTransactionCommand {
+	return (LOAN_TRANSACTION_COMMANDS as readonly string[]).includes(value);
+}
+
+function getCommandMeta(command: LoanTransactionCommand): CommandOption {
+	return (
+		COMMAND_OPTIONS.find((option) => option.value === command) ||
+		COMMAND_OPTIONS[0]
+	);
+}
+
 export function PostLoanTransactionSheet({
 	open,
 	onOpenChange,
@@ -174,11 +346,13 @@ export function PostLoanTransactionSheet({
 }: PostLoanTransactionSheetProps) {
 	const { tenantId } = useTenantStore();
 	const [command, setCommand] = useState<LoanTransactionCommand>("repayment");
-	const commandMeta =
-		COMMAND_OPTIONS.find((option) => option.value === command) ||
-		COMMAND_OPTIONS[0];
+	const commandMeta = getCommandMeta(command);
 
-	const form = useForm<LoanTransactionFormData>({
+	const form = useForm<
+		LoanTransactionFormInput,
+		unknown,
+		LoanTransactionFormData
+	>({
 		resolver: zodResolver(loanTransactionSchema),
 		defaultValues: {
 			command: "repayment",
@@ -205,8 +379,7 @@ export function PostLoanTransactionSheet({
 					response.status === 404
 						? `${commandMeta.label} is not available for this loan in its current state.`
 						: `Failed to load ${commandMeta.label.toLowerCase()} template`;
-				const message = getTemplateErrorMessage(fallback, errorBody);
-				throw new Error(message);
+				throw new Error(getTemplateErrorMessage(fallback, errorBody));
 			}
 
 			return response.json() as Promise<GetLoansLoanIdTransactionsTemplateResponse>;
@@ -221,32 +394,43 @@ export function PostLoanTransactionSheet({
 		const paymentTypeOptions = (template.paymentTypeOptions ?? []).filter(
 			hasPaymentTypeId,
 		);
-		const templateAmount = template.amount;
-		const resolvedAmount =
-			command === "prepayLoan" ? templateAmount : (templateAmount ?? undefined);
+		const chargeOffReasonOptions = (
+			template.chargeOffReasonOptions ?? []
+		).filter(hasChargeOffReasonId);
+		const classificationOptions = (template.classificationOptions ?? []).filter(
+			hasCodeValueId,
+		);
+
+		const transactionAmount = commandMeta.hideAmountField
+			? undefined
+			: commandMeta.readOnlyTemplateAmount
+				? template.amount
+				: (template.amount ?? undefined);
 
 		form.reset({
 			command,
 			transactionDate: toInputDateValue(template.date),
-			transactionAmount: resolvedAmount,
+			transactionAmount,
 			paymentTypeId:
 				paymentTypeOptions.length === 1 ? paymentTypeOptions[0].id : undefined,
+			chargeOffReasonId:
+				chargeOffReasonOptions.length === 1
+					? chargeOffReasonOptions[0].id
+					: undefined,
+			classificationId:
+				classificationOptions.length === 1
+					? classificationOptions[0].id
+					: undefined,
 			dateFormat: "dd MMMM yyyy",
 			locale: "en",
 			note: "",
 		});
-	}, [command, form, open, templateQuery.data]);
+	}, [command, commandMeta, form, open, templateQuery.data]);
 
 	const postTransactionMutation = useMutation({
 		mutationFn: async (data: LoanTransactionFormData) => {
-			const templateAmount = templateQuery.data?.amount;
-			const transactionAmount =
-				data.command === "prepayLoan" && templateAmount !== undefined
-					? templateAmount
-					: data.transactionAmount;
-
-			if (transactionAmount === undefined) {
-				throw new Error("Transaction amount is required");
+			if (!templateQuery.data) {
+				throw new Error("Transaction template is required");
 			}
 
 			const payload: PostLoansLoanIdTransactionsRequest = {
@@ -254,12 +438,26 @@ export function PostLoanTransactionSheet({
 					data.transactionDate,
 					data.dateFormat || "dd MMMM yyyy",
 				),
-				transactionAmount,
 				dateFormat: data.dateFormat || "dd MMMM yyyy",
 				locale: data.locale || "en",
-				paymentTypeId: data.paymentTypeId,
 				note: normalizeOptionalString(data.note),
 			};
+
+			if (
+				data.transactionAmount !== undefined &&
+				data.transactionAmount !== null
+			) {
+				payload.transactionAmount = data.transactionAmount;
+			}
+			if (data.paymentTypeId !== undefined) {
+				payload.paymentTypeId = data.paymentTypeId;
+			}
+			if (data.chargeOffReasonId !== undefined) {
+				payload.chargeOffReasonId = data.chargeOffReasonId;
+			}
+			if (data.classificationId !== undefined) {
+				payload.classificationId = data.classificationId;
+			}
 
 			const response = await fetch(
 				`${BFF_ROUTES.loanTransactions(loanId)}?command=${encodeURIComponent(data.command)}`,
@@ -275,11 +473,9 @@ export function PostLoanTransactionSheet({
 
 			if (!response.ok) {
 				const errorBody = await response.json().catch(() => null);
-				const message = getTemplateErrorMessage(
-					"Failed to post transaction",
-					errorBody,
+				throw new Error(
+					getTemplateErrorMessage("Failed to post transaction", errorBody),
 				);
-				throw new Error(message);
 			}
 
 			return response.json();
@@ -293,8 +489,24 @@ export function PostLoanTransactionSheet({
 	const paymentTypeOptions = (
 		templateQuery.data?.paymentTypeOptions ?? []
 	).filter(hasPaymentTypeId);
+	const chargeOffReasonOptions = (
+		templateQuery.data?.chargeOffReasonOptions ?? []
+	).filter(hasChargeOffReasonId);
+	const classificationOptions = (
+		templateQuery.data?.classificationOptions ?? []
+	).filter(hasCodeValueId);
+
 	const hasPaymentTypeOptions = paymentTypeOptions.length > 0;
-	const isPrepayCommand = command === "prepayLoan";
+	const hasChargeOffReasonOptions = chargeOffReasonOptions.length > 0;
+	const hasClassificationOptions = classificationOptions.length > 0;
+
+	const shouldShowAmountField = !commandMeta.hideAmountField;
+	const isReadOnlyAmount = commandMeta.readOnlyTemplateAmount === true;
+	const resolvedRequiresAmount =
+		shouldShowAmountField &&
+		((commandMeta.requireAmount ?? true) ||
+			commandMeta.requireTemplateAmount === true);
+
 	const templateCurrency =
 		templateQuery.data?.currency?.displaySymbol ||
 		templateQuery.data?.currency?.code ||
@@ -306,29 +518,65 @@ export function PostLoanTransactionSheet({
 		if (hasPaymentTypeOptions && !data.paymentTypeId) {
 			form.setError("paymentTypeId", {
 				type: "required",
-				message: "Payment type is required",
+				message: "Payment method is required",
+			});
+			return;
+		}
+
+		if (hasChargeOffReasonOptions && !data.chargeOffReasonId) {
+			form.setError("chargeOffReasonId", {
+				type: "required",
+				message: "Charge-off reason is required",
+			});
+			return;
+		}
+
+		if (hasClassificationOptions && !data.classificationId) {
+			form.setError("classificationId", {
+				type: "required",
+				message: "Classification is required",
 			});
 			return;
 		}
 
 		if (
-			isPrepayCommand &&
+			commandMeta.requireTemplateAmount &&
 			(templateQuery.data.amount === undefined ||
 				templateQuery.data.amount === null)
 		) {
 			form.setError("transactionAmount", {
 				type: "required",
-				message: "Prepayment amount is unavailable from template",
+				message: "Template amount is unavailable for this command",
 			});
 			return;
 		}
 
-		postTransactionMutation.mutate(data);
+		const submitData: LoanTransactionFormData = {
+			...data,
+			transactionAmount: isReadOnlyAmount
+				? (templateQuery.data.amount ?? undefined)
+				: data.transactionAmount,
+		};
+
+		if (
+			resolvedRequiresAmount &&
+			(submitData.transactionAmount === undefined ||
+				submitData.transactionAmount === null)
+		) {
+			form.setError("transactionAmount", {
+				type: "required",
+				message: "Amount is required",
+			});
+			return;
+		}
+
+		postTransactionMutation.mutate(submitData);
 	};
 
-	const handleCommandChange = (nextCommand: LoanTransactionCommand) => {
-		setCommand(nextCommand);
-		form.setValue("command", nextCommand, {
+	const handleCommandChange = (value: string) => {
+		if (!isSupportedLoanTransactionCommand(value)) return;
+		setCommand(value);
+		form.setValue("command", value, {
 			shouldDirty: true,
 			shouldTouch: true,
 		});
@@ -354,8 +602,8 @@ export function PostLoanTransactionSheet({
 				<SheetHeader>
 					<SheetTitle>Post Loan Transaction</SheetTitle>
 					<SheetDescription>
-						Fetch the transaction template first, then submit using Fineract's
-						template-driven payload.
+						Fetch template defaults first, then submit command-specific
+						transaction payload.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -456,24 +704,24 @@ export function PostLoanTransactionSheet({
 								</Card>
 							)}
 
-							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-								<FormField
-									control={form.control}
-									name="transactionDate"
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>
-												Transaction Date{" "}
-												<span className="text-destructive">*</span>
-											</FormLabel>
-											<FormControl>
-												<Input type="date" {...field} />
-											</FormControl>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
+							<FormField
+								control={form.control}
+								name="transactionDate"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>
+											Transaction Date{" "}
+											<span className="text-destructive">*</span>
+										</FormLabel>
+										<FormControl>
+											<Input type="date" {...field} />
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
 
+							{shouldShowAmountField && (
 								<FormField
 									control={form.control}
 									name="transactionAmount"
@@ -481,14 +729,16 @@ export function PostLoanTransactionSheet({
 										<FormItem>
 											<FormLabel>
 												{commandMeta.amountLabel} ({templateCurrency}){" "}
-												<span className="text-destructive">*</span>
+												{resolvedRequiresAmount && (
+													<span className="text-destructive">*</span>
+												)}
 											</FormLabel>
 											<FormControl>
 												<Input
 													type="number"
 													step="0.01"
 													placeholder="0.00"
-													readOnly={isPrepayCommand}
+													readOnly={isReadOnlyAmount}
 													value={field.value ?? ""}
 													onChange={(event) =>
 														field.onChange(
@@ -503,7 +753,7 @@ export function PostLoanTransactionSheet({
 										</FormItem>
 									)}
 								/>
-							</div>
+							)}
 
 							{hasPaymentTypeOptions && (
 								<FormField
@@ -528,6 +778,82 @@ export function PostLoanTransactionSheet({
 												</FormControl>
 												<SelectContent>
 													{paymentTypeOptions.map((option) => (
+														<SelectItem
+															key={option.id}
+															value={option.id.toString()}
+														>
+															{option.name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							)}
+
+							{hasChargeOffReasonOptions && (
+								<FormField
+									control={form.control}
+									name="chargeOffReasonId"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>
+												Charge-Off Reason{" "}
+												<span className="text-destructive">*</span>
+											</FormLabel>
+											<Select
+												value={field.value?.toString()}
+												onValueChange={(value) =>
+													field.onChange(Number.parseInt(value, 10))
+												}
+											>
+												<FormControl>
+													<SelectTrigger>
+														<SelectValue placeholder="Select charge-off reason" />
+													</SelectTrigger>
+												</FormControl>
+												<SelectContent>
+													{chargeOffReasonOptions.map((option) => (
+														<SelectItem
+															key={option.id}
+															value={option.id.toString()}
+														>
+															{option.name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							)}
+
+							{hasClassificationOptions && (
+								<FormField
+									control={form.control}
+									name="classificationId"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>
+												Classification{" "}
+												<span className="text-destructive">*</span>
+											</FormLabel>
+											<Select
+												value={field.value?.toString()}
+												onValueChange={(value) =>
+													field.onChange(Number.parseInt(value, 10))
+												}
+											>
+												<FormControl>
+													<SelectTrigger>
+														<SelectValue placeholder="Select classification" />
+													</SelectTrigger>
+												</FormControl>
+												<SelectContent>
+													{classificationOptions.map((option) => (
 														<SelectItem
 															key={option.id}
 															value={option.id.toString()}

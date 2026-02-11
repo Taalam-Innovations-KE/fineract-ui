@@ -56,17 +56,41 @@ export const loanWithdrawalSchema = z.object({
 	note: z.string().optional(),
 });
 
-export const loanTransactionCommandSchema = z.enum([
+export const LOAN_TRANSACTION_COMMANDS = [
 	"repayment",
+	"merchantIssuedRefund",
+	"payoutRefund",
+	"goodwillCredit",
+	"chargeRefund",
+	"writeoff",
+	"close-rescheduled",
+	"close",
+	"undowriteoff",
+	"recoverypayment",
+	"refundByCash",
+	"refundbytransfer",
+	"foreclosure",
+	"creditBalanceRefund",
+	"downPayment",
 	"prepayLoan",
 	"waiveInterest",
-]);
+	"interestPaymentWaiver",
+	"interest-refund",
+	"charge-off",
+] as const;
+
+export const loanTransactionCommandSchema = z.enum(LOAN_TRANSACTION_COMMANDS);
 
 export const loanTransactionSchema = z.object({
 	command: loanTransactionCommandSchema.default("repayment"),
 	transactionDate: z.string().min(1, "Transaction date is required"),
-	transactionAmount: z.number().positive("Transaction amount must be positive"),
+	transactionAmount: z
+		.number()
+		.positive("Transaction amount must be positive")
+		.optional(),
 	paymentTypeId: z.number().int().positive().optional(),
+	chargeOffReasonId: z.number().int().positive().optional(),
+	classificationId: z.number().int().positive().optional(),
 	dateFormat: z.string().default("dd MMMM yyyy"),
 	locale: z.string().default("en"),
 	note: z.string().optional(),
@@ -79,4 +103,5 @@ export type LoanWithdrawalFormData = z.infer<typeof loanWithdrawalSchema>;
 export type LoanTransactionCommand = z.infer<
 	typeof loanTransactionCommandSchema
 >;
+export type LoanTransactionFormInput = z.input<typeof loanTransactionSchema>;
 export type LoanTransactionFormData = z.infer<typeof loanTransactionSchema>;

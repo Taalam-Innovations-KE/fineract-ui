@@ -136,7 +136,6 @@ export default function COBPage() {
 				endpoint: BFF_ROUTES.loansCatchUp,
 				method: "POST",
 				tenantId,
-				requestBody: reason ? { reason } : undefined,
 			});
 			setSubmitError(trackedError);
 		},

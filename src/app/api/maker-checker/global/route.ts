@@ -11,7 +11,11 @@ export async function GET() {
 	} catch (error) {
 		console.error("Failed to get global config:", error);
 		return NextResponse.json(
-			{ error: "Failed to get global configuration" },
+			{
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to get global configuration",
+				statusCode: 500,
+			},
 			{ status: 500 },
 		);
 	}
@@ -22,7 +26,11 @@ export async function PUT(request: NextRequest) {
 		const { enabled } = await request.json();
 		if (typeof enabled !== "boolean") {
 			return NextResponse.json(
-				{ error: "enabled must be a boolean" },
+				{
+					code: "INVALID_REQUEST",
+					message: "enabled must be a boolean",
+					statusCode: 400,
+				},
 				{ status: 400 },
 			);
 		}
@@ -31,7 +39,11 @@ export async function PUT(request: NextRequest) {
 	} catch (error) {
 		console.error("Failed to update global config:", error);
 		return NextResponse.json(
-			{ error: "Failed to update global configuration" },
+			{
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to update global configuration",
+				statusCode: 500,
+			},
 			{ status: 500 },
 		);
 	}

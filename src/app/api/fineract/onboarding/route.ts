@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
 				{
 					code: "INVALID_REQUEST",
 					message: "Staff and user payloads are required.",
+					statusCode: 400,
 				},
 				{ status: 400 },
 			);

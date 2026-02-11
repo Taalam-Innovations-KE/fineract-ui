@@ -19,7 +19,11 @@ export async function GET(
 
 		if (isNaN(loanIdNum) || isNaN(documentIdNum)) {
 			return NextResponse.json(
-				{ message: "Invalid loan ID or document ID" },
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID or document ID",
+					statusCode: 400,
+				},
 				{ status: 400 },
 			);
 		}

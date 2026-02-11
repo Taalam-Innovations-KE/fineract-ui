@@ -98,10 +98,14 @@ export async function GET(
 			} catch {
 				errorData = { message: errorText };
 			}
-			return NextResponse.json(
-				{ error: errorData.message || "Failed to generate report" },
-				{ status: response.status },
-			);
+			const mappedError = mapFineractError({
+				...errorData,
+				httpStatusCode: response.status,
+				statusText: response.statusText,
+			});
+			return NextResponse.json(mappedError, {
+				status: mappedError.statusCode || response.status,
+			});
 		}
 
 		if (!shouldDownload) {

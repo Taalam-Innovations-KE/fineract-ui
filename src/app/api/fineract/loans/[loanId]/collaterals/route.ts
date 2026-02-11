@@ -20,7 +20,14 @@ export async function GET(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json({ message: "Invalid loan ID" }, { status: 400 });
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
 		}
 
 		const path = FINERACT_ENDPOINTS.loanCollaterals(loanIdNum);
@@ -52,7 +59,14 @@ export async function POST(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json({ message: "Invalid loan ID" }, { status: 400 });
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
 		}
 
 		const body = await request.json();

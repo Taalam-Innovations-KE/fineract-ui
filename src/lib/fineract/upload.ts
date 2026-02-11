@@ -1,4 +1,5 @@
 import { BFF_ROUTES } from "./endpoints";
+import { toSubmitActionError } from "./submit-error";
 
 interface UploadDocumentOptions {
 	loanId: number;
@@ -41,8 +42,21 @@ export async function uploadDocument({
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(
-			data.message || data.errors?.[0]?.defaultUserMessage || "Upload failed",
+		throw toSubmitActionError(
+			{
+				...(data as Record<string, unknown>),
+				statusCode: response.status,
+				httpStatusCode: response.status,
+				statusText: response.statusText,
+				message:
+					(typeof data.message === "string" && data.message) || "Upload failed",
+			},
+			{
+				action: "uploadLoanDocument",
+				endpoint: BFF_ROUTES.loanDocuments(loanId),
+				method: "POST",
+				tenantId,
+			},
 		);
 	}
 
@@ -94,6 +108,22 @@ export async function deleteDocument(
 
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({}));
-		throw new Error(error.message || "Delete failed");
+		throw toSubmitActionError(
+			{
+				...(error as Record<string, unknown>),
+				statusCode: response.status,
+				httpStatusCode: response.status,
+				statusText: response.statusText,
+				message:
+					(typeof error.message === "string" && error.message) ||
+					"Delete failed",
+			},
+			{
+				action: "deleteLoanDocument",
+				endpoint: `${BFF_ROUTES.loanDocuments(loanId)}/${documentId}`,
+				method: "DELETE",
+				tenantId,
+			},
+		);
 	}
 }

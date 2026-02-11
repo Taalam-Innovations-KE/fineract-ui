@@ -15,7 +15,14 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json(entries);
 	} catch (error) {
 		console.error("Failed to get inbox:", error);
-		return NextResponse.json({ error: "Failed to get inbox" }, { status: 500 });
+		return NextResponse.json(
+			{
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to get inbox",
+				statusCode: 500,
+			},
+			{ status: 500 },
+		);
 	}
 }
 
@@ -27,7 +34,11 @@ export async function POST(request: NextRequest) {
 	} catch (error) {
 		console.error("Failed to approve/reject entry:", error);
 		return NextResponse.json(
-			{ error: "Failed to approve/reject entry" },
+			{
+				code: "INTERNAL_SERVER_ERROR",
+				message: "Failed to approve/reject entry",
+				statusCode: 500,
+			},
 			{ status: 500 },
 		);
 	}

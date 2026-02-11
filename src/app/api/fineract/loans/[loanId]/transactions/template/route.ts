@@ -21,7 +21,14 @@ export async function GET(
 		const loanIdNum = Number.parseInt(loanId, 10);
 
 		if (Number.isNaN(loanIdNum)) {
-			return NextResponse.json({ message: "Invalid loan ID" }, { status: 400 });
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
 		}
 
 		const query = new URLSearchParams(request.nextUrl.searchParams);

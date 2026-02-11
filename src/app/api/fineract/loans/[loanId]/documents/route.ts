@@ -20,7 +20,14 @@ export async function GET(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json({ message: "Invalid loan ID" }, { status: 400 });
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
 		}
 
 		const path = FINERACT_ENDPOINTS.loanDocuments(loanIdNum);
@@ -52,7 +59,14 @@ export async function POST(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json({ message: "Invalid loan ID" }, { status: 400 });
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Invalid loan ID",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
 		}
 
 		// Parse the multipart form data
@@ -63,14 +77,22 @@ export async function POST(
 
 		if (!file) {
 			return NextResponse.json(
-				{ message: "File is required" },
+				{
+					code: "INVALID_REQUEST",
+					message: "File is required",
+					statusCode: 400,
+				},
 				{ status: 400 },
 			);
 		}
 
 		if (!name) {
 			return NextResponse.json(
-				{ message: "Document name is required" },
+				{
+					code: "INVALID_REQUEST",
+					message: "Document name is required",
+					statusCode: 400,
+				},
 				{ status: 400 },
 			);
 		}

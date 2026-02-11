@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ import type {
 	PutCodeValuesDataRequest,
 	ResultsetColumnHeaderData,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 const CODE_VALUE_APPTABLE = "m_code_value";
@@ -100,6 +103,22 @@ async function fetchCodeValues(
 	return response.json();
 }
 
+async function parseSubmitResponse<T>(
+	response: Response,
+	fallbackMessage: string,
+): Promise<T> {
+	const data = (await response.json().catch(() => ({
+		message: fallbackMessage,
+		statusCode: response.status,
+	}))) as T;
+
+	if (!response.ok) {
+		throw data;
+	}
+
+	return data;
+}
+
 async function createCodeValue(
 	tenantId: string,
 	codeId: number,
@@ -114,13 +133,7 @@ async function createCodeValue(
 		body: JSON.stringify(payload),
 	});
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to add code value");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to add code value");
 }
 
 async function updateCodeValue(
@@ -141,13 +154,7 @@ async function updateCodeValue(
 		},
 	);
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to update code value");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to update code value");
 }
 
 async function deleteCodeValue(
@@ -165,13 +172,7 @@ async function deleteCodeValue(
 		},
 	);
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to deactivate code value");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to deactivate code value");
 }
 
 async function fetchDatatables(
@@ -207,13 +208,7 @@ async function createDatatable(
 		body: JSON.stringify(payload),
 	});
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to create datatable");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to create datatable");
 }
 
 async function fetchDatatableDefinition(
@@ -278,13 +273,7 @@ async function createDatatableEntry(
 		},
 	);
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to save metadata");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to save metadata");
 }
 
 async function updateDatatableEntry(
@@ -305,13 +294,7 @@ async function updateDatatableEntry(
 		},
 	);
 
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw new Error(data.message || "Failed to update metadata");
-	}
-
-	return data;
+	return parseSubmitResponse(response, "Failed to update metadata");
 }
 
 function parseDatatableRecord(
@@ -441,6 +424,8 @@ export default function CodesPage() {
 	const [newValueDescription, setNewValueDescription] = useState("");
 	const [newValueActive, setNewValueActive] = useState(true);
 	const [valueError, setValueError] = useState<string | null>(null);
+	const [valueSubmitError, setValueSubmitError] =
+		useState<SubmitActionError | null>(null);
 
 	const [editingValueId, setEditingValueId] = useState<number | null>(null);
 	const [editValueName, setEditValueName] = useState("");
@@ -453,6 +438,8 @@ export default function CodesPage() {
 	);
 	const [metadataTouched, setMetadataTouched] = useState(false);
 	const [datatableError, setDatatableError] = useState<string | null>(null);
+	const [metadataSubmitError, setMetadataSubmitError] =
+		useState<SubmitActionError | null>(null);
 
 	const {
 		data: codes = [],
@@ -504,6 +491,7 @@ export default function CodesPage() {
 			createCodeValue(tenantId, codeId!, payload),
 		onMutate: async (payload) => {
 			setValueError(null);
+			setValueSubmitError(null);
 			await queryClient.cancelQueries({
 				queryKey: ["code-values", tenantId, codeId],
 			});
@@ -527,7 +515,14 @@ export default function CodesPage() {
 			return { previousValues };
 		},
 		onError: (error, _payload, context) => {
-			setValueError((error as Error).message);
+			const trackedError = toSubmitActionError(error, {
+				action: "addCodeValue",
+				endpoint: `${BFF_ROUTES.codes}/${codeId}/codevalues`,
+				method: "POST",
+				tenantId,
+			});
+			setValueSubmitError(trackedError);
+			setValueError(trackedError.message);
 			if (context?.previousValues) {
 				queryClient.setQueryData(
 					["code-values", tenantId, codeId],
@@ -555,9 +550,17 @@ export default function CodesPage() {
 				queryKey: ["code-values", tenantId, codeId],
 			});
 			setEditingValueId(null);
+			setValueSubmitError(null);
 		},
-		onError: (error) => {
-			setValueError((error as Error).message);
+		onError: (error, variables) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "updateCodeValue",
+				endpoint: `${BFF_ROUTES.codes}/${codeId}/codevalues/${variables.codeValueId}`,
+				method: "PUT",
+				tenantId,
+			});
+			setValueSubmitError(trackedError);
+			setValueError(trackedError.message);
 		},
 	});
 
@@ -568,9 +571,17 @@ export default function CodesPage() {
 			queryClient.invalidateQueries({
 				queryKey: ["code-values", tenantId, codeId],
 			});
+			setValueSubmitError(null);
 		},
-		onError: (error) => {
-			setValueError((error as Error).message);
+		onError: (error, codeValueId) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "deleteCodeValue",
+				endpoint: `${BFF_ROUTES.codes}/${codeId}/codevalues/${codeValueId}`,
+				method: "DELETE",
+				tenantId,
+			});
+			setValueSubmitError(trackedError);
+			setValueError(trackedError.message);
 		},
 	});
 
@@ -582,9 +593,17 @@ export default function CodesPage() {
 				queryKey: ["datatables", tenantId, CODE_VALUE_APPTABLE],
 			});
 			setDatatableError(null);
+			setMetadataSubmitError(null);
 		},
 		onError: (error) => {
-			setDatatableError((error as Error).message);
+			const trackedError = toSubmitActionError(error, {
+				action: "createCodeValueDatatable",
+				endpoint: BFF_ROUTES.datatables,
+				method: "POST",
+				tenantId,
+			});
+			setMetadataSubmitError(trackedError);
+			setDatatableError(trackedError.message);
 		},
 	});
 
@@ -623,9 +642,19 @@ export default function CodesPage() {
 				],
 			});
 			setMetadataTouched(false);
+			setDatatableError(null);
+			setMetadataSubmitError(null);
 		},
-		onError: (error) => {
-			setDatatableError((error as Error).message);
+		onError: (error, variables) => {
+			const method = variables.exists ? "PUT" : "POST";
+			const trackedError = toSubmitActionError(error, {
+				action: "saveCodeValueMetadata",
+				endpoint: `${BFF_ROUTES.datatables}/${datatableName}/${selectedCodeValue?.id}`,
+				method,
+				tenantId,
+			});
+			setMetadataSubmitError(trackedError);
+			setDatatableError(trackedError.message);
 		},
 	});
 
@@ -637,6 +666,7 @@ export default function CodesPage() {
 			setNewValueActive(true);
 			setEditingValueId(null);
 			setValueError(null);
+			setValueSubmitError(null);
 			setSelectedCodeValue(null);
 		}
 	}, [selectedCode]);
@@ -647,6 +677,7 @@ export default function CodesPage() {
 			setMetadataValues({});
 			setMetadataTouched(false);
 			setDatatableError(null);
+			setMetadataSubmitError(null);
 		}
 	}, [selectedCodeValue]);
 
@@ -729,6 +760,8 @@ export default function CodesPage() {
 
 	const handleAddValue = () => {
 		if (!newValueName.trim() || !codeId) return;
+		setValueError(null);
+		setValueSubmitError(null);
 		addValueMutation.mutate({
 			name: newValueName.trim(),
 			description: newValueDescription.trim() || undefined,
@@ -748,6 +781,8 @@ export default function CodesPage() {
 
 	const handleSaveEdit = () => {
 		if (!editingValueId) return;
+		setValueError(null);
+		setValueSubmitError(null);
 		updateValueMutation.mutate({
 			codeValueId: editingValueId,
 			payload: {
@@ -762,6 +797,8 @@ export default function CodesPage() {
 		if (!value.id) return;
 		const confirmed = window.confirm("Deactivate this code value?");
 		if (!confirmed) return;
+		setValueError(null);
+		setValueSubmitError(null);
 		deleteValueMutation.mutate(value.id);
 	};
 
@@ -770,8 +807,11 @@ export default function CodesPage() {
 		const payload = buildMetadataPayload(metadataValues, columnHeaders);
 		if (Object.keys(payload).length === 0) {
 			setDatatableError("Enter at least one metadata value to save.");
+			setMetadataSubmitError(null);
 			return;
 		}
+		setDatatableError(null);
+		setMetadataSubmitError(null);
 		saveMetadataMutation.mutate({ payload, exists: parsedEntry.exists });
 	};
 
@@ -932,6 +972,10 @@ export default function CodesPage() {
 							{valueError && (
 								<div className="text-sm text-destructive">{valueError}</div>
 							)}
+							<SubmitErrorAlert
+								error={valueSubmitError}
+								title="Code value action failed"
+							/>
 						</div>
 
 						<div className="space-y-2">
@@ -1143,6 +1187,10 @@ export default function CodesPage() {
 								<AlertDescription>{datatableError}</AlertDescription>
 							</Alert>
 						)}
+						<SubmitErrorAlert
+							error={metadataSubmitError}
+							title="Code metadata action failed"
+						/>
 
 						{!datatableExists && (
 							<div className="space-y-3">

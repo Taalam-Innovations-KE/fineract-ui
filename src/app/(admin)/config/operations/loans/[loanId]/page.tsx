@@ -71,6 +71,7 @@ import {
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetLoansLoanIdResponse } from "@/lib/fineract/generated/types.gen";
 import { getDisbursementSummary } from "@/lib/fineract/loan-disbursement-utils";
+import type { LoanTransactionCommand } from "@/lib/schemas/loan-commands";
 import { useTenantStore } from "@/store/tenant";
 
 interface LoanDetailPageProps {
@@ -105,7 +106,18 @@ function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
 	return "CSV";
 }
 
-function getAvailableActions(loan: GetLoansLoanIdResponse | undefined) {
+type LoanDetailAction =
+	| "approve"
+	| "disburse"
+	| "reject"
+	| "undoApproval"
+	| "addTransaction"
+	| "writeOff"
+	| "creditBalanceRefund";
+
+function getAvailableActions(
+	loan: GetLoansLoanIdResponse | undefined,
+): LoanDetailAction[] {
 	if (!loan?.status) return [];
 
 	const status = loan.status;
@@ -113,6 +125,7 @@ function getAvailableActions(loan: GetLoansLoanIdResponse | undefined) {
 	if (status.pendingApproval) return ["approve", "reject"];
 	if (status.waitingForDisbursal) return ["disburse", "undoApproval"];
 	if (status.active) return ["addTransaction", "writeOff"];
+	if (status.overpaid) return ["creditBalanceRefund", "addTransaction"];
 	return [];
 }
 
@@ -135,6 +148,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		type: "approve" | "disburse" | "reject" | "withdraw";
 	}>({ open: false, type: "approve" });
 	const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
+	const [transactionCommand, setTransactionCommand] =
+		useState<LoanTransactionCommand>("repayment");
 
 	const [isDownloading, setIsDownloading] = useState(false);
 
@@ -196,7 +211,12 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			});
 			if (!response.ok) throw new Error("Failed to fetch audit trail");
 			const data = await response.json();
-			return Array.isArray(data) ? data : data.events || [];
+			if (Array.isArray(data)) return data;
+			if (data && typeof data === "object") {
+				if (Array.isArray(data.events)) return data.events;
+				if (Array.isArray(data.pageItems)) return data.pageItems;
+			}
+			return [];
 		},
 		enabled: !!loanId && activeTab === "audit",
 	});
@@ -221,6 +241,28 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 	const summary = loan?.summary;
 	const currency = loan?.currency?.displaySymbol || "KES";
 	const availableActions = getAvailableActions(loan);
+	const isOverpaid = loan?.status?.overpaid === true;
+	const isSettledLoan =
+		loan?.status?.overpaid === true ||
+		loan?.status?.closedObligationsMet === true;
+	const totalOverpaid =
+		loan?.totalOverpaid ??
+		Math.max(
+			(summary?.totalRepayment ?? 0) - (summary?.totalExpectedRepayment ?? 0),
+			0,
+		);
+	const principalCardValue = isSettledLoan
+		? (summary?.principalDisbursed ?? summary?.principalPaid)
+		: summary?.principalOutstanding;
+	const interestCardValue = isSettledLoan
+		? (summary?.interestCharged ?? summary?.interestPaid)
+		: summary?.interestOutstanding;
+	const feesCardValue = isSettledLoan
+		? summary?.feeChargesCharged
+		: summary?.feeChargesOutstanding;
+	const penaltiesCardValue = isSettledLoan
+		? summary?.penaltyChargesCharged
+		: summary?.penaltyChargesOutstanding;
 
 	const handleCommandSuccess = () => {
 		queryClient.invalidateQueries({ queryKey: ["loan", loanId] });
@@ -230,6 +272,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "schedule"] });
 		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "charges"] });
 		queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
+	};
+
+	const openTransactionSheet = (
+		command: LoanTransactionCommand = "repayment",
+	) => {
+		setTransactionCommand(command);
+		setTransactionSheetOpen(true);
 	};
 
 	const handleDownloadExport = async (
@@ -296,7 +345,9 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	// Check if loan is disbursed
 	const isDisbursed =
-		loan?.status?.active || loan?.status?.closedObligationsMet;
+		loan?.status?.active ||
+		loan?.status?.closedObligationsMet ||
+		loan?.status?.overpaid;
 
 	if (loanQuery.isLoading) {
 		return (
@@ -421,7 +472,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						value={totalOutstanding}
 						currency={currency}
 						icon={Banknote}
-						variant={totalOutstanding > 0 ? "warning" : "success"}
+						variant={
+							isOverpaid
+								? "warning"
+								: totalOutstanding > 0
+									? "warning"
+									: "success"
+						}
 						breakdown={{
 							charged: summary?.totalExpectedRepayment,
 							paid: summary?.totalRepayment,
@@ -430,8 +487,10 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						}}
 					/>
 					<KpiCard
-						label="Principal"
-						value={summary?.principalOutstanding}
+						label={
+							isSettledLoan ? "Principal Disbursed" : "Principal Outstanding"
+						}
+						value={principalCardValue}
 						currency={currency}
 						icon={DollarSign}
 						breakdown={{
@@ -441,8 +500,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						}}
 					/>
 					<KpiCard
-						label="Interest"
-						value={summary?.interestOutstanding}
+						label={isSettledLoan ? "Interest Charged" : "Interest Outstanding"}
+						value={interestCardValue}
 						currency={currency}
 						icon={Percent}
 						breakdown={{
@@ -454,7 +513,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 					/>
 					<KpiCard
 						label="Fees Charged"
-						value={summary?.feeChargesCharged}
+						value={feesCardValue}
 						currency={currency}
 						icon={Receipt}
 						variant={
@@ -473,8 +532,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						}}
 					/>
 					<KpiCard
-						label="Penalties"
-						value={summary?.penaltyChargesOutstanding}
+						label={isSettledLoan ? "Penalties Charged" : "Penalties"}
+						value={penaltiesCardValue}
 						currency={currency}
 						variant={
 							(summary?.penaltyChargesOutstanding || 0) > 0
@@ -489,11 +548,17 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						}}
 					/>
 					<KpiCard
-						label="Arrears"
-						value={summary?.totalOverdue}
+						label={isOverpaid ? "Overpaid Amount" : "Arrears"}
+						value={isOverpaid ? totalOverpaid : summary?.totalOverdue}
 						currency={currency}
-						icon={AlertTriangle}
-						variant={(summary?.totalOverdue || 0) > 0 ? "danger" : "success"}
+						icon={isOverpaid ? Banknote : AlertTriangle}
+						variant={
+							isOverpaid
+								? "warning"
+								: (summary?.totalOverdue || 0) > 0
+									? "danger"
+									: "success"
+						}
 					/>
 				</div>
 
@@ -504,6 +569,62 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 						currency={currency}
 						isLoading={transactionsQuery.isLoading}
 					/>
+				)}
+
+				{isOverpaid && (
+					<Card className="border-l-4 border-l-amber-500 bg-amber-50/40">
+						<CardHeader className="pb-2">
+							<CardTitle className="text-base">Loan Overpayment</CardTitle>
+							<CardDescription>
+								All obligations are cleared and the account has an extra credit
+								balance.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-3">
+								<div className="space-y-1">
+									<p className="text-xs text-muted-foreground uppercase tracking-wide">
+										Overpaid Amount
+									</p>
+									<p className="text-sm font-semibold font-mono">
+										{formatMoney(totalOverpaid, currency)}
+									</p>
+								</div>
+								<div className="space-y-1">
+									<p className="text-xs text-muted-foreground uppercase tracking-wide">
+										Overpaid On
+									</p>
+									<p className="text-sm font-medium">
+										{formatDateArray(loan.overpaidOnDate)}
+									</p>
+								</div>
+								<div className="space-y-1">
+									<p className="text-xs text-muted-foreground uppercase tracking-wide">
+										Refunded So Far
+									</p>
+									<p className="text-sm font-medium font-mono">
+										{formatMoney(summary?.totalCreditBalanceRefund, currency)}
+									</p>
+								</div>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									size="sm"
+									onClick={() => openTransactionSheet("creditBalanceRefund")}
+								>
+									<Banknote className="w-4 h-4 mr-2" />
+									Refund Credit Balance
+								</Button>
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => openTransactionSheet("creditBalanceRefund")}
+								>
+									Post Another Transaction
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
 				)}
 
 				{/* Actions Card */}
@@ -550,10 +671,24 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 								{availableActions.includes("addTransaction") && (
 									<Button
 										size="sm"
-										onClick={() => setTransactionSheetOpen(true)}
+										onClick={() =>
+											openTransactionSheet(
+												isOverpaid ? "creditBalanceRefund" : "repayment",
+											)
+										}
 									>
 										<Banknote className="w-4 h-4 mr-2" />
 										Post Transaction
+									</Button>
+								)}
+								{availableActions.includes("creditBalanceRefund") && (
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => openTransactionSheet("creditBalanceRefund")}
+									>
+										<Banknote className="w-4 h-4 mr-2" />
+										Credit Balance Refund
 									</Button>
 								)}
 							</div>
@@ -691,6 +826,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				onOpenChange={setTransactionSheetOpen}
 				loanId={numericLoanId}
 				currency={currency}
+				initialCommand={transactionCommand}
 				onSuccess={handleCommandSuccess}
 			/>
 		</PageShell>

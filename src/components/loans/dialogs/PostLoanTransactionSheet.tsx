@@ -60,6 +60,7 @@ interface PostLoanTransactionSheetProps {
 	onOpenChange: (open: boolean) => void;
 	loanId: number;
 	currency?: string;
+	initialCommand?: LoanTransactionCommand;
 	onSuccess?: () => void;
 }
 
@@ -346,10 +347,12 @@ export function PostLoanTransactionSheet({
 	onOpenChange,
 	loanId,
 	currency = "KES",
+	initialCommand = "repayment",
 	onSuccess,
 }: PostLoanTransactionSheetProps) {
 	const { tenantId } = useTenantStore();
-	const [command, setCommand] = useState<LoanTransactionCommand>("repayment");
+	const [command, setCommand] =
+		useState<LoanTransactionCommand>(initialCommand);
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
@@ -362,13 +365,22 @@ export function PostLoanTransactionSheet({
 	>({
 		resolver: zodResolver(loanTransactionSchema),
 		defaultValues: {
-			command: "repayment",
+			command: initialCommand,
 			transactionDate: getTodayDateInputValue(),
 			dateFormat: "dd MMMM yyyy",
 			locale: "en",
 			note: "",
 		},
 	});
+
+	useEffect(() => {
+		if (!open) return;
+		setCommand(initialCommand);
+		form.setValue("command", initialCommand, {
+			shouldDirty: false,
+			shouldTouch: false,
+		});
+	}, [form, initialCommand, open]);
 
 	const templateQuery = useQuery({
 		queryKey: ["loanTransactionTemplate", loanId, tenantId, command],
@@ -610,9 +622,9 @@ export function PostLoanTransactionSheet({
 	const handleClose = (nextOpen: boolean) => {
 		if (!nextOpen) {
 			setSubmitError(null);
-			setCommand("repayment");
+			setCommand(initialCommand);
 			form.reset({
-				command: "repayment",
+				command: initialCommand,
 				transactionDate: getTodayDateInputValue(),
 				dateFormat: "dd MMMM yyyy",
 				locale: "en",

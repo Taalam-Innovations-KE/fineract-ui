@@ -22,9 +22,19 @@ export function transformAuditData(rawAudit: unknown[]): AuditEvent[] {
 			const event = mapAuditItemToEvent(item);
 			if (!event) return null;
 
+			const itemObj =
+				item && typeof item === "object"
+					? (item as Record<string, unknown>)
+					: null;
+			const rawId =
+				itemObj?.id ??
+				itemObj?.auditId ??
+				itemObj?.resourceId ??
+				itemObj?.historyId;
+
 			return {
 				...event,
-				id: `audit-${index}`,
+				id: rawId !== undefined ? `audit-${String(rawId)}` : `audit-${index}`,
 			};
 		})
 		.filter((event): event is AuditEvent => event !== null)
@@ -44,20 +54,28 @@ function mapAuditItemToEvent(item: unknown): Omit<AuditEvent, "id"> | null {
 		const obj = item as Record<string, unknown>;
 
 		// Extract timestamp - try multiple possible fields
-		const timestamp = obj.createdDate || obj.lastModifiedDate || obj.timestamp;
-		if (!timestamp || typeof timestamp !== "string") return null;
+		const timestamp = resolveAuditTimestamp(obj);
+		if (!timestamp) return null;
 
 		// Extract user - try multiple possible fields
-		const user = obj.createdBy || obj.lastModifiedBy || obj.user || "System";
+		const user =
+			obj.maker ||
+			obj.checker ||
+			obj.createdBy ||
+			obj.lastModifiedBy ||
+			obj.user ||
+			"System";
 		const userStr =
 			typeof user === "string"
 				? user
-				: typeof user === "object" &&
-						user &&
-						"username" in user &&
-						typeof (user as Record<string, unknown>).username === "string"
-					? ((user as Record<string, unknown>).username as string)
-					: "Unknown";
+				: typeof user === "number"
+					? String(user)
+					: typeof user === "object" &&
+							user &&
+							"username" in user &&
+							typeof (user as Record<string, unknown>).username === "string"
+						? ((user as Record<string, unknown>).username as string)
+						: "Unknown";
 
 		// Determine action and status based on available data
 		const { action, status, icon } = determineActionAndStatus(obj);
@@ -84,6 +102,27 @@ function determineActionAndStatus(item: Record<string, unknown>): {
 	status: AuditEvent["status"];
 	icon?: string;
 } {
+	// Native audit list fields from /v1/audits
+	if (item.actionName && typeof item.actionName === "string") {
+		const actionName = item.actionName;
+		const status = determineStatusFromProcessingResult(item.processingResult);
+		const entityPrefix =
+			item.entityName && typeof item.entityName === "string"
+				? `${humanizeAuditLabel(item.entityName)} `
+				: "";
+
+		return {
+			action: `${entityPrefix}${humanizeAuditLabel(actionName)}`.trim(),
+			status,
+			icon:
+				status === "error"
+					? "X"
+					: status === "warning"
+						? "AlertTriangle"
+						: "Info",
+		};
+	}
+
 	// Check for command-based actions (from our loan command API)
 	if (item.command && typeof item.command === "string") {
 		switch (item.command) {
@@ -152,6 +191,59 @@ function determineActionAndStatus(item: Record<string, unknown>): {
 
 	// Default fallback
 	return { action: "Audit Event", status: "info", icon: "Info" };
+}
+
+function determineStatusFromProcessingResult(
+	value: unknown,
+): AuditEvent["status"] {
+	if (typeof value !== "string") return "info";
+	const normalized = value.toLowerCase();
+	if (normalized.includes("processed") || normalized.includes("success")) {
+		return "success";
+	}
+	if (normalized.includes("awaiting") || normalized.includes("pending")) {
+		return "warning";
+	}
+	if (normalized.includes("error") || normalized.includes("failed")) {
+		return "error";
+	}
+	return "info";
+}
+
+function humanizeAuditLabel(value: string): string {
+	return value
+		.replaceAll(/[_-]+/g, " ")
+		.trim()
+		.replace(/\s+/g, " ")
+		.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveAuditTimestamp(item: Record<string, unknown>): string | null {
+	const candidate =
+		item.madeOnDate ??
+		item.makerDateTime ??
+		item.checkerDateTime ??
+		item.createdDate ??
+		item.lastModifiedDate ??
+		item.timestamp;
+
+	if (!candidate) return null;
+
+	if (typeof candidate === "string") return candidate;
+	if (typeof candidate === "number") return new Date(candidate).toISOString();
+	if (Array.isArray(candidate)) {
+		const date = fromDateParts(candidate);
+		return date ? date.toISOString() : null;
+	}
+
+	return null;
+}
+
+function fromDateParts(value: unknown[]): Date | null {
+	const numeric = value.filter((v): v is number => typeof v === "number");
+	if (numeric.length < 3) return null;
+	const [year, month, day, hour = 0, minute = 0, second = 0] = numeric;
+	return new Date(year, month - 1, day, hour, minute, second);
 }
 
 /**

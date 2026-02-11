@@ -16,6 +16,7 @@ import {
 	Hash,
 	LayoutGrid,
 	Link2,
+	Percent,
 	PiggyBank,
 	Receipt,
 	Settings,
@@ -137,6 +138,11 @@ const navItems: NavItem[] = [
 				title: "Accounting Setup",
 				href: "/config/financial/accounting",
 				icon: Link2,
+			},
+			{
+				title: "Provisioning Criteria",
+				href: "/config/financial/accounting/provisioning-criteria",
+				icon: Percent,
 			},
 			{
 				title: "Account Number Formats",

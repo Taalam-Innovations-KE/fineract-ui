@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,8 @@ import type {
 	IsCatchUpRunningDto,
 	OldestCobProcessedLoanDto,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function checkCatchUpStatus(
@@ -80,8 +83,19 @@ async function triggerCatchUp(tenantId: string) {
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to trigger catch-up");
+		const error = await response.json().catch(() => null);
+		const message =
+			typeof error === "object" &&
+			error !== null &&
+			"message" in error &&
+			typeof (error as { message?: unknown }).message === "string"
+				? ((error as { message: string }).message ??
+					"Failed to trigger catch-up")
+				: "Failed to trigger catch-up";
+		if (typeof error === "object" && error !== null) {
+			throw { ...error, message };
+		}
+		throw { message };
 	}
 
 	return response.json();
@@ -91,6 +105,9 @@ export default function COBPage() {
 	const { tenantId } = useTenantStore();
 	const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 	const [reason, setReason] = useState("");
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const queryClient = useQueryClient();
 
 	const { data: catchUpStatus, isLoading: isLoadingStatus } = useQuery({
@@ -107,18 +124,31 @@ export default function COBPage() {
 	const catchUpMutation = useMutation({
 		mutationFn: () => triggerCatchUp(tenantId),
 		onSuccess: () => {
+			setSubmitError(null);
 			queryClient.invalidateQueries({ queryKey: ["catchUpStatus", tenantId] });
 			queryClient.invalidateQueries({ queryKey: ["oldestCOB", tenantId] });
 			setIsConfirmDialogOpen(false);
 			setReason("");
 		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "triggerCobCatchUp",
+				endpoint: BFF_ROUTES.loansCatchUp,
+				method: "POST",
+				tenantId,
+				requestBody: reason ? { reason } : undefined,
+			});
+			setSubmitError(trackedError);
+		},
 	});
 
 	const handleStartCatchUp = () => {
+		setSubmitError(null);
 		setIsConfirmDialogOpen(true);
 	};
 
 	const handleConfirmCatchUp = () => {
+		setSubmitError(null);
 		catchUpMutation.mutate();
 	};
 
@@ -130,6 +160,7 @@ export default function COBPage() {
 			subtitle="Manage COB catch-up operations for loan accounts"
 		>
 			<div className="space-y-6">
+				<SubmitErrorAlert error={submitError} title="COB catch-up failed" />
 				{/* Warning Alert */}
 				<Alert variant="warning">
 					<AlertTriangle className="h-4 w-4" />
@@ -349,6 +380,7 @@ export default function COBPage() {
 						</SheetDescription>
 					</SheetHeader>
 					<div className="space-y-4 mt-4">
+						<SubmitErrorAlert error={submitError} title="COB catch-up failed" />
 						<Alert variant="warning">
 							<AlertTriangle className="h-4 w-4" />
 							<AlertDescription>

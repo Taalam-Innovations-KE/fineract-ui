@@ -18,6 +18,10 @@ interface DataTableProps<T> {
 	columns: DataTableColumn<T>[];
 	getRowId: (row: T) => string | number;
 	pageSize?: number;
+	pageIndex?: number;
+	totalRows?: number;
+	manualPagination?: boolean;
+	onPageChange?: (nextPageIndex: number) => void;
 	emptyMessage?: string;
 	className?: string;
 	onRowClick?: (row: T) => void;
@@ -29,26 +33,50 @@ export function DataTable<T>({
 	data,
 	columns,
 	getRowId,
-	pageSize = 8,
+	pageSize = 10,
+	pageIndex,
+	totalRows,
+	manualPagination = false,
+	onPageChange,
 	emptyMessage = "No records found.",
 	className,
 	onRowClick,
 	enableActions,
 	getViewUrl,
 }: DataTableProps<T>) {
-	const [pageIndex, setPageIndex] = React.useState(0);
-	const pageCount = Math.max(1, Math.ceil(data.length / pageSize));
-	const clampedPageIndex = Math.min(pageIndex, pageCount - 1);
+	const [internalPageIndex, setInternalPageIndex] = React.useState(0);
+	const resolvedPageIndex = manualPagination
+		? Math.max(0, pageIndex ?? 0)
+		: internalPageIndex;
+	const resolvedTotalRows = manualPagination
+		? (totalRows ?? data.length)
+		: data.length;
+	const pageCount = Math.max(1, Math.ceil(resolvedTotalRows / pageSize));
+	const clampedPageIndex = Math.min(resolvedPageIndex, pageCount - 1);
 
 	React.useEffect(() => {
-		if (pageIndex !== clampedPageIndex) {
-			setPageIndex(clampedPageIndex);
+		if (!manualPagination && internalPageIndex !== clampedPageIndex) {
+			setInternalPageIndex(clampedPageIndex);
 		}
-	}, [pageIndex, clampedPageIndex]);
+	}, [manualPagination, internalPageIndex, clampedPageIndex]);
 
 	const start = clampedPageIndex * pageSize;
-	const end = Math.min(start + pageSize, data.length);
-	const pageRows = data.slice(start, start + pageSize);
+	const pageRows = manualPagination
+		? data
+		: data.slice(start, start + pageSize);
+	const end =
+		resolvedTotalRows === 0
+			? 0
+			: Math.min(start + pageRows.length, resolvedTotalRows);
+
+	const goToPage = (nextPageIndex: number) => {
+		if (manualPagination) {
+			onPageChange?.(nextPageIndex);
+			return;
+		}
+
+		setInternalPageIndex(nextPageIndex);
+	};
 
 	const columnsWithActions = enableActions
 		? [
@@ -126,14 +154,15 @@ export function DataTable<T>({
 
 			<div className="flex items-center justify-between text-xs text-muted-foreground">
 				<span>
-					Showing {data.length === 0 ? 0 : start + 1}–{end} of {data.length}
+					Showing {resolvedTotalRows === 0 ? 0 : start + 1}–{end} of{" "}
+					{resolvedTotalRows}
 				</span>
 				<div className="flex items-center gap-2">
 					<Button
 						type="button"
 						variant="outline"
 						size="sm"
-						onClick={() => setPageIndex((prev) => Math.max(prev - 1, 0))}
+						onClick={() => goToPage(Math.max(clampedPageIndex - 1, 0))}
 						disabled={clampedPageIndex === 0}
 					>
 						<ChevronLeft className="w-4 h-4 mr-2" />
@@ -147,7 +176,7 @@ export function DataTable<T>({
 						variant="outline"
 						size="sm"
 						onClick={() =>
-							setPageIndex((prev) => Math.min(prev + 1, pageCount - 1))
+							goToPage(Math.min(clampedPageIndex + 1, pageCount - 1))
 						}
 						disabled={clampedPageIndex >= pageCount - 1}
 					>

@@ -4,6 +4,7 @@ import {
 	CalendarCheck2,
 	GitBranch,
 	Link2,
+	Percent,
 } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@/components/config/page-shell";
@@ -44,6 +45,13 @@ const modules = [
 			"Open and manage branch accounting closure records to enforce posting cut-off dates.",
 		href: "/config/financial/accounting/closures",
 		icon: CalendarCheck2,
+	},
+	{
+		title: "Provisioning Criteria",
+		description:
+			"Define delinquency-based provisioning percentages and map liability and expense GL accounts.",
+		href: "/config/financial/accounting/provisioning-criteria",
+		icon: Percent,
 	},
 ] as const;
 

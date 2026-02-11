@@ -18,14 +18,40 @@ export async function GET(
 		const tenantId = getTenantFromRequest(request);
 		const { loanId } = await params;
 
-		const path = `/v1/internal/loan/${loanId}/audit`;
+		// Use list audits filtered by loanId to retrieve the full audit trail.
+		const searchParams = new URLSearchParams({
+			loanId,
+			orderBy: "madeOnDate",
+			sortOrder: "DESC",
+			limit: "200",
+			includeJson: "true",
+		});
+		const path = `${FINERACT_ENDPOINTS.audits}?${searchParams.toString()}`;
 
 		const audit = await fineractFetch(path, {
 			method: "GET",
 			tenantId,
 		});
 
-		return NextResponse.json(audit);
+		const events = Array.isArray(audit)
+			? audit
+			: typeof audit === "object" && audit !== null
+				? Array.isArray((audit as { pageItems?: unknown[] }).pageItems)
+					? ((audit as { pageItems: unknown[] }).pageItems ?? [])
+					: Array.isArray((audit as { events?: unknown[] }).events)
+						? ((audit as { events: unknown[] }).events ?? [])
+						: []
+				: [];
+
+		return NextResponse.json({
+			events,
+			totalFilteredRecords:
+				typeof audit === "object" &&
+				audit !== null &&
+				"totalFilteredRecords" in audit
+					? (audit as { totalFilteredRecords?: number }).totalFilteredRecords
+					: undefined,
+		});
 	} catch (error) {
 		const mappedError = mapFineractError(error);
 		return NextResponse.json(mappedError, {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,11 +14,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 import type { MakerCheckerEntry } from "@/lib/fineract/maker-checker";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function InboxPage() {
 	const [loading, setLoading] = useState(true);
 	const [processing, setProcessing] = useState<number | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const { inbox, setInbox } = useMakerCheckerStore();
 
 	useEffect(() => {
@@ -44,6 +50,7 @@ export default function InboxPage() {
 		command: "approve" | "reject",
 	) => {
 		setProcessing(auditId);
+		setSubmitError(null);
 		try {
 			// TODO: Add permission validation via API
 			const response = await fetch("/api/maker-checker/inbox", {
@@ -53,16 +60,26 @@ export default function InboxPage() {
 			});
 
 			if (!response.ok) {
-				const errorData = await response.json();
-				alert(errorData.error || "Failed to approve/reject entry");
-				return;
+				const errorPayload = await response
+					.json()
+					.catch(() => ({ message: `Failed to ${command} entry` }));
+				throw errorPayload;
 			}
 
 			// Remove from inbox
 			setInbox(inbox.filter((item) => item.auditId !== auditId));
 			console.log(`Entry ${auditId} ${command}d.`);
 		} catch (error) {
-			console.error(`Failed to ${command} entry:`, error);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action:
+						command === "approve"
+							? "approveMakerCheckerEntry"
+							: "rejectMakerCheckerEntry",
+					endpoint: "/api/maker-checker/inbox",
+					method: "POST",
+				}),
+			);
 		} finally {
 			setProcessing(null);
 		}
@@ -126,6 +143,10 @@ export default function InboxPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
+					<SubmitErrorAlert
+						error={submitError}
+						title="Failed to process inbox action"
+					/>
 					{inbox.length === 0 ? (
 						<div className="text-center py-8">
 							<p className="text-muted-foreground">

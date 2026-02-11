@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import {
 	Card,
 	CardContent,
@@ -10,11 +11,16 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function GlobalPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const { globalConfig, setGlobalConfig } = useMakerCheckerStore();
 
 	useEffect(() => {
@@ -34,6 +40,7 @@ export default function GlobalPage() {
 
 	const handleToggle = async (enabled: boolean) => {
 		setSaving(true);
+		setSubmitError(null);
 		try {
 			const response = await fetch("/api/maker-checker/global", {
 				method: "PUT",
@@ -42,8 +49,10 @@ export default function GlobalPage() {
 			});
 
 			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || "Failed to update global config");
+				const errorPayload = await response
+					.json()
+					.catch(() => ({ message: "Failed to update global config" }));
+				throw errorPayload;
 			}
 
 			setGlobalConfig({ enabled });
@@ -51,7 +60,13 @@ export default function GlobalPage() {
 				`Maker checker ${enabled ? "enabled" : "disabled"} globally.`,
 			);
 		} catch (error) {
-			console.error("Failed to update global configuration:", error);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "updateMakerCheckerGlobalConfig",
+					endpoint: "/api/maker-checker/global",
+					method: "PUT",
+				}),
+			);
 		} finally {
 			setSaving(false);
 		}
@@ -107,6 +122,10 @@ export default function GlobalPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
+					<SubmitErrorAlert
+						error={submitError}
+						title="Failed to update global configuration"
+					/>
 					<div className="flex items-center space-x-2">
 						<Checkbox
 							checked={globalConfig?.enabled || false}

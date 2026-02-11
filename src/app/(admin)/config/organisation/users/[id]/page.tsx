@@ -4,15 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit, Trash } from "lucide-react";
 import { use, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
-import { Badge } from "@/components/ui/badge";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -23,6 +17,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetUsersResponse } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { TeamMemberRequestPayload } from "@/lib/schemas/team-member";
 import { useTenantStore } from "@/store/tenant";
 
@@ -75,7 +71,10 @@ async function deleteUser(tenantId: string, userId: number) {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to delete user");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to delete user" }));
+		throw payload;
 	}
 }
 
@@ -89,6 +88,9 @@ export default function UserDetailPage({
 	const queryClient = useQueryClient();
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		data: user,
@@ -112,11 +114,23 @@ export default function UserDetailPage({
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteUser(tenantId, Number(id)),
 		onSuccess: () => {
+			setSubmitError(null);
 			window.location.href = "/config/organisation/users";
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteUser",
+					endpoint: `${BFF_ROUTES.users}/${id}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
 	const handleDeleteConfirm = () => {
+		setSubmitError(null);
 		deleteMutation.mutate();
 	};
 
@@ -245,6 +259,7 @@ export default function UserDetailPage({
 							cannot be undone.
 						</DialogDescription>
 					</DialogHeader>
+					<SubmitErrorAlert error={submitError} title="Unable to delete user" />
 					<div className="flex justify-end space-x-2">
 						<Button
 							type="button"

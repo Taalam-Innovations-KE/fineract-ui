@@ -4,15 +4,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Trash } from "lucide-react";
 import { use, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -23,6 +18,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { Staff } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchStaffMember(tenantId: string, id: string): Promise<Staff> {
@@ -51,7 +48,10 @@ async function deleteStaffMember(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to delete staff member");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to delete staff member" }));
+		throw payload;
 	}
 }
 
@@ -63,6 +63,9 @@ export default function StaffDetailPage({
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		data: staff,
@@ -76,11 +79,23 @@ export default function StaffDetailPage({
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteStaffMember(tenantId, Number(id)),
 		onSuccess: () => {
+			setSubmitError(null);
 			window.location.href = "/config/organisation/staff";
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteStaff",
+					endpoint: `${BFF_ROUTES.staff}/${id}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
 	const handleDeleteConfirm = () => {
+		setSubmitError(null);
 		deleteMutation.mutate();
 	};
 
@@ -186,6 +201,10 @@ export default function StaffDetailPage({
 							cannot be undone.
 						</DialogDescription>
 					</DialogHeader>
+					<SubmitErrorAlert
+						error={submitError}
+						title="Unable to delete staff member"
+					/>
 					<div className="flex justify-end space-x-2">
 						<Button
 							type="button"

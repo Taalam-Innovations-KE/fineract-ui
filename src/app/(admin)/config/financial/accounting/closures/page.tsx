@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarCheck2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,8 @@ import type {
 	PostGlClosuresRequest,
 	PutGlClosuresRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type ClosureFormState = {
@@ -111,6 +114,20 @@ async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
 	return response.json();
 }
 
+async function parseSubmitResponse<T>(
+	response: Response,
+	fallbackMessage: string,
+): Promise<T> {
+	const result = (await response.json().catch(() => ({
+		message: fallbackMessage,
+		statusCode: response.status,
+	}))) as T;
+	if (!response.ok) {
+		throw result;
+	}
+	return result;
+}
+
 async function createClosure(tenantId: string, payload: PostGlClosuresRequest) {
 	const response = await fetch(BFF_ROUTES.glClosures, {
 		method: "POST",
@@ -120,11 +137,7 @@ async function createClosure(tenantId: string, payload: PostGlClosuresRequest) {
 		},
 		body: JSON.stringify(payload),
 	});
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to create closure");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to create closure");
 }
 
 async function updateClosure(
@@ -140,11 +153,7 @@ async function updateClosure(
 		},
 		body: JSON.stringify(payload),
 	});
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to update closure");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to update closure");
 }
 
 async function deleteClosure(tenantId: string, closureId: number) {
@@ -152,11 +161,7 @@ async function deleteClosure(tenantId: string, closureId: number) {
 		method: "DELETE",
 		headers: { "x-tenant-id": tenantId },
 	});
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to delete closure");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to delete closure");
 }
 
 function toDateInputValue(value?: string) {
@@ -176,6 +181,9 @@ export default function AccountingClosuresPage() {
 		useState<GetGlClosureResponse | null>(null);
 	const [formState, setFormState] = useState<ClosureFormState>(DEFAULT_FORM);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const closuresQuery = useQuery({
@@ -195,7 +203,19 @@ export default function AccountingClosuresPage() {
 			queryClient.invalidateQueries({ queryKey: ["gl-closures", tenantId] });
 			setIsSheetOpen(false);
 			setEditingClosure(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Closure created successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "createAccountingClosure",
+				endpoint: BFF_ROUTES.glClosures,
+				method: "POST",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -206,7 +226,19 @@ export default function AccountingClosuresPage() {
 			queryClient.invalidateQueries({ queryKey: ["gl-closures", tenantId] });
 			setIsSheetOpen(false);
 			setEditingClosure(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Closure comments updated successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "updateAccountingClosure",
+				endpoint: BFF_ROUTES.glClosureById(editingClosure?.id || 0),
+				method: "PUT",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -214,7 +246,18 @@ export default function AccountingClosuresPage() {
 		mutationFn: (id: number) => deleteClosure(tenantId, id),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["gl-closures", tenantId] });
+			setSubmitError(null);
 			setToastMessage("Closure deleted successfully");
+		},
+		onError: (error, id) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteAccountingClosure",
+					endpoint: BFF_ROUTES.glClosureById(id),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -242,6 +285,7 @@ export default function AccountingClosuresPage() {
 	const openCreateSheet = () => {
 		setEditingClosure(null);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			...DEFAULT_FORM,
 			officeId: offices[0]?.id ? String(offices[0].id) : "",
@@ -252,6 +296,7 @@ export default function AccountingClosuresPage() {
 	const openEditSheet = (closure: GetGlClosureResponse) => {
 		setEditingClosure(closure);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			officeId: closure.officeId ? String(closure.officeId) : "",
 			closingDate: toDateInputValue(closure.closingDate),
@@ -261,6 +306,7 @@ export default function AccountingClosuresPage() {
 	};
 
 	const handleDelete = (closure: GetGlClosureResponse) => {
+		setSubmitError(null);
 		if (!closure.id || !closure.officeId) return;
 		const latestId = latestClosureByOffice.get(closure.officeId);
 		if (latestId !== closure.id) {
@@ -277,6 +323,7 @@ export default function AccountingClosuresPage() {
 	};
 
 	const handleSave = () => {
+		setSubmitError(null);
 		if (editingClosure) {
 			if (!formState.comments.trim()) {
 				setFormError("Comments are required when updating a closure");
@@ -404,6 +451,10 @@ export default function AccountingClosuresPage() {
 								Update only comments after creation.
 							</AlertDescription>
 						</Alert>
+						<SubmitErrorAlert
+							error={submitError}
+							title="Accounting closure action failed"
+						/>
 						{closuresQuery.isLoading || officesQuery.isLoading ? (
 							<ClosuresSkeleton />
 						) : (
@@ -437,6 +488,10 @@ export default function AccountingClosuresPage() {
 					</SheetHeader>
 
 					<div className="mt-6 space-y-4">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Accounting closure action failed"
+						/>
 						{formError && (
 							<Alert variant="destructive">
 								<AlertTitle>Validation Error</AlertTitle>

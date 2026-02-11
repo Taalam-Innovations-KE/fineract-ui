@@ -5,6 +5,7 @@ import { ArrowLeft, Link2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ import type {
 	GlAccountData,
 	PostFinancialActivityAccountsRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type MappingFormState = {
@@ -110,6 +113,20 @@ async function fetchTemplate(
 	return response.json();
 }
 
+async function parseSubmitResponse<T>(
+	response: Response,
+	fallbackMessage: string,
+): Promise<T> {
+	const result = (await response.json().catch(() => ({
+		message: fallbackMessage,
+		statusCode: response.status,
+	}))) as T;
+	if (!response.ok) {
+		throw result;
+	}
+	return result;
+}
+
 async function createMapping(
 	tenantId: string,
 	payload: PostFinancialActivityAccountsRequest,
@@ -122,11 +139,7 @@ async function createMapping(
 		},
 		body: JSON.stringify(payload),
 	});
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to create mapping");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to create mapping");
 }
 
 async function updateMapping(
@@ -145,11 +158,7 @@ async function updateMapping(
 			body: JSON.stringify(payload),
 		},
 	);
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to update mapping");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to update mapping");
 }
 
 async function deleteMapping(tenantId: string, mappingId: number) {
@@ -160,11 +169,7 @@ async function deleteMapping(tenantId: string, mappingId: number) {
 			headers: { "x-tenant-id": tenantId },
 		},
 	);
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to delete mapping");
-	}
-	return result;
+	return parseSubmitResponse(response, "Failed to delete mapping");
 }
 
 function mapActivityTypeToKey(mappedType?: string) {
@@ -193,6 +198,9 @@ export default function FinancialActivityMappingsPage() {
 		useState<GetFinancialActivityAccountsResponse | null>(null);
 	const [formState, setFormState] = useState<MappingFormState>(DEFAULT_FORM);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const mappingsQuery = useQuery({
@@ -214,7 +222,19 @@ export default function FinancialActivityMappingsPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingMapping(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Mapping created successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "createFinancialActivityMapping",
+				endpoint: BFF_ROUTES.financialActivityAccounts,
+				method: "POST",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -227,7 +247,21 @@ export default function FinancialActivityMappingsPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingMapping(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Mapping updated successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "updateFinancialActivityMapping",
+				endpoint: BFF_ROUTES.financialActivityAccountById(
+					editingMapping?.id || 0,
+				),
+				method: "PUT",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -237,7 +271,18 @@ export default function FinancialActivityMappingsPage() {
 			queryClient.invalidateQueries({
 				queryKey: ["financial-activity-mappings", tenantId],
 			});
+			setSubmitError(null);
 			setToastMessage("Mapping deleted successfully");
+		},
+		onError: (error, id) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteFinancialActivityMapping",
+					endpoint: BFF_ROUTES.financialActivityAccountById(id),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -274,6 +319,7 @@ export default function FinancialActivityMappingsPage() {
 			null;
 		setEditingMapping(null);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			financialActivityId: defaultActivity?.id
 				? String(defaultActivity.id)
@@ -286,6 +332,7 @@ export default function FinancialActivityMappingsPage() {
 	const openEditSheet = (mapping: GetFinancialActivityAccountsResponse) => {
 		setEditingMapping(mapping);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			financialActivityId: mapping.financialActivityData?.id
 				? String(mapping.financialActivityData.id)
@@ -298,6 +345,7 @@ export default function FinancialActivityMappingsPage() {
 	};
 
 	const handleSave = () => {
+		setSubmitError(null);
 		if (!formState.financialActivityId || !formState.glAccountId) {
 			setFormError("Financial activity and GL account are required");
 			return;
@@ -317,6 +365,7 @@ export default function FinancialActivityMappingsPage() {
 	};
 
 	const handleDelete = (mapping: GetFinancialActivityAccountsResponse) => {
+		setSubmitError(null);
 		if (!mapping.id) return;
 		const confirmed = window.confirm(
 			`Delete mapping for ${mapping.financialActivityData?.name || "activity"}?`,
@@ -419,6 +468,10 @@ export default function FinancialActivityMappingsPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
+						<SubmitErrorAlert
+							error={submitError}
+							title="Financial activity mapping action failed"
+						/>
 						{mappingsQuery.isLoading || templateQuery.isLoading ? (
 							<MappingSkeleton />
 						) : (
@@ -448,6 +501,10 @@ export default function FinancialActivityMappingsPage() {
 					</SheetHeader>
 
 					<div className="mt-6 space-y-4">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Financial activity mapping action failed"
+						/>
 						{formError && (
 							<Alert variant="destructive">
 								<AlertTitle>Validation Error</AlertTitle>

@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,8 @@ import type {
 	AccountingRuleData,
 	AccountRuleRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type RuleFormState = {
@@ -114,6 +117,20 @@ async function fetchTemplate(tenantId: string): Promise<AccountingRuleData> {
 	return response.json();
 }
 
+async function parseSubmitResponse<T>(
+	response: Response,
+	fallbackMessage: string,
+): Promise<T> {
+	const result = (await response.json().catch(() => ({
+		message: fallbackMessage,
+		statusCode: response.status,
+	}))) as T;
+	if (!response.ok) {
+		throw result;
+	}
+	return result;
+}
+
 async function createRule(tenantId: string, payload: AccountRuleRequest) {
 	const response = await fetch(BFF_ROUTES.accountingRules, {
 		method: "POST",
@@ -124,12 +141,7 @@ async function createRule(tenantId: string, payload: AccountRuleRequest) {
 		body: JSON.stringify(payload),
 	});
 
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to create accounting rule");
-	}
-
-	return result;
+	return parseSubmitResponse(response, "Failed to create accounting rule");
 }
 
 async function updateRule(
@@ -146,12 +158,7 @@ async function updateRule(
 		body: JSON.stringify(payload),
 	});
 
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to update accounting rule");
-	}
-
-	return result;
+	return parseSubmitResponse(response, "Failed to update accounting rule");
 }
 
 async function deleteRule(tenantId: string, ruleId: number) {
@@ -160,12 +167,7 @@ async function deleteRule(tenantId: string, ruleId: number) {
 		headers: { "x-tenant-id": tenantId },
 	});
 
-	const result = await response.json().catch(() => null);
-	if (!response.ok) {
-		throw new Error(result?.message || "Failed to delete accounting rule");
-	}
-
-	return result;
+	return parseSubmitResponse(response, "Failed to delete accounting rule");
 }
 
 export default function AccountingRulesPage() {
@@ -179,6 +181,9 @@ export default function AccountingRulesPage() {
 	);
 	const [formState, setFormState] = useState<RuleFormState>(DEFAULT_FORM);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const rulesQuery = useQuery({
@@ -199,7 +204,19 @@ export default function AccountingRulesPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingRule(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Accounting rule created successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "createAccountingRule",
+				endpoint: BFF_ROUTES.accountingRules,
+				method: "POST",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -212,7 +229,19 @@ export default function AccountingRulesPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingRule(null);
+			setFormError(null);
+			setSubmitError(null);
 			setToastMessage("Accounting rule updated successfully");
+		},
+		onError: (error) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "updateAccountingRule",
+				endpoint: BFF_ROUTES.accountingRuleById(editingRule?.id || 0),
+				method: "PUT",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setFormError(trackedError.message);
 		},
 	});
 
@@ -222,7 +251,18 @@ export default function AccountingRulesPage() {
 			queryClient.invalidateQueries({
 				queryKey: ["accounting-rules", tenantId],
 			});
+			setSubmitError(null);
 			setToastMessage("Accounting rule deleted successfully");
+		},
+		onError: (error, id) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteAccountingRule",
+					endpoint: BFF_ROUTES.accountingRuleById(id),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -251,6 +291,7 @@ export default function AccountingRulesPage() {
 	const openCreateSheet = () => {
 		setEditingRule(null);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			...DEFAULT_FORM,
 			officeId: officeOptions[0]?.id ? String(officeOptions[0].id) : "",
@@ -265,6 +306,7 @@ export default function AccountingRulesPage() {
 	const openEditSheet = (rule: AccountingRuleData) => {
 		setEditingRule(rule);
 		setFormError(null);
+		setSubmitError(null);
 		setFormState({
 			name: rule.name || "",
 			description: rule.description || "",
@@ -280,6 +322,7 @@ export default function AccountingRulesPage() {
 	};
 
 	const handleSave = () => {
+		setSubmitError(null);
 		if (!formState.name.trim()) {
 			setFormError("Rule name is required");
 			return;
@@ -312,6 +355,7 @@ export default function AccountingRulesPage() {
 	};
 
 	const handleDelete = (rule: AccountingRuleData) => {
+		setSubmitError(null);
 		if (!rule.id) return;
 		const confirmed = window.confirm(
 			`Delete accounting rule \"${rule.name}\"?`,
@@ -418,6 +462,10 @@ export default function AccountingRulesPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Accounting rule action failed"
+						/>
 						<div className="space-y-2 max-w-lg">
 							<Label htmlFor="search-rules">Search Rules</Label>
 							<Input
@@ -456,6 +504,10 @@ export default function AccountingRulesPage() {
 					</SheetHeader>
 
 					<div className="mt-6 space-y-4">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Accounting rule action failed"
+						/>
 						{formError && (
 							<Alert variant="destructive">
 								<AlertTitle>Validation Error</AlertTitle>

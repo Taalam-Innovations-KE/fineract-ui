@@ -601,7 +601,18 @@ export default function ClientsPage() {
 			const clientId = result.clientId ?? result.resourceId;
 
 			if (!clientId) {
-				throw new Error("Client creation response missing clientId");
+				throw toSubmitActionError(
+					{
+						code: "CLIENT_ID_MISSING",
+						message: "Client creation response missing clientId",
+					},
+					{
+						action: "createClient",
+						endpoint: BFF_ROUTES.clients,
+						method: "POST",
+						tenantId,
+					},
+				);
 			}
 
 			if (!identifiers.length) return result;
@@ -619,8 +630,20 @@ export default function ClientsPage() {
 					identifier.matches,
 				);
 				if (!documentTypeId) {
-					throw new Error(
-						`Missing document type for ${identifier.label}. Configure identifier types in System Settings.`,
+					throw toSubmitActionError(
+						{
+							code: "IDENTIFIER_DOCUMENT_TYPE_MISSING",
+							message: `Missing document type for ${identifier.label}. Configure identifier types in System Settings.`,
+							details: {
+								identifier: [identifier.label],
+							},
+						},
+						{
+							action: "createClientIdentifier",
+							endpoint: BFF_ROUTES.clientIdentifiers(clientId),
+							method: "POST",
+							tenantId,
+						},
 					);
 				}
 				return {

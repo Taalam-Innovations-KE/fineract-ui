@@ -16,6 +16,7 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -609,9 +610,9 @@ export function PostLoanTransactionSheet({
 
 				<div className="pt-4">
 					<div className="space-y-2">
-						<FormLabel>
+						<Label>
 							Transaction Command <span className="text-destructive">*</span>
-						</FormLabel>
+						</Label>
 						<Select value={command} onValueChange={handleCommandChange}>
 							<SelectTrigger>
 								<SelectValue placeholder="Select command" />

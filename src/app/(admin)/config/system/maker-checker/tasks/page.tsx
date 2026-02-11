@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Permission } from "@/lib/fineract/maker-checker";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 import { useTenantStore } from "@/store/tenant";
 
@@ -42,9 +45,21 @@ export default function TasksPage() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [bulkSaving, setBulkSaving] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const { tenantId } = useTenantStore();
 	const { permissions, setPermissions, updatePermission } =
 		useMakerCheckerStore();
+
+	const parseSubmitErrorPayload = async (
+		response: Response,
+		fallbackMessage: string,
+	) =>
+		response.json().catch(() => ({
+			message: fallbackMessage,
+			statusCode: response.status,
+		}));
 
 	useEffect(() => {
 		async function loadPermissions() {
@@ -76,6 +91,7 @@ export default function TasksPage() {
 
 	const handleBulkEnable = async (codes: string[]) => {
 		setBulkSaving(true);
+		setSubmitError(null);
 		try {
 			const updates = codes.map((code) => ({ code, selected: true }));
 			const response = await fetch("/api/maker-checker/permissions", {
@@ -87,11 +103,23 @@ export default function TasksPage() {
 				body: JSON.stringify(updates),
 			});
 
-			if (!response.ok) throw new Error("Failed to bulk enable permissions");
+			if (!response.ok) {
+				throw await parseSubmitErrorPayload(
+					response,
+					"Failed to bulk enable permissions",
+				);
+			}
 
 			codes.forEach((code) => updatePermission(code, true));
 		} catch (error) {
-			console.error("Failed to bulk enable permissions:", error);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "bulkEnableMakerCheckerPermissions",
+					endpoint: "/api/maker-checker/permissions",
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		} finally {
 			setBulkSaving(false);
 		}
@@ -99,6 +127,7 @@ export default function TasksPage() {
 
 	const handleBulkDisable = async (codes: string[]) => {
 		setBulkSaving(true);
+		setSubmitError(null);
 		try {
 			const updates = codes.map((code) => ({ code, selected: false }));
 			const response = await fetch("/api/maker-checker/permissions", {
@@ -110,11 +139,23 @@ export default function TasksPage() {
 				body: JSON.stringify(updates),
 			});
 
-			if (!response.ok) throw new Error("Failed to bulk disable permissions");
+			if (!response.ok) {
+				throw await parseSubmitErrorPayload(
+					response,
+					"Failed to bulk disable permissions",
+				);
+			}
 
 			codes.forEach((code) => updatePermission(code, false));
 		} catch (error) {
-			console.error("Failed to bulk disable permissions:", error);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "bulkDisableMakerCheckerPermissions",
+					endpoint: "/api/maker-checker/permissions",
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		} finally {
 			setBulkSaving(false);
 		}
@@ -122,6 +163,7 @@ export default function TasksPage() {
 
 	const handleSave = async () => {
 		setSaving(true);
+		setSubmitError(null);
 		try {
 			const updates = permissions.map((p) => ({
 				code: p.code,
@@ -136,11 +178,23 @@ export default function TasksPage() {
 				body: JSON.stringify(updates),
 			});
 
-			if (!response.ok) throw new Error("Failed to update permissions");
+			if (!response.ok) {
+				throw await parseSubmitErrorPayload(
+					response,
+					"Failed to update permissions",
+				);
+			}
 
 			console.log("Permissions updated successfully.");
 		} catch (error) {
-			console.error("Failed to update permissions:", error);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "saveMakerCheckerPermissions",
+					endpoint: "/api/maker-checker/permissions",
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		} finally {
 			setSaving(false);
 		}
@@ -220,6 +274,10 @@ export default function TasksPage() {
 					Select which operations require maker checker approval.
 				</p>
 			</div>
+			<SubmitErrorAlert
+				error={submitError}
+				title="Maker-checker task update failed"
+			/>
 
 			{/* Bulk Operations */}
 			<Card>

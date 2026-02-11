@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,8 @@ import type {
 	PutDelinquencyBucketResponse,
 	PutDelinquencyRangeResponse,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type EditableRange = {
@@ -94,15 +97,25 @@ async function parseJsonOrThrow<T>(
 	fallbackErrorMessage: string,
 ): Promise<T> {
 	const rawPayload = await response.text();
-	const payload = rawPayload ? (JSON.parse(rawPayload) as unknown) : null;
+	let payload: unknown = null;
+
+	if (rawPayload) {
+		try {
+			payload = JSON.parse(rawPayload) as unknown;
+		} catch {
+			payload = { message: rawPayload };
+		}
+	}
 
 	if (!response.ok) {
-		throw new Error(
-			getErrorMessage(
-				payload,
-				response.statusText || fallbackErrorMessage || "Request failed",
-			),
+		const message = getErrorMessage(
+			payload,
+			response.statusText || fallbackErrorMessage || "Request failed",
 		);
+		if (isObjectRecord(payload)) {
+			throw { ...payload, message };
+		}
+		throw { message };
 	}
 
 	return (payload ?? {}) as T;
@@ -438,6 +451,9 @@ export default function DelinquencyBucketsPage() {
 		useState<DelinquencyBucketData | null>(null);
 	const [draft, setDraft] = useState<BucketDraft>(INITIAL_DRAFT);
 	const [formError, setFormError] = useState<string | null>(null);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		data: bucketsData = [],
@@ -530,10 +546,18 @@ export default function DelinquencyBucketsPage() {
 			});
 			setDraft(INITIAL_DRAFT);
 			setFormError(null);
+			setSubmitError(null);
 			setIsSheetOpen(false);
 		},
 		onError: (error) => {
-			setFormError((error as Error).message);
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "createDelinquencyBucket",
+					endpoint: BFF_ROUTES.delinquencyBuckets,
+					method: "POST",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -562,10 +586,18 @@ export default function DelinquencyBucketsPage() {
 			setEditingBucket(null);
 			setDraft(INITIAL_DRAFT);
 			setFormError(null);
+			setSubmitError(null);
 			setIsSheetOpen(false);
 		},
-		onError: (error) => {
-			setFormError((error as Error).message);
+		onError: (error, variables) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "updateDelinquencyBucket",
+					endpoint: `${BFF_ROUTES.delinquencyBuckets}/${variables.bucketId}`,
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -576,9 +608,17 @@ export default function DelinquencyBucketsPage() {
 			queryClient.invalidateQueries({
 				queryKey: ["delinquency-buckets", tenantId],
 			});
+			setSubmitError(null);
 		},
-		onError: (error) => {
-			setFormError((error as Error).message);
+		onError: (error, bucketId) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteDelinquencyBucket",
+					endpoint: `${BFF_ROUTES.delinquencyBuckets}/${bucketId}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -586,6 +626,7 @@ export default function DelinquencyBucketsPage() {
 		setEditingBucket(null);
 		setDraft(INITIAL_DRAFT);
 		setFormError(null);
+		setSubmitError(null);
 		setIsSheetOpen(true);
 	};
 
@@ -593,6 +634,7 @@ export default function DelinquencyBucketsPage() {
 		setEditingBucket(bucket);
 		setDraft(mapBucketToDraft(bucket));
 		setFormError(null);
+		setSubmitError(null);
 		setIsSheetOpen(true);
 	};
 
@@ -635,10 +677,12 @@ export default function DelinquencyBucketsPage() {
 		const validationError = validateDraft(draft);
 		if (validationError) {
 			setFormError(validationError);
+			setSubmitError(null);
 			return;
 		}
 
 		setFormError(null);
+		setSubmitError(null);
 		if (editingBucket?.id !== undefined) {
 			updateBucketMutation.mutate({
 				bucketId: editingBucket.id,
@@ -662,6 +706,7 @@ export default function DelinquencyBucketsPage() {
 			return;
 		}
 
+		setSubmitError(null);
 		deleteBucketMutation.mutate(bucket.id);
 	};
 
@@ -866,6 +911,10 @@ export default function DelinquencyBucketsPage() {
 						<AlertDescription>{formError}</AlertDescription>
 					</Alert>
 				)}
+				<SubmitErrorAlert
+					error={submitError}
+					title="Delinquency bucket action failed"
+				/>
 
 				<Card>
 					<CardHeader>
@@ -1018,6 +1067,7 @@ export default function DelinquencyBucketsPage() {
 								onClick={() => {
 									setIsSheetOpen(false);
 									setFormError(null);
+									setSubmitError(null);
 								}}
 							>
 								Cancel

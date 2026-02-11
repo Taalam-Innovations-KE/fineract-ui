@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,8 @@ import type {
 	Staff,
 	StaffRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type CreateStaffFormData,
 	createStaffSchema,
@@ -41,6 +44,9 @@ export function StaffForm({
 	onCancel,
 }: StaffFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const isEditing = Boolean(initialData);
 
 	const {
@@ -71,9 +77,21 @@ export function StaffForm({
 
 	const onFormSubmit = async (data: CreateStaffFormData) => {
 		setIsSubmitting(true);
+		setSubmitError(null);
 		try {
 			const requestData = staffFormToRequest(data);
 			await onSubmit(requestData);
+		} catch (error) {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: isEditing ? "updateStaff" : "createStaff",
+					endpoint:
+						isEditing && initialData?.id
+							? `/api/fineract/staff/${initialData.id}`
+							: "/api/fineract/staff",
+					method: isEditing ? "PUT" : "POST",
+				}),
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -81,6 +99,10 @@ export function StaffForm({
 
 	return (
 		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+			<SubmitErrorAlert
+				error={submitError}
+				title={isEditing ? "Failed to update staff" : "Failed to create staff"}
+			/>
 			<div className="grid grid-cols-2 gap-4">
 				<div className="space-y-2">
 					<Label htmlFor="firstname">

@@ -97,8 +97,10 @@ async function createStaff(tenantId: string, data: StaffRequest) {
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to create staff");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to create staff" }));
+		throw payload;
 	}
 
 	return response.json();
@@ -119,8 +121,10 @@ async function updateStaff(
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to update staff");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to update staff" }));
+		throw payload;
 	}
 
 	return response.json();

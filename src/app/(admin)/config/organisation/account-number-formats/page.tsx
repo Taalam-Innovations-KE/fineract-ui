@@ -76,8 +76,10 @@ async function createAccountNumberFormat(
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to create account number format");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to create account number format" }));
+		throw payload;
 	}
 
 	return response.json();
@@ -101,8 +103,10 @@ async function updateAccountNumberFormat(
 	);
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to update account number format");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to update account number format" }));
+		throw payload;
 	}
 
 	return response.json();
@@ -120,8 +124,10 @@ async function deleteAccountNumberFormat(tenantId: string, formatId: number) {
 	);
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to delete account number format");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to delete account number format" }));
+		throw payload;
 	}
 
 	return response.json();

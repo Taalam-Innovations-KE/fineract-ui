@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { use, useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { JournalEntryForm } from "@/components/journal-entry-form";
 import { TransactionAudit } from "@/components/transaction-audit";
 import { TransactionDetails } from "@/components/transaction-details";
@@ -42,6 +43,8 @@ import type {
 	CreditDebit,
 	JournalEntryData,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 import { useTransactionStore } from "@/store/transactions";
 
@@ -66,11 +69,7 @@ async function reverseJournalEntry(
 	const data = await response.json();
 
 	if (!response.ok) {
-		throw new Error(
-			data.message ||
-				data.errors?.[0]?.defaultUserMessage ||
-				"Failed to reverse journal entry",
-		);
+		throw data;
 	}
 
 	return data;
@@ -87,6 +86,9 @@ export default function TransactionDetailPage({
 	const { setStatus } = useTransactionStore();
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const entryQuery = useQuery({
 		queryKey: ["journalEntry", tenantId, id],
@@ -108,7 +110,18 @@ export default function TransactionDetailPage({
 				queryKey: ["journalEntry", tenantId, id],
 			});
 			queryClient.invalidateQueries({ queryKey: ["journalEntries", tenantId] });
+			setSubmitError(null);
 			setToastMessage("Journal entry reversed successfully");
+		},
+		onError: (error, transactionId) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "reverseJournalEntry",
+					endpoint: `${BFF_ROUTES.journalEntries}/reverse/${transactionId}`,
+					method: "POST",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -178,6 +191,10 @@ export default function TransactionDetailPage({
 				}
 			>
 				<div className="space-y-6">
+					<SubmitErrorAlert
+						error={submitError}
+						title="Transaction action failed"
+					/>
 					<TransactionOverview entry={entry} />
 					<TransactionLines entry={entry} />
 					<TransactionDetails entry={entry} />
@@ -257,6 +274,7 @@ export default function TransactionDetailPage({
 													"Are you sure you want to reverse this journal entry?",
 												)
 											) {
+												setSubmitError(null);
 												reverseMutation.mutate(entry.transactionId);
 											}
 										}}
@@ -294,10 +312,15 @@ export default function TransactionDetailPage({
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
+						<SubmitErrorAlert
+							error={submitError}
+							title="Transaction action failed"
+						/>
 						<JournalEntryForm
 							initialData={entry}
 							onSuccess={() => {
 								setIsEditDrawerOpen(false);
+								setSubmitError(null);
 								if (entry.transactionId) {
 									reverseMutation.mutate(entry.transactionId);
 								}

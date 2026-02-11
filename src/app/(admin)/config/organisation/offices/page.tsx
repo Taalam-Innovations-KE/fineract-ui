@@ -55,8 +55,10 @@ async function createOffice(tenantId: string, data: PostOfficesRequest) {
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to create office");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to create office" }));
+		throw payload;
 	}
 
 	return response.json();
@@ -77,8 +79,10 @@ async function updateOffice(
 	});
 
 	if (!response.ok) {
-		const error = await response.json();
-		throw new Error(error.message || "Failed to update office");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to update office" }));
+		throw payload;
 	}
 
 	return response.json();

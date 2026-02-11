@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Save } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,8 @@ import type {
 	OfficeData,
 	PostOfficesRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type CreateOfficeFormData,
 	createOfficeSchema,
@@ -38,6 +41,9 @@ export function OfficeForm({
 	onCancel,
 }: OfficeFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const isEditing = Boolean(initialData);
 
 	const {
@@ -66,9 +72,21 @@ export function OfficeForm({
 
 	const onFormSubmit = async (data: CreateOfficeFormData) => {
 		setIsSubmitting(true);
+		setSubmitError(null);
 		try {
 			const requestData = officeFormToRequest(data);
 			await onSubmit(requestData);
+		} catch (error) {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: isEditing ? "updateOffice" : "createOffice",
+					endpoint:
+						isEditing && initialData?.id
+							? `/api/fineract/offices/${initialData.id}`
+							: "/api/fineract/offices",
+					method: isEditing ? "PUT" : "POST",
+				}),
+			);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -76,6 +94,12 @@ export function OfficeForm({
 
 	return (
 		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+			<SubmitErrorAlert
+				error={submitError}
+				title={
+					isEditing ? "Failed to update office" : "Failed to create office"
+				}
+			/>
 			<div className="space-y-2">
 				<Label htmlFor="name">
 					Office Name <span className="text-destructive">*</span>

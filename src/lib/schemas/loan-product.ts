@@ -77,6 +77,7 @@ export const penaltySelectionSchema = z.object({
 	penaltyBasis: z
 		.enum(["totalOverdue", "overduePrincipal", "overdueInterest"])
 		.optional(),
+	gracePeriodOverride: optionalNumber,
 	currencyCode: z.string().optional(),
 	frequencyType: z.enum(["days", "weeks", "months", "years"]).optional(),
 	frequencyInterval: optionalPositiveInteger,

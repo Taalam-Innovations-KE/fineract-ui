@@ -35,6 +35,7 @@ export const FINERACT_ENDPOINTS = {
 	savingsProducts: "/v1/savingsproducts",
 	savingsProductTemplate: "/v1/savingsproducts/template",
 	charges: "/v1/charges",
+	chargeById: (chargeId: number | string) => `/v1/charges/${chargeId}`,
 
 	// Loans
 	loans: "/v1/loans",
@@ -139,6 +140,8 @@ export const BFF_ROUTES = {
 	savingsProducts: "/api/fineract/savingsproducts",
 	savingsProductTemplate: "/api/fineract/savingsproducts/template",
 	charges: "/api/fineract/charges",
+	chargeById: (chargeId: number | string) =>
+		`/api/fineract/charges/${chargeId}`,
 
 	// Loans
 	loans: "/api/fineract/loans",

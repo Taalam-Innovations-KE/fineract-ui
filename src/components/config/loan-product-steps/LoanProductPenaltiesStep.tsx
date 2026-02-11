@@ -39,6 +39,7 @@ import type {
 	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
 	PostChargesResponse,
+	PutChargesChargeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
 import {
@@ -64,6 +65,7 @@ type LoanTemplateWithPenaltyOptions = GetLoanProductsTemplateResponse & {
 };
 
 const OVERDUE_INSTALLMENT_CHARGE_TIME_TYPE = 9;
+const GRACE_PERIOD_FREQUENCY_DAYS = 0;
 const PENALTY_FREQUENCY_TO_API = {
 	days: "0",
 	weeks: "1",
@@ -140,10 +142,14 @@ function mapOptionToPenaltySelection(option: GetLoanProductsChargeOptions) {
 		readUnknownProperty(option, "feeFrequency"),
 	);
 	const frequencyInterval = readUnknownNumberProperty(option, "feeInterval");
+	const gracePeriodOverride =
+		readUnknownNumberProperty(option, "restartCountFrequency") ??
+		readUnknownNumberProperty(option, "restartFrequency");
 
 	return {
 		calculationMethod: mapChargeCalculationToMethod(chargeCalculationTypeId),
 		penaltyBasis: mapChargeCalculationToPenaltyBasis(chargeCalculationTypeId),
+		gracePeriodOverride,
 		frequencyType,
 		frequencyInterval,
 	};
@@ -212,6 +218,14 @@ function normalizeChargeToPenaltyOption(
 
 	option.feeFrequency = readUnknownProperty(charge, "feeFrequency");
 	option.feeInterval = readUnknownNumberProperty(charge, "feeInterval");
+	option.restartCountFrequency = readUnknownNumberProperty(
+		charge,
+		"restartCountFrequency",
+	);
+	option.restartFrequency = readUnknownNumberProperty(
+		charge,
+		"restartFrequency",
+	);
 
 	return option;
 }
@@ -358,6 +372,22 @@ export function LoanProductPenaltiesStep({
 				throw new Error("Charge ID missing from response");
 			}
 
+			const gracePeriodOverride =
+				values.gracePeriodOverride !== undefined &&
+				values.gracePeriodOverride > 0
+					? Math.trunc(values.gracePeriodOverride)
+					: undefined;
+
+			if (gracePeriodOverride !== undefined) {
+				const gracePeriodPayload: PutChargesChargeIdRequest = {
+					locale: "en",
+					countFrequencyType: GRACE_PERIOD_FREQUENCY_DAYS,
+					restartCountFrequency: gracePeriodOverride,
+				};
+
+				await chargesApi.update(tenantId, chargeId, gracePeriodPayload);
+			}
+
 			// Add to parent form via useFieldArray
 			append({
 				id: chargeId,
@@ -366,6 +396,7 @@ export function LoanProductPenaltiesStep({
 				currencyCode: values.currencyCode,
 				calculationMethod: values.calculationMethod,
 				penaltyBasis: values.penaltyBasis,
+				gracePeriodOverride,
 				frequencyType: values.frequencyType,
 				frequencyInterval: values.frequencyInterval,
 			});

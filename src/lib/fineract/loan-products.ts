@@ -3,6 +3,7 @@ import type {
 	ChargeRequest,
 	GetLoanProductsTemplateResponse,
 	PostLoanProductsRequest,
+	PutChargesChargeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import type {
 	CreateLoanProductFormData,
@@ -109,6 +110,22 @@ export const chargesApi = {
 	async create(tenantId: string, payload: ChargeRequest) {
 		const response = await fetch(BFF_ROUTES.charges, {
 			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		return parseJsonResponse(response);
+	},
+	async update(
+		tenantId: string,
+		chargeId: number,
+		payload: PutChargesChargeIdRequest,
+	) {
+		const response = await fetch(BFF_ROUTES.chargeById(chargeId), {
+			method: "PUT",
 			headers: {
 				"Content-Type": "application/json",
 				"x-tenant-id": tenantId,

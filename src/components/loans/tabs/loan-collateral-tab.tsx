@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { AddCollateralDialog } from "@/components/loans/dialogs";
 import {
 	AlertDialog,
@@ -26,6 +27,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { CollateralResponse } from "@/lib/schemas/loan-metadata";
 import { useTenantStore } from "@/store/tenant";
 
@@ -52,6 +55,9 @@ export function LoanCollateralTab({
 	const [deleteTarget, setDeleteTarget] = useState<CollateralResponse | null>(
 		null,
 	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const collateralQuery = useQuery({
 		queryKey: ["loanCollaterals", loanId, tenantId],
@@ -75,15 +81,37 @@ export function LoanCollateralTab({
 				},
 			);
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.message || "Failed to delete collateral");
+				const error = await response.json().catch(() => null);
+				const message =
+					typeof error === "object" &&
+					error !== null &&
+					"message" in error &&
+					typeof (error as { message?: unknown }).message === "string"
+						? ((error as { message: string }).message ??
+							"Failed to delete collateral")
+						: "Failed to delete collateral";
+				if (typeof error === "object" && error !== null) {
+					throw { ...error, message };
+				}
+				throw { message };
 			}
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["loanCollaterals", loanId, tenantId],
 			});
+			setSubmitError(null);
 			setDeleteTarget(null);
+		},
+		onError: (error, collateralId) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteLoanCollateral",
+					endpoint: `${BFF_ROUTES.loanCollaterals(loanId)}/${collateralId}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -106,6 +134,10 @@ export function LoanCollateralTab({
 	if (collateral.length === 0) {
 		return (
 			<>
+				<SubmitErrorAlert
+					error={submitError}
+					title="Collateral action failed"
+				/>
 				<Card>
 					<CardContent className="py-8 text-center">
 						<Package className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
@@ -135,6 +167,10 @@ export function LoanCollateralTab({
 	return (
 		<>
 			<div className="space-y-4">
+				<SubmitErrorAlert
+					error={submitError}
+					title="Collateral action failed"
+				/>
 				{/* Header with Add button */}
 				<div className="flex items-center justify-between">
 					<div>
@@ -236,9 +272,11 @@ export function LoanCollateralTab({
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							onClick={() =>
-								deleteTarget?.id && deleteMutation.mutate(deleteTarget.id)
-							}
+							onClick={() => {
+								if (!deleteTarget?.id) return;
+								setSubmitError(null);
+								deleteMutation.mutate(deleteTarget.id);
+							}}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{deleteMutation.isPending ? "Removing..." : "Remove Collateral"}

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Shield, Trash2, User } from "lucide-react";
 import { useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { AddGuarantorDialog } from "@/components/loans/dialogs";
 import {
 	AlertDialog,
@@ -27,6 +28,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { GuarantorResponse } from "@/lib/schemas/loan-metadata";
 import { useTenantStore } from "@/store/tenant";
 
@@ -53,6 +56,9 @@ export function LoanGuarantorsTab({
 	const [deleteTarget, setDeleteTarget] = useState<GuarantorResponse | null>(
 		null,
 	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const guarantorsQuery = useQuery({
 		queryKey: ["loanGuarantors", loanId, tenantId],
@@ -76,15 +82,37 @@ export function LoanGuarantorsTab({
 				},
 			);
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.message || "Failed to delete guarantor");
+				const error = await response.json().catch(() => null);
+				const message =
+					typeof error === "object" &&
+					error !== null &&
+					"message" in error &&
+					typeof (error as { message?: unknown }).message === "string"
+						? ((error as { message: string }).message ??
+							"Failed to delete guarantor")
+						: "Failed to delete guarantor";
+				if (typeof error === "object" && error !== null) {
+					throw { ...error, message };
+				}
+				throw { message };
 			}
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["loanGuarantors", loanId, tenantId],
 			});
+			setSubmitError(null);
 			setDeleteTarget(null);
+		},
+		onError: (error, guarantorId) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteLoanGuarantor",
+					endpoint: `${BFF_ROUTES.loanGuarantors(loanId)}/${guarantorId}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -108,6 +136,7 @@ export function LoanGuarantorsTab({
 	if (guarantors.length === 0) {
 		return (
 			<>
+				<SubmitErrorAlert error={submitError} title="Guarantor action failed" />
 				<Card>
 					<CardContent className="py-8 text-center">
 						<Shield className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
@@ -136,6 +165,7 @@ export function LoanGuarantorsTab({
 	return (
 		<>
 			<div className="space-y-4">
+				<SubmitErrorAlert error={submitError} title="Guarantor action failed" />
 				{/* Header with Add button */}
 				<div className="flex items-center justify-between">
 					<div>
@@ -254,9 +284,11 @@ export function LoanGuarantorsTab({
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							onClick={() =>
-								deleteTarget?.id && deleteMutation.mutate(deleteTarget.id)
-							}
+							onClick={() => {
+								if (!deleteTarget?.id) return;
+								setSubmitError(null);
+								deleteMutation.mutate(deleteTarget.id);
+							}}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{deleteMutation.isPending ? "Removing..." : "Remove Guarantor"}

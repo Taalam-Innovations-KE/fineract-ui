@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, File, FileText, Image, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { UploadDocumentDialog } from "@/components/loans/dialogs";
 import {
 	AlertDialog,
@@ -26,6 +27,8 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { deleteDocument, downloadDocument } from "@/lib/fineract/upload";
 import type { DocumentResponse } from "@/lib/schemas/loan-metadata";
 import { useTenantStore } from "@/store/tenant";
@@ -68,6 +71,9 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 	const [deleteTarget, setDeleteTarget] = useState<DocumentResponse | null>(
 		null,
 	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const documentsQuery = useQuery({
 		queryKey: ["loanDocuments", loanId, tenantId],
@@ -89,7 +95,18 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 			queryClient.invalidateQueries({
 				queryKey: ["loanDocuments", loanId, tenantId],
 			});
+			setSubmitError(null);
 			setDeleteTarget(null);
+		},
+		onError: (error, documentId) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteLoanDocument",
+					endpoint: `${BFF_ROUTES.loanDocuments(loanId)}/${documentId}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -126,6 +143,7 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 	if (documents.length === 0) {
 		return (
 			<>
+				<SubmitErrorAlert error={submitError} title="Document action failed" />
 				<Card>
 					<CardContent className="py-8 text-center">
 						<FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
@@ -154,6 +172,7 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 	return (
 		<>
 			<div className="space-y-4">
+				<SubmitErrorAlert error={submitError} title="Document action failed" />
 				{/* Header with Upload button */}
 				<div className="flex items-center justify-between">
 					<p className="text-sm text-muted-foreground">
@@ -262,9 +281,11 @@ export function LoanDocumentsTab({ loanId }: LoanDocumentsTabProps) {
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							onClick={() =>
-								deleteTarget?.id && deleteMutation.mutate(deleteTarget.id)
-							}
+							onClick={() => {
+								if (!deleteTarget?.id) return;
+								setSubmitError(null);
+								deleteMutation.mutate(deleteTarget.id);
+							}}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{deleteMutation.isPending ? "Deleting..." : "Delete Document"}

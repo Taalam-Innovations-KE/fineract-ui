@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, Play, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,11 +35,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	BatchRequest,
 	BatchResponse,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function executeBatch(
@@ -59,7 +61,18 @@ async function executeBatch(
 	);
 
 	if (!response.ok) {
-		throw new Error("Failed to execute batch");
+		const error = await response.json().catch(() => null);
+		const message =
+			typeof error === "object" &&
+			error !== null &&
+			"message" in error &&
+			typeof (error as { message?: unknown }).message === "string"
+				? ((error as { message: string }).message ?? "Failed to execute batch")
+				: "Failed to execute batch";
+		if (typeof error === "object" && error !== null) {
+			throw { ...error, message };
+		}
+		throw { message };
 	}
 
 	return response.json();
@@ -104,6 +117,9 @@ export default function BatchOperationsPage() {
 	const [batchResults, setBatchResults] = useState<BatchResponse[] | null>(
 		null,
 	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const [batchRequests, setBatchRequests] = useState<BatchRequest[]>([
 		{
@@ -125,12 +141,20 @@ export default function BatchOperationsPage() {
 		}) => executeBatch(tenantId, requests, transaction),
 		onSuccess: (results) => {
 			setBatchResults(results);
+			setSubmitError(null);
 			setToastMessage(
 				`Batch executed successfully. ${results.length} requests processed.`,
 			);
 		},
-		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+		onError: (error, variables) => {
+			const trackedError = toSubmitActionError(error, {
+				action: "executeBatch",
+				endpoint: `${BFF_ROUTES.batches}?enclosingTransaction=${variables.transaction}`,
+				method: "POST",
+				tenantId,
+			});
+			setSubmitError(trackedError);
+			setToastMessage(trackedError.message);
 		},
 	});
 
@@ -165,6 +189,7 @@ export default function BatchOperationsPage() {
 
 	const handleExecute = () => {
 		if (batchRequests.length === 0) return;
+		setSubmitError(null);
 		executeMutation.mutate({
 			requests: batchRequests,
 			transaction: enclosingTransaction,
@@ -206,6 +231,7 @@ export default function BatchOperationsPage() {
 			subtitle="Execute multiple API requests in a single batch operation"
 		>
 			<div className="space-y-6">
+				<SubmitErrorAlert error={submitError} title="Batch execution failed" />
 				{/* Summary */}
 				<div className="grid gap-4 md:grid-cols-3">
 					<Card>

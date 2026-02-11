@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -69,6 +70,11 @@ import type {
 	GetCodesResponse,
 	GetCodeValuesDataResponse,
 } from "@/lib/fineract/generated/types.gen";
+import type {
+	SubmitActionError,
+	SubmitMethod,
+} from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type ClientTab = "overview" | "accounts" | "identifiers" | "activity";
@@ -512,6 +518,31 @@ function getErrorMessage(data: unknown, fallback: string): string {
 	return fallback;
 }
 
+function toSubmitErrorPayload(data: unknown, fallback: string): unknown {
+	const message = getErrorMessage(data, fallback);
+	if (typeof data === "object" && data !== null) {
+		return { ...data, message };
+	}
+	return { message };
+}
+
+function getLifecycleActionRequestContext(
+	id: string,
+	action: ClientActionKey,
+): { endpoint: string; method: SubmitMethod } {
+	if (action === "delete") {
+		return {
+			endpoint: `${BFF_ROUTES.clients}/${id}`,
+			method: "DELETE",
+		};
+	}
+
+	return {
+		endpoint: `${BFF_ROUTES.clients}/${id}?command=${action}`,
+		method: "POST",
+	};
+}
+
 async function runClientCommand(
 	tenantId: string,
 	id: string,
@@ -533,7 +564,7 @@ async function runClientCommand(
 	const data = (await response.json().catch(() => null)) as unknown;
 
 	if (!response.ok) {
-		throw new Error(getErrorMessage(data, "Failed to perform client action"));
+		throw toSubmitErrorPayload(data, "Failed to perform client action");
 	}
 
 	return data;
@@ -550,7 +581,7 @@ async function deleteClient(tenantId: string, id: string) {
 	const data = (await response.json().catch(() => null)) as unknown;
 
 	if (!response.ok) {
-		throw new Error(getErrorMessage(data, "Failed to delete client"));
+		throw toSubmitErrorPayload(data, "Failed to delete client");
 	}
 
 	return data;
@@ -727,6 +758,9 @@ export default function ClientDetailPage({
 	const [selectedWithdrawalReasonId, setSelectedWithdrawalReasonId] =
 		useState<string>("");
 	const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(
+		null,
+	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
 
@@ -911,6 +945,7 @@ export default function ClientDetailPage({
 						? "Client deleted successfully."
 						: "Client action completed successfully.",
 			});
+			setSubmitError(null);
 			setConfirmAction(null);
 
 			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
@@ -929,20 +964,26 @@ export default function ClientDetailPage({
 				router.push("/config/operations/clients");
 			}
 		},
-		onError: (error: unknown) => {
+		onError: (error: unknown, action) => {
+			const requestContext = getLifecycleActionRequestContext(id, action);
+			const trackedError = toSubmitActionError(error, {
+				action: `client:${action}`,
+				endpoint: requestContext.endpoint,
+				method: requestContext.method,
+				tenantId,
+			});
 			setActionFeedback({
 				type: "error",
-				message:
-					error instanceof Error
-						? error.message
-						: "Failed to perform client action.",
+				message: trackedError.message,
 			});
+			setSubmitError(trackedError);
 			setConfirmAction(null);
 		},
 	});
 
 	const handleActionClick = (action: ClientActionKey) => {
 		setActionFeedback(null);
+		setSubmitError(null);
 
 		if (action === "reject" && rejectionReasonOptions.length === 0) {
 			setActionFeedback({
@@ -1236,6 +1277,7 @@ export default function ClientDetailPage({
 							<AlertDescription>{actionFeedback.message}</AlertDescription>
 						</Alert>
 					)}
+					<SubmitErrorAlert error={submitError} title="Client action failed" />
 
 					{lifecycleActions.length > 0 && (
 						<Card>
@@ -1840,6 +1882,7 @@ export default function ClientDetailPage({
 							onClick={(event) => {
 								event.preventDefault();
 								if (!confirmAction) return;
+								setSubmitError(null);
 								lifecycleMutation.mutate(confirmAction);
 							}}
 						>

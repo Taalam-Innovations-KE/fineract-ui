@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit, Save, Settings, Trash } from "lucide-react";
 import { use, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,8 @@ import type {
 	GetRolesResponse,
 	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchRole(
@@ -68,7 +71,10 @@ async function updateRole(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to update role");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to update role" }));
+		throw payload;
 	}
 
 	return response.json();
@@ -83,7 +89,10 @@ async function deleteRole(tenantId: string, roleId: number): Promise<void> {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to delete role");
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to delete role" }));
+		throw payload;
 	}
 }
 
@@ -98,6 +107,9 @@ export default function RoleDetailPage({
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [formData, setFormData] = useState({ name: "", description: "" });
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		data: role,
@@ -114,6 +126,17 @@ export default function RoleDetailPage({
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["role", tenantId, roleId] });
 			setEditDialogOpen(false);
+			setSubmitError(null);
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "updateRole",
+					endpoint: `${BFF_ROUTES.roles}/${roleId}`,
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -121,6 +144,17 @@ export default function RoleDetailPage({
 		mutationFn: () => deleteRole(tenantId, Number(roleId)),
 		onSuccess: () => {
 			window.location.href = "/config/organisation/roles";
+			setSubmitError(null);
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteRole",
+					endpoint: `${BFF_ROUTES.roles}/${roleId}`,
+					method: "DELETE",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -130,10 +164,12 @@ export default function RoleDetailPage({
 
 	const handleEditSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+		setSubmitError(null);
 		updateMutation.mutate({ description: formData.description });
 	};
 
 	const handleDeleteConfirm = () => {
+		setSubmitError(null);
 		deleteMutation.mutate();
 	};
 
@@ -212,6 +248,7 @@ export default function RoleDetailPage({
 				}
 			>
 				<div className="space-y-6">
+					<SubmitErrorAlert error={submitError} title="Role action failed" />
 					<Card>
 						<CardHeader>
 							<CardTitle>Role Information</CardTitle>

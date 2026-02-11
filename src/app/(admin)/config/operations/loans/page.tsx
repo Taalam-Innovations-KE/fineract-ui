@@ -164,14 +164,13 @@ async function createLoan(tenantId: string, payload: PostLoansRequest) {
 		body: JSON.stringify(payload),
 	});
 
-	const data = await response.json();
+	const data = await response.json().catch(() => ({
+		message: "Failed to create loan",
+		statusCode: response.status,
+	}));
 
 	if (!response.ok) {
-		throw new Error(
-			data.message ||
-				data.errors?.[0]?.defaultUserMessage ||
-				"Failed to create loan",
-		);
+		throw data;
 	}
 
 	return data;

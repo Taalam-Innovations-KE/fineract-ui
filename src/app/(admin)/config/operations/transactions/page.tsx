@@ -45,6 +45,7 @@ import {
 import { useTenantStore } from "@/store/tenant";
 
 type TransactionListItem = JournalEntryTransactionItem;
+const TRANSACTIONS_PAGE_SIZE = 10;
 
 function formatCurrency(amount: number | undefined, symbol = "KES") {
 	if (amount === undefined || amount === null) return "—";
@@ -67,6 +68,8 @@ function getEntryTypeColor(entryType: { value?: string } | undefined) {
 async function fetchTransactions(
 	tenantId: string,
 	filters: TransactionFilters = {},
+	pageIndex = 0,
+	pageSize = TRANSACTIONS_PAGE_SIZE,
 ): Promise<GetJournalEntriesTransactionIdResponse> {
 	const params = new URLSearchParams();
 
@@ -84,7 +87,8 @@ async function fetchTransactions(
 	// Default sorting and pagination
 	if (!params.has("orderBy")) params.set("orderBy", "transactionDate");
 	if (!params.has("sortOrder")) params.set("sortOrder", "DESC");
-	if (!params.has("limit")) params.set("limit", "50");
+	params.set("offset", String(pageIndex * pageSize));
+	params.set("limit", String(pageSize));
 
 	const queryString = params.toString();
 	const url = queryString
@@ -106,16 +110,26 @@ export default function TransactionsPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
 	const [filters, setFilters] = useState<TransactionFilters>({});
+	const [pageIndex, setPageIndex] = useState(0);
 	const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
 
 	const transactionsQuery = useQuery({
-		queryKey: ["transactions", tenantId, filters],
-		queryFn: () => fetchTransactions(tenantId, filters),
+		queryKey: [
+			"transactions",
+			tenantId,
+			filters,
+			pageIndex,
+			TRANSACTIONS_PAGE_SIZE,
+		],
+		queryFn: () =>
+			fetchTransactions(tenantId, filters, pageIndex, TRANSACTIONS_PAGE_SIZE),
+		enabled: Boolean(tenantId),
 	});
 
 	const { register, handleSubmit, reset } = useForm<TransactionFilters>();
 
 	const transactions = transactionsQuery.data?.pageItems || [];
+	const totalTransactions = transactionsQuery.data?.totalFilteredRecords || 0;
 
 	const transactionColumns = [
 		{
@@ -186,11 +200,13 @@ export default function TransactionsPage() {
 
 	const onSubmit = (data: TransactionFilters) => {
 		setFilters(data);
+		setPageIndex(0);
 	};
 
 	const clearFilters = () => {
 		reset();
 		setFilters({});
+		setPageIndex(0);
 	};
 
 	return (
@@ -243,13 +259,14 @@ export default function TransactionsPage() {
 								<div className="space-y-2">
 									<Label htmlFor="entryType">Entry Type</Label>
 									<Select
-										onValueChange={(value) =>
+										onValueChange={(value) => {
 											setFilters((prev) => ({
 												...prev,
 												entryType:
 													value === "all" ? undefined : parseInt(value),
-											}))
-										}
+											}));
+											setPageIndex(0);
+										}}
 									>
 										<SelectTrigger>
 											<SelectValue placeholder="All types" />
@@ -291,20 +308,22 @@ export default function TransactionsPage() {
 							Transaction History
 						</CardTitle>
 						<CardDescription>
-							{transactions.length} transaction
-							{transactions.length !== 1 ? "s" : ""} found
+							{totalTransactions} transaction
+							{totalTransactions !== 1 ? "s" : ""} found
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
 						{transactionsQuery.isLoading && (
 							<div className="space-y-2">
 								<Skeleton className="h-10 w-full" />
-								{Array.from({ length: 8 }).map((_, index) => (
-									<Skeleton
-										key={`transactions-row-skeleton-${index}`}
-										className="h-12 w-full"
-									/>
-								))}
+								{Array.from({ length: TRANSACTIONS_PAGE_SIZE }).map(
+									(_, index) => (
+										<Skeleton
+											key={`transactions-row-skeleton-${index}`}
+											className="h-12 w-full"
+										/>
+									),
+								)}
 							</div>
 						)}
 						{transactionsQuery.error && (
@@ -316,6 +335,11 @@ export default function TransactionsPage() {
 							<DataTable
 								data={transactions}
 								columns={transactionColumns}
+								manualPagination={true}
+								pageSize={TRANSACTIONS_PAGE_SIZE}
+								pageIndex={pageIndex}
+								totalRows={totalTransactions}
+								onPageChange={setPageIndex}
 								getRowId={(transaction) =>
 									transaction.id?.toString() || "transaction-row"
 								}

@@ -29,6 +29,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { useTenantStore } from "@/store/tenant";
 
+const AUDITS_PAGE_SIZE = 10;
+
 interface AuditEntry {
 	id?: number;
 	actionName?: string;
@@ -110,6 +112,7 @@ async function fetchAuditSearchTemplate(tenantId: string): Promise<{
 
 export default function AuditLogsPage() {
 	const { tenantId } = useTenantStore();
+	const [pageIndex, setPageIndex] = useState(0);
 
 	const [filters, setFilters] = useState({
 		actionName: "",
@@ -119,13 +122,17 @@ export default function AuditLogsPage() {
 		makerDateTimeFrom: "",
 		makerDateTimeTo: "",
 	});
+	const updateFilters = (nextFilters: typeof filters) => {
+		setFilters(nextFilters);
+		setPageIndex(0);
+	};
 
 	const {
 		data: auditsData,
 		isLoading,
 		error,
 	} = useQuery({
-		queryKey: ["audits", tenantId, filters],
+		queryKey: ["audits", tenantId, filters, pageIndex, AUDITS_PAGE_SIZE],
 		queryFn: () =>
 			fetchAudits(tenantId, {
 				actionName: filters.actionName || undefined,
@@ -134,13 +141,16 @@ export default function AuditLogsPage() {
 				processingResult: filters.processingResult || undefined,
 				makerDateTimeFrom: filters.makerDateTimeFrom || undefined,
 				makerDateTimeTo: filters.makerDateTimeTo || undefined,
-				limit: 50,
+				offset: pageIndex * AUDITS_PAGE_SIZE,
+				limit: AUDITS_PAGE_SIZE,
 			}),
+		enabled: Boolean(tenantId),
 	});
 
 	const { data: searchTemplate } = useQuery({
 		queryKey: ["audit-search-template", tenantId],
 		queryFn: () => fetchAuditSearchTemplate(tenantId),
+		enabled: Boolean(tenantId),
 	});
 
 	const audits = auditsData?.pageItems || [];
@@ -252,7 +262,7 @@ export default function AuditLogsPage() {
 						</CardHeader>
 						<CardContent className="space-y-3">
 							<Skeleton className="h-10 w-full" />
-							{Array.from({ length: 6 }).map((_, index) => (
+							{Array.from({ length: AUDITS_PAGE_SIZE }).map((_, index) => (
 								<Skeleton
 									key={`audit-row-skeleton-${index}`}
 									className="h-10 w-full"
@@ -331,7 +341,7 @@ export default function AuditLogsPage() {
 								<Select
 									value={filters.actionName}
 									onValueChange={(value) =>
-										setFilters({ ...filters, actionName: value })
+										updateFilters({ ...filters, actionName: value })
 									}
 								>
 									<SelectTrigger>
@@ -353,7 +363,7 @@ export default function AuditLogsPage() {
 								<Select
 									value={filters.entityName}
 									onValueChange={(value) =>
-										setFilters({ ...filters, entityName: value })
+										updateFilters({ ...filters, entityName: value })
 									}
 								>
 									<SelectTrigger>
@@ -375,7 +385,7 @@ export default function AuditLogsPage() {
 								<Select
 									value={filters.processingResult}
 									onValueChange={(value) =>
-										setFilters({ ...filters, processingResult: value })
+										updateFilters({ ...filters, processingResult: value })
 									}
 								>
 									<SelectTrigger>
@@ -397,7 +407,7 @@ export default function AuditLogsPage() {
 									type="datetime-local"
 									value={filters.makerDateTimeFrom}
 									onChange={(e) =>
-										setFilters({
+										updateFilters({
 											...filters,
 											makerDateTimeFrom: e.target.value,
 										})
@@ -412,7 +422,10 @@ export default function AuditLogsPage() {
 									type="datetime-local"
 									value={filters.makerDateTimeTo}
 									onChange={(e) =>
-										setFilters({ ...filters, makerDateTimeTo: e.target.value })
+										updateFilters({
+											...filters,
+											makerDateTimeTo: e.target.value,
+										})
 									}
 								/>
 							</div>
@@ -420,7 +433,7 @@ export default function AuditLogsPage() {
 							<div className="flex items-end">
 								<Button
 									onClick={() =>
-										setFilters({
+										updateFilters({
 											actionName: "",
 											entityName: "",
 											officeId: "",
@@ -454,6 +467,11 @@ export default function AuditLogsPage() {
 						<DataTable
 							columns={columns}
 							data={audits}
+							manualPagination={true}
+							pageSize={AUDITS_PAGE_SIZE}
+							pageIndex={pageIndex}
+							totalRows={totalRecords}
+							onPageChange={setPageIndex}
 							getRowId={(audit: AuditEntry) =>
 								audit.id?.toString() || `audit-${Math.random()}`
 							}

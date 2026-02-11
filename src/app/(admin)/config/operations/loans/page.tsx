@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Calendar, CreditCard, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { LoanBookingWizard } from "@/components/loans/loan-booking-wizard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -27,7 +27,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
-	GetClientsPageItemsResponse,
 	GetClientsResponse,
 	GetLoanProductsResponse,
 	PostLoansRequest,
@@ -41,6 +40,7 @@ function hasDefinedId<T extends { id?: number | string }>(
 	return item.id !== undefined;
 }
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
+const LOANS_PAGE_SIZE = 10;
 
 type LoanProduct = GetLoanProductsResponse & {
 	id?: number;
@@ -140,8 +140,20 @@ async function fetchLoanProducts(tenantId: string): Promise<LoanProduct[]> {
 	return response.json();
 }
 
-async function fetchLoans(tenantId: string): Promise<LoansResponse> {
-	const response = await fetch(BFF_ROUTES.loans, {
+async function fetchLoans(
+	tenantId: string,
+	pageIndex: number,
+	pageSize: number,
+): Promise<LoansResponse> {
+	const params = new URLSearchParams({
+		offset: String(pageIndex * pageSize),
+		limit: String(pageSize),
+		orderBy: "id",
+		sortOrder: "DESC",
+		fields: "id,accountNo,clientName,productName,principal,status,currency",
+	});
+
+	const response = await fetch(`${BFF_ROUTES.loans}?${params.toString()}`, {
 		headers: {
 			"x-tenant-id": tenantId,
 		},
@@ -179,12 +191,17 @@ async function createLoan(tenantId: string, payload: PostLoansRequest) {
 export default function LoansPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
+	const previousTenantIdRef = useRef(tenantId);
+	const [pageIndex, setPageIndex] = useState(0);
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const loansQuery = useQuery({
-		queryKey: ["loans", tenantId],
-		queryFn: () => fetchLoans(tenantId),
+		queryKey: ["loans", tenantId, pageIndex, LOANS_PAGE_SIZE],
+		queryFn: () => fetchLoans(tenantId, pageIndex, LOANS_PAGE_SIZE),
+		enabled: Boolean(tenantId),
+		staleTime: DEFAULT_STALE_TIME,
+		refetchOnWindowFocus: false,
 	});
 
 	const clientsQuery = useQuery({
@@ -207,6 +224,7 @@ export default function LoansPage() {
 		mutationFn: (payload: PostLoansRequest) => createLoan(tenantId, payload),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
+			setPageIndex(0);
 			setIsDrawerOpen(false);
 			setToastMessage("Loan application submitted successfully");
 		},
@@ -223,6 +241,7 @@ export default function LoansPage() {
 	);
 
 	const loans = loansQuery.data?.pageItems || [];
+	const totalLoans = loansQuery.data?.totalFilteredRecords || 0;
 	const pendingLoans = loans.filter(
 		(loan) =>
 			loan.status?.value?.toLowerCase() === "submitted and pending approval",
@@ -297,10 +316,22 @@ export default function LoansPage() {
 		await createMutation.mutateAsync(data);
 	};
 
-	// Clear toast after timeout
-	if (toastMessage) {
-		setTimeout(() => setToastMessage(null), 3000);
-	}
+	useEffect(() => {
+		if (!toastMessage) return;
+
+		const timeoutId = setTimeout(() => {
+			setToastMessage(null);
+		}, 3000);
+
+		return () => clearTimeout(timeoutId);
+	}, [toastMessage]);
+
+	useEffect(() => {
+		if (previousTenantIdRef.current !== tenantId) {
+			setPageIndex(0);
+			previousTenantIdRef.current = tenantId;
+		}
+	}, [tenantId]);
 
 	return (
 		<>
@@ -323,7 +354,7 @@ export default function LoansPage() {
 										<CreditCard className="h-5 w-5 text-primary" />
 									</div>
 									<div>
-										<div className="text-2xl font-bold">{loans.length}</div>
+										<div className="text-2xl font-bold">{totalLoans}</div>
 										<div className="text-sm text-muted-foreground">
 											Total Loans
 										</div>
@@ -342,7 +373,7 @@ export default function LoansPage() {
 											{pendingLoans.length}
 										</div>
 										<div className="text-sm text-muted-foreground">
-											Pending Approval
+											Pending (This Page)
 										</div>
 									</div>
 								</div>
@@ -359,7 +390,7 @@ export default function LoansPage() {
 											{activeLoans.length}
 										</div>
 										<div className="text-sm text-muted-foreground">
-											Active Loans
+											Active (This Page)
 										</div>
 									</div>
 								</div>
@@ -371,14 +402,14 @@ export default function LoansPage() {
 						<CardHeader>
 							<CardTitle>Loan Directory</CardTitle>
 							<CardDescription>
-								{loans.length} loan{loans.length !== 1 ? "s" : ""} in the system
+								{totalLoans} loan{totalLoans !== 1 ? "s" : ""} in the system
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
 							{loansQuery.isLoading && (
 								<div className="space-y-2">
 									<Skeleton className="h-10 w-full" />
-									{Array.from({ length: 8 }).map((_, index) => (
+									{Array.from({ length: LOANS_PAGE_SIZE }).map((_, index) => (
 										<Skeleton
 											key={`loans-row-skeleton-${index}`}
 											className="h-12 w-full"
@@ -395,6 +426,11 @@ export default function LoansPage() {
 								<DataTable
 									data={loans}
 									columns={loanColumns}
+									manualPagination={true}
+									pageSize={LOANS_PAGE_SIZE}
+									pageIndex={pageIndex}
+									totalRows={totalLoans}
+									onPageChange={setPageIndex}
 									getRowId={(loan) =>
 										loan.id?.toString() || loan.accountNo || "loan-row"
 									}

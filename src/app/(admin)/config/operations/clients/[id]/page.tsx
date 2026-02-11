@@ -77,6 +77,8 @@ import type {
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
+const CLIENT_TRANSACTIONS_PAGE_SIZE = 10;
+
 type ClientTab = "overview" | "accounts" | "identifiers" | "activity";
 
 type ClientStatusChip = {
@@ -652,7 +654,7 @@ async function fetchClientTransactions(
 	id: string,
 ): Promise<GetClientsClientIdTransactionsResponse> {
 	const response = await fetch(
-		`${BFF_ROUTES.clientTransactions(id)}?offset=0&limit=25`,
+		`${BFF_ROUTES.clientTransactions(id)}?offset=0&limit=${CLIENT_TRANSACTIONS_PAGE_SIZE}`,
 		{
 			headers: { "x-tenant-id": tenantId },
 		},
@@ -1818,7 +1820,8 @@ export default function ClientDetailPage({
 										<CardHeader>
 											<CardTitle>Recent Transactions</CardTitle>
 											<CardDescription>
-												Most recent 25 client transactions
+												Most recent {CLIENT_TRANSACTIONS_PAGE_SIZE} client
+												transactions
 											</CardDescription>
 										</CardHeader>
 										<CardContent>

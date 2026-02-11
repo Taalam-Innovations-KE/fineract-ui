@@ -116,12 +116,7 @@ function ProvisioningCriteriaSkeleton() {
 }
 
 function accountTypeLabel(account: GlAccountData) {
-	return (
-		account.type?.value ||
-		account.type?.description ||
-		account.type?.code ||
-		""
-	).toLowerCase();
+	return (account.type?.value || account.type?.code || "").toLowerCase();
 }
 
 function getLiabilityAccounts(accounts: GlAccountData[]) {

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,8 @@ import type {
 	GetPaymentTypeOptions,
 	PostLoansLoanIdTransactionsRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	LOAN_TRANSACTION_COMMANDS,
 	type LoanTransactionCommand,
@@ -347,6 +350,9 @@ export function PostLoanTransactionSheet({
 }: PostLoanTransactionSheetProps) {
 	const { tenantId } = useTenantStore();
 	const [command, setCommand] = useState<LoanTransactionCommand>("repayment");
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const commandMeta = getCommandMeta(command);
 
 	const form = useForm<
@@ -431,7 +437,7 @@ export function PostLoanTransactionSheet({
 	const postTransactionMutation = useMutation({
 		mutationFn: async (data: LoanTransactionFormData) => {
 			if (!templateQuery.data) {
-				throw new Error("Transaction template is required");
+				throw { message: "Transaction template is required" };
 			}
 
 			const payload: PostLoansLoanIdTransactionsRequest = {
@@ -474,16 +480,32 @@ export function PostLoanTransactionSheet({
 
 			if (!response.ok) {
 				const errorBody = await response.json().catch(() => null);
-				throw new Error(
-					getTemplateErrorMessage("Failed to post transaction", errorBody),
+				const message = getTemplateErrorMessage(
+					"Failed to post transaction",
+					errorBody,
 				);
+				if (errorBody && typeof errorBody === "object") {
+					throw { ...errorBody, message };
+				}
+				throw { message };
 			}
 
 			return response.json();
 		},
 		onSuccess: () => {
 			onOpenChange(false);
+			setSubmitError(null);
 			onSuccess?.();
+		},
+		onError: (error, data) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: `loanTransaction:${data.command}`,
+					endpoint: `${BFF_ROUTES.loanTransactions(loanId)}?command=${encodeURIComponent(data.command)}`,
+					method: "POST",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -571,11 +593,13 @@ export function PostLoanTransactionSheet({
 			return;
 		}
 
+		setSubmitError(null);
 		postTransactionMutation.mutate(submitData);
 	};
 
 	const handleCommandChange = (value: string) => {
 		if (!isSupportedLoanTransactionCommand(value)) return;
+		setSubmitError(null);
 		setCommand(value);
 		form.setValue("command", value, {
 			shouldDirty: true,
@@ -585,6 +609,7 @@ export function PostLoanTransactionSheet({
 
 	const handleClose = (nextOpen: boolean) => {
 		if (!nextOpen) {
+			setSubmitError(null);
 			setCommand("repayment");
 			form.reset({
 				command: "repayment",
@@ -656,6 +681,10 @@ export function PostLoanTransactionSheet({
 							onSubmit={form.handleSubmit(onSubmit)}
 							className="space-y-4 pt-4"
 						>
+							<SubmitErrorAlert
+								error={submitError}
+								title="Loan transaction failed"
+							/>
 							{templateQuery.data && (
 								<Card className="rounded-sm border border-border/60 bg-muted/20">
 									<CardHeader className="pb-2">
@@ -887,15 +916,6 @@ export function PostLoanTransactionSheet({
 									</FormItem>
 								)}
 							/>
-
-							{postTransactionMutation.error && (
-								<Alert variant="destructive">
-									<AlertTitle>Transaction Failed</AlertTitle>
-									<AlertDescription>
-										{postTransactionMutation.error.message}
-									</AlertDescription>
-								</Alert>
-							)}
 
 							<SheetFooter>
 								<Button

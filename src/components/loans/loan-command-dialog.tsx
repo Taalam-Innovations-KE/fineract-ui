@@ -2,8 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Button } from "@/components/ui/button";
 import {
 	Form,
@@ -33,6 +34,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetPaymentTypeData } from "@/lib/fineract/generated/types.gen";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	type LoanApprovalFormData,
 	type LoanDisbursementFormData,
@@ -129,6 +132,9 @@ export function LoanCommandDialog({
 }: LoanCommandDialogProps) {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const schema = getCommandSchema(commandType);
 
@@ -143,6 +149,7 @@ export function LoanCommandDialog({
 	useEffect(() => {
 		if (open) {
 			form.reset(getDefaultValues(commandType));
+			setSubmitError(null);
 		}
 	}, [open, commandType, form]);
 
@@ -169,8 +176,18 @@ export function LoanCommandDialog({
 				body: JSON.stringify(data),
 			});
 			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.message || "Command failed");
+				const error = await response.json().catch(() => null);
+				const message =
+					typeof error === "object" &&
+					error !== null &&
+					"message" in error &&
+					typeof (error as { message?: unknown }).message === "string"
+						? ((error as { message: string }).message ?? "Command failed")
+						: "Command failed";
+				if (typeof error === "object" && error !== null) {
+					throw { ...error, message };
+				}
+				throw { message };
 			}
 			return response.json();
 		},
@@ -179,7 +196,18 @@ export function LoanCommandDialog({
 			queryClient.invalidateQueries({ queryKey: ["loan", loanId] });
 			onOpenChange(false);
 			form.reset();
+			setSubmitError(null);
 			onSuccess?.();
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: `loan:${commandType}`,
+					endpoint: `${BFF_ROUTES.loans}/${loanId}`,
+					method: "PUT",
+					tenantId,
+				}),
+			);
 		},
 	});
 
@@ -232,6 +260,7 @@ export function LoanCommandDialog({
 				dateFormat,
 			);
 		}
+		setSubmitError(null);
 		commandMutation.mutate(formattedData);
 	};
 
@@ -496,6 +525,7 @@ export function LoanCommandDialog({
 				</SheetHeader>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+						<SubmitErrorAlert error={submitError} title="Loan action failed" />
 						{renderFormFields()}
 						<SheetFooter>
 							<Button

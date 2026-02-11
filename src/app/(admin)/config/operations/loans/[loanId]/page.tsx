@@ -300,7 +300,10 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	if (loanQuery.isLoading) {
 		return (
-			<PageShell title="Loan Details" subtitle="Loading loan information...">
+			<PageShell
+				title="Loan Details"
+				subtitle="Comprehensive loan profile and lifecycle operations"
+			>
 				<LoadingState />
 			</PageShell>
 		);
@@ -314,7 +317,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 					<DropdownMenuTrigger asChild>
 						<Button variant="outline" disabled={isDownloading}>
 							{isDownloading ? (
-								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+								<Loader2 className="mr-2 h-4 w-4" />
 							) : (
 								<Download className="w-4 h-4 mr-2" />
 							)}

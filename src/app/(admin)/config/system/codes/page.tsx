@@ -31,6 +31,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import {
 	formatDateForFineract,
@@ -835,8 +836,14 @@ export default function CodesPage() {
 						/>
 					</div>
 					{isCodesLoading && (
-						<div className="py-6 text-center text-muted-foreground">
-							Loading codes...
+						<div className="space-y-2">
+							<Skeleton className="h-10 w-full" />
+							{Array.from({ length: 8 }).map((_, index) => (
+								<Skeleton
+									key={`codes-list-skeleton-${index}`}
+									className="h-12 w-full"
+								/>
+							))}
 						</div>
 					)}
 					{codesError && (
@@ -938,8 +945,14 @@ export default function CodesPage() {
 						</div>
 
 						{isValuesLoading && (
-							<div className="text-center text-muted-foreground">
-								Loading values...
+							<div className="space-y-2">
+								<Skeleton className="h-10 w-full" />
+								{Array.from({ length: 5 }).map((_, index) => (
+									<Skeleton
+										key={`code-values-skeleton-${index}`}
+										className="h-20 w-full"
+									/>
+								))}
 							</div>
 						)}
 						{codeValuesError && (
@@ -1118,8 +1131,9 @@ export default function CodesPage() {
 					</SheetHeader>
 					<div className="flex flex-col gap-4 mt-4">
 						{datatablesQuery.isLoading && (
-							<div className="text-sm text-muted-foreground">
-								Loading datatables...
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-10 w-full" />
 							</div>
 						)}
 
@@ -1194,14 +1208,17 @@ export default function CodesPage() {
 								</div>
 
 								{datatableDefinitionQuery.isLoading && (
-									<div className="text-sm text-muted-foreground">
-										Loading metadata fields...
+									<div className="space-y-2">
+										<Skeleton className="h-4 w-36" />
+										<Skeleton className="h-10 w-full" />
+										<Skeleton className="h-10 w-full" />
 									</div>
 								)}
 
 								{datatableEntryQuery.isLoading && (
-									<div className="text-sm text-muted-foreground">
-										Loading existing metadata...
+									<div className="space-y-2">
+										<Skeleton className="h-4 w-40" />
+										<Skeleton className="h-10 w-full" />
 									</div>
 								)}
 

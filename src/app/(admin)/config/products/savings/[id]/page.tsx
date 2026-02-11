@@ -207,7 +207,10 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Savings Product Details" subtitle="Loading...">
+			<PageShell
+				title="Savings Product Details"
+				subtitle="Review savings product configuration and accounting mappings"
+			>
 				<LoadingSkeleton />
 			</PageShell>
 		);

@@ -14,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
@@ -182,9 +183,39 @@ export default function WorkingDaysPage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Working Days" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell
+				title="Working Days"
+				subtitle="Configure the days of the week that are considered working days for your organisation"
+			>
+				<div className="max-w-2xl space-y-6">
+					<div className="space-y-4">
+						<Skeleton className="h-6 w-36" />
+						<Skeleton className="h-4 w-80" />
+						<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+							{Array.from({ length: 8 }).map((_, index) => (
+								<div
+									key={`working-day-skeleton-${index}`}
+									className="flex items-center gap-2"
+								>
+									<Skeleton className="h-4 w-4 rounded-sm" />
+									<Skeleton className="h-4 w-16" />
+								</div>
+							))}
+						</div>
+					</div>
+					<div className="space-y-3">
+						<div className="flex items-start gap-2">
+							<Skeleton className="h-4 w-4 rounded-sm" />
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-56" />
+								<Skeleton className="h-4 w-72" />
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-48" />
+							<Skeleton className="h-10 w-full" />
+						</div>
+					</div>
 				</div>
 			</PageShell>
 		);

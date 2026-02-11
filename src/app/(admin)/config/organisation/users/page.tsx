@@ -22,6 +22,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
@@ -299,8 +300,14 @@ export default function UsersPage() {
 					</CardHeader>
 					<CardContent>
 						{isLoading && (
-							<div className="text-center py-8 text-muted-foreground">
-								Loading users...
+							<div className="space-y-2">
+								<Skeleton className="h-10 w-full" />
+								{Array.from({ length: 8 }).map((_, index) => (
+									<Skeleton
+										key={`users-row-skeleton-${index}`}
+										className="h-12 w-full"
+									/>
+								))}
 							</div>
 						)}
 						{error && (

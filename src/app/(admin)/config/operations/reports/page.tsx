@@ -657,7 +657,7 @@ export default function ReportsPage() {
 		return (
 			<PageShell
 				title="Backend Reports"
-				subtitle="Loading available backend report definitions..."
+				subtitle="Run report outputs directly from backend report endpoints"
 			>
 				<ReportsTableSkeleton />
 			</PageShell>
@@ -746,7 +746,7 @@ export default function ReportsPage() {
 										placeholder="Search by name or category..."
 										value={searchTerm}
 										onChange={(event) => setSearchTerm(event.target.value)}
-										className="pl-9"
+										className="pl-8"
 									/>
 								</div>
 							</div>

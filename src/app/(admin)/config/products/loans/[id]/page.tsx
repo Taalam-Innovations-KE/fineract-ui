@@ -805,7 +805,10 @@ export default function LoanProductDetailPage({
 
 	if (isLoading) {
 		return (
-			<PageShell title="Loan Product Details" subtitle="Loading...">
+			<PageShell
+				title="Loan Product Details"
+				subtitle="Review loan product configuration and accounting mappings"
+			>
 				<LoadingSkeleton />
 			</PageShell>
 		);

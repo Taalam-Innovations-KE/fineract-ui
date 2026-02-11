@@ -20,6 +20,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetUsersResponse } from "@/lib/fineract/generated/types.gen";
 import type { TeamMemberRequestPayload } from "@/lib/schemas/team-member";
@@ -122,8 +123,25 @@ export default function UserDetailPage({
 	if (isLoading) {
 		return (
 			<PageShell title="User Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading user details...
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-36" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 7 }).map((_, index) => (
+									<div
+										key={`user-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-6 w-36" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

@@ -377,8 +377,14 @@ export default function LoansPage() {
 						</CardHeader>
 						<CardContent>
 							{loansQuery.isLoading && (
-								<div className="py-6 text-center text-muted-foreground">
-									Loading loans...
+								<div className="space-y-2">
+									<Skeleton className="h-10 w-full" />
+									{Array.from({ length: 8 }).map((_, index) => (
+										<Skeleton
+											key={`loans-row-skeleton-${index}`}
+											className="h-12 w-full"
+										/>
+									))}
 								</div>
 							)}
 							{loansQuery.error && (

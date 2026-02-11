@@ -11,6 +11,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { OfficeData } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
@@ -49,8 +50,25 @@ export default function OfficeDetailPage({
 	if (isLoading) {
 		return (
 			<PageShell title="Office Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading office details...
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-40" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 4 }).map((_, index) => (
+									<div
+										key={`office-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-28" />
+										<Skeleton className="h-6 w-40" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

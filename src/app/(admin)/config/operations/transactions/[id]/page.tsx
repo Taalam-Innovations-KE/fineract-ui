@@ -35,6 +35,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
@@ -121,9 +122,30 @@ export default function TransactionDetailPage({
 
 	if (entryQuery.isLoading) {
 		return (
-			<PageShell title="Transaction Details" subtitle="Loading...">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading transaction details...
+			<PageShell
+				title="Transaction Details"
+				subtitle="Detailed view of the journal entry"
+			>
+				<div className="space-y-6">
+					{Array.from({ length: 3 }).map((_, index) => (
+						<Card key={`transaction-detail-skeleton-${index}`}>
+							<CardHeader>
+								<Skeleton className="h-6 w-48" />
+								<Skeleton className="h-4 w-72" />
+							</CardHeader>
+							<CardContent className="space-y-3">
+								{Array.from({ length: 4 }).map((__, fieldIndex) => (
+									<div
+										key={`transaction-field-skeleton-${index}-${fieldIndex}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-6 w-44" />
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					))}
 				</div>
 			</PageShell>
 		);

@@ -24,6 +24,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { useTenantStore } from "@/store/tenant";
@@ -208,9 +209,57 @@ export default function AuditLogsPage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Audit Trail" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell
+				title="Audit Trail"
+				subtitle="Monitor system activity, configuration changes, and user actions"
+			>
+				<div className="space-y-6">
+					<div className="grid gap-4 md:grid-cols-2">
+						{Array.from({ length: 2 }).map((_, index) => (
+							<Card key={`audit-summary-skeleton-${index}`}>
+								<CardContent className="pt-6">
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-28" />
+										<Skeleton className="h-8 w-16" />
+									</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-44" />
+							<Skeleton className="h-4 w-80" />
+						</CardHeader>
+						<CardContent>
+							<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+								{Array.from({ length: 6 }).map((_, index) => (
+									<div
+										key={`audit-filter-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-20" />
+										<Skeleton className="h-10 w-full" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-40" />
+							<Skeleton className="h-4 w-64" />
+						</CardHeader>
+						<CardContent className="space-y-3">
+							<Skeleton className="h-10 w-full" />
+							{Array.from({ length: 6 }).map((_, index) => (
+								<Skeleton
+									key={`audit-row-skeleton-${index}`}
+									className="h-10 w-full"
+								/>
+							))}
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

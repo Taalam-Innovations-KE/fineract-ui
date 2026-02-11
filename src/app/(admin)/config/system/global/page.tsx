@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
@@ -117,9 +118,38 @@ export default function GlobalConfigurationPage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Global Configuration" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell
+				title="Global Configuration"
+				subtitle="Configure global settings and system-wide preferences"
+			>
+				<div className="space-y-4">
+					{Array.from({ length: 4 }).map((_, index) => (
+						<div
+							key={`global-config-skeleton-${index}`}
+							className="space-y-4 rounded-lg border p-6"
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div className="space-y-2">
+									<Skeleton className="h-6 w-56" />
+									<Skeleton className="h-4 w-72" />
+								</div>
+								<Skeleton className="h-4 w-20" />
+							</div>
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-24" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-24" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+							</div>
+							<div className="flex justify-end">
+								<Skeleton className="h-10 w-24" />
+							</div>
+						</div>
+					))}
 				</div>
 			</PageShell>
 		);

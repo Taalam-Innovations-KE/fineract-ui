@@ -32,6 +32,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import {
 	formatDateForFineract,
@@ -828,8 +829,40 @@ export default function CodeDetailPage({
 	if (isCodeLoading) {
 		return (
 			<PageShell title="Code Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading code details...
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-40" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 2 }).map((_, index) => (
+									<div
+										key={`code-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-28" />
+										<Skeleton className="h-6 w-36" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-32" />
+							<Skeleton className="h-4 w-64" />
+						</CardHeader>
+						<CardContent className="space-y-2">
+							<Skeleton className="h-10 w-full" />
+							{Array.from({ length: 6 }).map((_, index) => (
+								<Skeleton
+									key={`code-values-table-skeleton-${index}`}
+									className="h-12 w-full"
+								/>
+							))}
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);
@@ -909,8 +942,14 @@ export default function CodeDetailPage({
 						</div>
 
 						{isValuesLoading && (
-							<div className="py-6 text-center text-muted-foreground">
-								Loading code values...
+							<div className="space-y-2">
+								<Skeleton className="h-10 w-full" />
+								{Array.from({ length: 6 }).map((_, index) => (
+									<Skeleton
+										key={`code-values-skeleton-${index}`}
+										className="h-12 w-full"
+									/>
+								))}
 							</div>
 						)}
 						{codeValuesError && (
@@ -1075,8 +1114,9 @@ export default function CodeDetailPage({
 						</SheetHeader>
 						<div className="flex flex-col gap-4 mt-4">
 							{datatablesQuery.isLoading && (
-								<div className="text-sm text-muted-foreground">
-									Loading datatables...
+								<div className="space-y-2">
+									<Skeleton className="h-4 w-32" />
+									<Skeleton className="h-10 w-full" />
 								</div>
 							)}
 
@@ -1151,14 +1191,17 @@ export default function CodeDetailPage({
 									</div>
 
 									{datatableDefinitionQuery.isLoading && (
-										<div className="text-sm text-muted-foreground">
-											Loading metadata fields...
+										<div className="space-y-2">
+											<Skeleton className="h-4 w-36" />
+											<Skeleton className="h-10 w-full" />
+											<Skeleton className="h-10 w-full" />
 										</div>
 									)}
 
 									{datatableEntryQuery.isLoading && (
-										<div className="text-sm text-muted-foreground">
-											Loading existing metadata...
+										<div className="space-y-2">
+											<Skeleton className="h-4 w-40" />
+											<Skeleton className="h-10 w-full" />
 										</div>
 									)}
 

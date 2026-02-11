@@ -9,6 +9,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 
 export default function GlobalPage() {
@@ -57,7 +58,27 @@ export default function GlobalPage() {
 	};
 
 	if (loading) {
-		return <div>Loading...</div>;
+		return (
+			<div className="space-y-6">
+				<div className="space-y-2">
+					<Skeleton className="h-8 w-72" />
+					<Skeleton className="h-4 w-[32rem]" />
+				</div>
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-6 w-48" />
+						<Skeleton className="h-4 w-[30rem]" />
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-4 w-4 rounded-sm" />
+							<Skeleton className="h-4 w-52" />
+						</div>
+						<Skeleton className="h-16 w-full" />
+					</CardContent>
+				</Card>
+			</div>
+		);
 	}
 
 	return (

@@ -14,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
@@ -116,9 +117,40 @@ export default function BusinessDatePage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Business Date" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell
+				title="Business Date"
+				subtitle="Manage your organisation's business date and close of business date"
+			>
+				<div className="max-w-2xl space-y-6">
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-10 w-full" />
+							<Skeleton className="h-4 w-72" />
+						</div>
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-10 w-full" />
+						</div>
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-16" />
+							<Skeleton className="h-10 w-full" />
+							<Skeleton className="h-4 w-40" />
+						</div>
+					</div>
+					<div className="space-y-3">
+						<Skeleton className="h-6 w-40" />
+						{Array.from({ length: 2 }).map((_, index) => (
+							<div
+								key={`business-date-skeleton-${index}`}
+								className="space-y-2 rounded-lg border p-4"
+							>
+								<Skeleton className="h-4 w-28" />
+								<Skeleton className="h-7 w-40" />
+								<Skeleton className="h-4 w-64" />
+							</div>
+						))}
+					</div>
 				</div>
 			</PageShell>
 		);

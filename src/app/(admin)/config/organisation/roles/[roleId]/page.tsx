@@ -28,6 +28,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
@@ -139,8 +140,29 @@ export default function RoleDetailPage({
 	if (isLoading) {
 		return (
 			<PageShell title="Role Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading role details...
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-36" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 3 }).map((_, index) => (
+									<div
+										key={`role-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-6 w-32" />
+									</div>
+								))}
+								<div className="space-y-2 md:col-span-2">
+									<Skeleton className="h-4 w-24" />
+									<Skeleton className="h-4 w-full" />
+								</div>
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

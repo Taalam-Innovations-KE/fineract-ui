@@ -10,6 +10,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import type { MakerCheckerEntry } from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
@@ -68,7 +69,43 @@ export default function InboxPage() {
 	};
 
 	if (loading) {
-		return <div>Loading...</div>;
+		return (
+			<div className="space-y-6">
+				<div className="space-y-2">
+					<Skeleton className="h-8 w-64" />
+					<Skeleton className="h-4 w-72" />
+				</div>
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-6 w-52" />
+						<Skeleton className="h-4 w-[28rem]" />
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{Array.from({ length: 4 }).map((_, index) => (
+							<div
+								key={`inbox-entry-skeleton-${index}`}
+								className="space-y-3 rounded-lg border p-4"
+							>
+								<div className="flex items-center justify-between">
+									<div className="space-y-2">
+										<Skeleton className="h-5 w-36" />
+										<Skeleton className="h-4 w-48" />
+									</div>
+									<Skeleton className="h-4 w-24" />
+								</div>
+								<div className="flex items-center justify-between">
+									<Skeleton className="h-4 w-56" />
+									<div className="flex gap-2">
+										<Skeleton className="h-8 w-20" />
+										<Skeleton className="h-8 w-20" />
+									</div>
+								</div>
+							</div>
+						))}
+					</CardContent>
+				</Card>
+			</div>
+		);
 	}
 
 	return (

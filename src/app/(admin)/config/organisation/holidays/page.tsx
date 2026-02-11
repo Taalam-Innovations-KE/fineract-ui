@@ -403,7 +403,10 @@ export default function HolidaysPage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Holidays" subtitle="Loading holiday configuration...">
+			<PageShell
+				title="Holidays"
+				subtitle="Configure organisation holidays and office applicability"
+			>
 				<div className="space-y-6">
 					<div className="flex items-end justify-between">
 						<div className="space-y-2">

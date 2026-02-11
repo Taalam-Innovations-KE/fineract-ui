@@ -1003,7 +1003,7 @@ export default function ClientDetailPage({
 		return (
 			<PageShell
 				title="Client Details"
-				subtitle="Loading detailed client profile..."
+				subtitle="Comprehensive client profile and account activity"
 				actions={headerActions}
 			>
 				<LoadingState />

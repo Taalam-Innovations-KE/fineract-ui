@@ -216,6 +216,18 @@ Never flash or jump layouts
 
 Skeletons are not optional polish — they are required UX.
 
+### 5️⃣.1️⃣ Repository Enforcement Note (Added Feb 2026)
+
+All page-level and section-level `isLoading` branches in `src/app` must render
+shadcn `Skeleton` layouts that match final UI shape.
+
+Do not render plain loading text such as `"Loading..."` for page content.
+
+Do not use `animate-spin` spinners for page-loading states.
+
+Mutation/action progress indicators (e.g., button pending states) may keep
+compact indicators if they do not replace full-page or section loading layouts.
+
 ### 6️⃣ Summary (Non-Optional Rules)
 
 ✅ Use shadcn components always
@@ -518,6 +530,46 @@ Use only these sizes to keep layouts consistent:
 - Throw typed errors in server code; avoid swallowing exceptions silently.
 - Use proper HTTP status codes in API responses.
 
+### Submit Action Error UX Standard (Required)
+- Applies to all POST/PUT/PATCH/DELETE flows in pages, sheets, dialogs, and wizards.
+- Normalize submit errors to the same envelope before rendering or rethrowing.
+- Never hide field-level errors when `details` exists.
+
+#### Canonical Error Payload (BFF -> Client)
+```typescript
+type FineractError = {
+  code: string;
+  message: string;
+  details?: Record<string, string[]>;
+  statusCode?: number;
+};
+```
+
+#### Submit Error Tracking Format (Client)
+```typescript
+type SubmitActionError = {
+  code: string;
+  message: string;
+  details?: Record<string, string[]>;
+  statusCode?: number;
+  action: string; // e.g. "createClient", "updateLoanProduct"
+  endpoint: string; // BFF route path
+  method: "POST" | "PUT" | "PATCH" | "DELETE";
+  timestamp: string; // ISO string
+  tenantId?: string;
+};
+```
+
+- Track this shape in mutation/form state after submit failures and log it with `console.error("submit-error", errorPayload)` until centralized telemetry is added.
+- API routes returning non-standard error payloads (`{ error: ... }` or message-only) must be normalized to `FineractError`.
+
+#### Submit Error Display Rules (shadcn/ui)
+- Use a destructive `Alert` at the top of the form/sheet for summary error messages.
+- Render field-specific validation messages close to inputs using `getFieldError(error, "fieldName")`.
+- If multiple detail messages exist, render them as a short bullet list inside `AlertDescription`.
+- For transient feedback, use shadcn Sonner toasts in addition to inline alerts, not instead of inline alerts.
+- If Sonner is not installed, add with shadcn CLI: `pnpm dlx shadcn@latest add @shadcn/sonner @shadcn/field`
+
 ## State Management
 - Client state: Zustand stores in `src/store` (e.g., `useTenantStore`, `useUserStore`)
 - Server data: React Query configured in `src/providers/query-provider.tsx`
@@ -630,6 +682,7 @@ The code registry system provides comprehensive management of Fineract codes and
 
 ## Quick Checklist Before Hand-off
 - Verify all loading states use skeleton components (no spinners)
+- Verify submit actions show standardized error summary + field details and follow `SubmitActionError` tracking format
 - Run `pnpm lint` to catch issues early
 - Run `pnpm check:spacing` after layout work with spacing values
 - Run `pnpm build` to ensure no TypeScript/compilation errors

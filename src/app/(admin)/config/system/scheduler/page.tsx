@@ -15,6 +15,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
@@ -180,7 +181,7 @@ export default function SchedulerJobsPage() {
 				>
 					{runJobMutation.isPending &&
 					runJobMutation.variables === job.jobId ? (
-						<RefreshCw className="h-4 w-4 animate-spin mr-2" />
+						<RefreshCw className="mr-2 h-4 w-4" />
 					) : (
 						<Play className="h-4 w-4 mr-2" />
 					)}
@@ -192,9 +193,38 @@ export default function SchedulerJobsPage() {
 
 	if (isLoading) {
 		return (
-			<PageShell title="Scheduler Jobs" subtitle="Loading...">
-				<div className="flex items-center justify-center h-64">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			<PageShell
+				title="Scheduler Jobs"
+				subtitle="Manage and monitor automated background jobs and scheduled tasks"
+			>
+				<div className="space-y-6">
+					<div className="grid gap-4 md:grid-cols-3">
+						{Array.from({ length: 3 }).map((_, index) => (
+							<Card key={`job-summary-skeleton-${index}`}>
+								<CardContent className="pt-6">
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-8 w-12" />
+									</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-32" />
+							<Skeleton className="h-4 w-80" />
+						</CardHeader>
+						<CardContent className="space-y-3">
+							<Skeleton className="h-10 w-full" />
+							{Array.from({ length: 6 }).map((_, index) => (
+								<Skeleton
+									key={`job-row-skeleton-${index}`}
+									className="h-12 w-full"
+								/>
+							))}
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

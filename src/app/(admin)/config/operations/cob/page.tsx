@@ -29,6 +29,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	IsCatchUpRunningDto,
@@ -155,7 +156,17 @@ export default function COBPage() {
 						</CardHeader>
 						<CardContent>
 							{isLoadingStatus ? (
-								<div className="text-muted-foreground">Loading...</div>
+								<div className="space-y-4">
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-16" />
+										<Skeleton className="h-6 w-24" />
+									</div>
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-28" />
+										<Skeleton className="h-4 w-24" />
+									</div>
+									<Skeleton className="h-10 w-full" />
+								</div>
 							) : (
 								<div className="space-y-4">
 									<div className="flex items-center justify-between">
@@ -219,7 +230,20 @@ export default function COBPage() {
 						</CardHeader>
 						<CardContent>
 							{isLoadingOldest ? (
-								<div className="text-muted-foreground">Loading...</div>
+								<div className="space-y-4">
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-4 w-28" />
+									</div>
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-4 w-28" />
+									</div>
+									<div className="flex items-center justify-between">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-6 w-20" />
+									</div>
+								</div>
 							) : (
 								<div className="space-y-4">
 									{oldestCOB?.cobBusinessDate && (

@@ -20,6 +20,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { Staff } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
@@ -86,8 +87,25 @@ export default function StaffDetailPage({
 	if (isLoading) {
 		return (
 			<PageShell title="Staff Details">
-				<div className="py-6 text-center text-muted-foreground">
-					Loading staff details...
+				<div className="space-y-6">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-6 w-40" />
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2">
+								{Array.from({ length: 6 }).map((_, index) => (
+									<div
+										key={`staff-detail-skeleton-${index}`}
+										className="space-y-2"
+									>
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-6 w-32" />
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			</PageShell>
 		);

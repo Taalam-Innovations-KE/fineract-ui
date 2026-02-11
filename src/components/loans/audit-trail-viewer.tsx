@@ -6,6 +6,7 @@ import { AuditViewToggle } from "@/components/ui/audit-view-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	AuditEvent,
 	formatAuditTimestamp,
@@ -55,18 +56,16 @@ export function AuditTrailViewer({
 						<AuditViewToggle view={view} onViewChange={setView} />
 					</CardTitle>
 				</CardHeader>
-				<CardContent>
-					<div className="animate-pulse space-y-4">
-						{[...Array(3)].map((_, i) => (
-							<div key={i} className="flex gap-4">
-								<div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-								<div className="flex-1 space-y-2">
-									<div className="h-4 bg-gray-300 rounded w-1/3"></div>
-									<div className="h-3 bg-gray-300 rounded w-1/4"></div>
-								</div>
+				<CardContent className="space-y-4">
+					{Array.from({ length: 3 }).map((_, index) => (
+						<div key={`audit-trail-skeleton-${index}`} className="flex gap-4">
+							<Skeleton className="h-3 w-3 rounded-full" />
+							<div className="flex-1 space-y-2">
+								<Skeleton className="h-4 w-1/3" />
+								<Skeleton className="h-3 w-1/4" />
 							</div>
-						))}
-					</div>
+						</div>
+					))}
 				</CardContent>
 			</Card>
 		);

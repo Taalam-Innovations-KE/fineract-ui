@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Permission } from "@/lib/fineract/maker-checker";
 import { useMakerCheckerStore } from "@/store/maker-checker";
 import { useTenantStore } from "@/store/tenant";
@@ -166,7 +167,49 @@ export default function TasksPage() {
 		permissions.filter((p) => !p.selected).map((p) => p.code);
 
 	if (loading) {
-		return <div>Loading...</div>;
+		return (
+			<div className="space-y-6">
+				<div className="space-y-2">
+					<Skeleton className="h-8 w-80" />
+					<Skeleton className="h-4 w-[30rem]" />
+				</div>
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-6 w-32" />
+						<Skeleton className="h-4 w-[26rem]" />
+					</CardHeader>
+					<CardContent>
+						<div className="flex flex-wrap gap-4">
+							<Skeleton className="h-10 w-44" />
+							<Skeleton className="h-10 w-44" />
+						</div>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-6 w-44" />
+						<Skeleton className="h-4 w-[28rem]" />
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{Array.from({ length: 4 }).map((_, index) => (
+							<div
+								key={`maker-checker-group-skeleton-${index}`}
+								className="space-y-3 rounded-lg border p-4"
+							>
+								<div className="flex items-center justify-between gap-3">
+									<Skeleton className="h-5 w-52" />
+									<Skeleton className="h-8 w-28" />
+								</div>
+								<div className="space-y-2">
+									<Skeleton className="h-10 w-full" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+							</div>
+						))}
+					</CardContent>
+				</Card>
+			</div>
+		);
 	}
 
 	return (

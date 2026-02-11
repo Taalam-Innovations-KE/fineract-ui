@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { AuditTrailViewer } from "@/components/loans/audit-trail-viewer";
-import { PostRepaymentSheet } from "@/components/loans/dialogs/PostRepaymentSheet";
+import { PostLoanTransactionSheet } from "@/components/loans/dialogs/PostLoanTransactionSheet";
 import { KpiCard, KpiCardSkeleton } from "@/components/loans/kpi-card";
 import { LoanCommandDialog } from "@/components/loans/loan-command-dialog";
 import { StatusChip } from "@/components/loans/status-chip";
@@ -112,7 +112,7 @@ function getAvailableActions(loan: GetLoansLoanIdResponse | undefined) {
 
 	if (status.pendingApproval) return ["approve", "reject"];
 	if (status.waitingForDisbursal) return ["disburse", "undoApproval"];
-	if (status.active) return ["addRepayment", "writeOff"];
+	if (status.active) return ["addTransaction", "writeOff"];
 	return [];
 }
 
@@ -134,7 +134,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		open: boolean;
 		type: "approve" | "disburse" | "reject" | "withdraw";
 	}>({ open: false, type: "approve" });
-	const [repaymentSheetOpen, setRepaymentSheetOpen] = useState(false);
+	const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
 
 	const [isDownloading, setIsDownloading] = useState(false);
 
@@ -544,10 +544,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 										Reject
 									</Button>
 								)}
-								{availableActions.includes("addRepayment") && (
-									<Button size="sm" onClick={() => setRepaymentSheetOpen(true)}>
+								{availableActions.includes("addTransaction") && (
+									<Button
+										size="sm"
+										onClick={() => setTransactionSheetOpen(true)}
+									>
 										<Banknote className="w-4 h-4 mr-2" />
-										Post Repayment
+										Post Transaction
 									</Button>
 								)}
 							</div>
@@ -680,9 +683,9 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				loanId={numericLoanId}
 				onSuccess={handleCommandSuccess}
 			/>
-			<PostRepaymentSheet
-				open={repaymentSheetOpen}
-				onOpenChange={setRepaymentSheetOpen}
+			<PostLoanTransactionSheet
+				open={transactionSheetOpen}
+				onOpenChange={setTransactionSheetOpen}
 				loanId={numericLoanId}
 				currency={currency}
 				onSuccess={handleCommandSuccess}

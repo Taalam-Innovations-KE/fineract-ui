@@ -1,4 +1,4 @@
 export { AddCollateralDialog } from "./AddCollateralDialog";
 export { AddGuarantorDialog } from "./AddGuarantorDialog";
-export { PostRepaymentSheet } from "./PostRepaymentSheet";
+export { PostLoanTransactionSheet } from "./PostLoanTransactionSheet";
 export { UploadDocumentDialog } from "./UploadDocumentDialog";

@@ -158,12 +158,14 @@ export const authConfig: NextAuthConfig = {
 				session.username = token.username as string;
 				session.tenantId = token.tenantId as string;
 				session.credentials = token.credentials as string;
-
-				if (session.user) {
-					session.user.email = token.email as string;
-					session.user.name = token.name as string;
-					session.user.roles = token.roles as string[];
-				}
+				const existingUser = session.user ?? {};
+				session.user = {
+					...existingUser,
+					email:
+						(token.email as string | undefined) ?? existingUser.email ?? null,
+					name: (token.name as string | undefined) ?? existingUser.name ?? null,
+					roles: (token.roles as string[] | undefined) ?? [],
+				};
 			}
 
 			return session;

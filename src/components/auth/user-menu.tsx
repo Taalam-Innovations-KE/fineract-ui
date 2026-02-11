@@ -12,19 +12,25 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function UserMenu() {
 	const { data: session, status } = useSession();
+	const isAuthenticated = status === "authenticated";
+	const displayName =
+		session?.user?.name || session?.username || session?.user?.email || "User";
+	const displayEmail = session?.user?.email || session?.username || "No email";
 
 	if (status === "loading") {
 		return (
 			<div className="flex items-center gap-2">
-				<div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+				<Skeleton className="h-8 w-8 rounded-full" />
+				<Skeleton className="hidden h-4 w-28 md:block" />
 			</div>
 		);
 	}
 
-	if (!session?.user) {
+	if (!isAuthenticated) {
 		return (
 			<Button asChild size="sm">
 				<Link href="/auth/signin">Sign In</Link>
@@ -39,18 +45,14 @@ export function UserMenu() {
 					<div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
 						<User className="h-4 w-4" />
 					</div>
-					<span className="hidden md:inline-block">
-						{session.user.name || session.user.email}
-					</span>
+					<span className="hidden md:inline-block">{displayName}</span>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-56">
 				<DropdownMenuLabel>
 					<div className="flex flex-col space-y-1">
-						<p className="text-sm font-medium">{session.user.name}</p>
-						<p className="text-xs text-muted-foreground">
-							{session.user.email}
-						</p>
+						<p className="text-sm font-medium">{displayName}</p>
+						<p className="text-xs text-muted-foreground">{displayEmail}</p>
 					</div>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />

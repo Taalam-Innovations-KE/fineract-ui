@@ -6,6 +6,10 @@ export interface AuditEvent {
 	details?: Record<string, unknown>;
 	status: "success" | "warning" | "error" | "info";
 	icon?: string;
+	entity?: string;
+	resourceId?: string;
+	processingResult?: string;
+	changeCount?: number;
 }
 
 /**
@@ -79,6 +83,17 @@ function mapAuditItemToEvent(item: unknown): Omit<AuditEvent, "id"> | null {
 
 		// Determine action and status based on available data
 		const { action, status, icon } = determineActionAndStatus(obj);
+		const entity =
+			typeof obj.entityName === "string" && obj.entityName.trim().length > 0
+				? humanizeAuditLabel(obj.entityName)
+				: undefined;
+		const processingResult =
+			typeof obj.processingResult === "string" &&
+			obj.processingResult.trim().length > 0
+				? humanizeAuditLabel(obj.processingResult)
+				: undefined;
+		const resourceId = readResourceId(obj);
+		const changeCount = readChangeCount(obj.changes);
 
 		return {
 			timestamp,
@@ -87,11 +102,44 @@ function mapAuditItemToEvent(item: unknown): Omit<AuditEvent, "id"> | null {
 			details: obj,
 			status,
 			icon,
+			entity,
+			resourceId,
+			processingResult,
+			changeCount,
 		};
 	} catch (error) {
 		console.warn("Failed to map audit item:", item, error);
 		return null;
 	}
+}
+
+function readResourceId(item: Record<string, unknown>): string | undefined {
+	const candidate =
+		item.resourceId ??
+		item.id ??
+		item.auditId ??
+		item.loanId ??
+		item.clientId ??
+		item.savingsAccountId;
+
+	if (candidate === undefined || candidate === null) {
+		return undefined;
+	}
+
+	if (typeof candidate === "string" || typeof candidate === "number") {
+		return String(candidate);
+	}
+
+	return undefined;
+}
+
+function readChangeCount(changes: unknown): number | undefined {
+	if (!changes || typeof changes !== "object" || Array.isArray(changes)) {
+		return undefined;
+	}
+
+	const count = Object.keys(changes as Record<string, unknown>).length;
+	return count > 0 ? count : undefined;
 }
 
 /**

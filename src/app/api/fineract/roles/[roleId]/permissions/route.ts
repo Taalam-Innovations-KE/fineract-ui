@@ -16,6 +16,20 @@ type PermissionToggleEntry = {
 	selected?: unknown;
 };
 
+function toBooleanPermissionsMap(
+	entries: Array<[string, unknown]>,
+): Record<string, boolean> {
+	const permissions: Record<string, boolean> = {};
+
+	for (const [code, selected] of entries) {
+		if (code.length > 0 && typeof selected === "boolean") {
+			permissions[code] = selected;
+		}
+	}
+
+	return permissions;
+}
+
 function normalizePermissionPayload(
 	updates: unknown,
 ): PutRolesRoleIdPermissionsRequest {
@@ -30,49 +44,30 @@ function normalizePermissionPayload(
 	) {
 		const existing = (updates as { permissions: Record<string, unknown> })
 			.permissions;
-		const permissions = Object.fromEntries(
-			Object.entries(existing)
-				.filter(
-					([code, selected]) =>
-						code.length > 0 && typeof selected === "boolean",
-				)
-				.map(([code, selected]) => [code, selected]),
-		);
+		const permissions = toBooleanPermissionsMap(Object.entries(existing));
 
 		return { permissions };
 	}
 
 	if (Array.isArray(updates)) {
 		if (updates.every((entry) => typeof entry === "string")) {
-			const permissions = Object.fromEntries(
-				(updates as string[])
-					.filter((code) => code.length > 0)
-					.map((code) => [code, true]),
+			const permissions = toBooleanPermissionsMap(
+				(updates as string[]).map((code) => [code, true]),
 			);
 			return { permissions };
 		}
 
-		const permissions = Object.fromEntries(
-			(updates as PermissionToggleEntry[])
-				.filter(
-					(entry) =>
-						typeof entry.code === "string" &&
-						entry.code.length > 0 &&
-						typeof entry.selected === "boolean",
-				)
-				.map((entry) => [entry.code as string, entry.selected as boolean]),
+		const permissions = toBooleanPermissionsMap(
+			(updates as PermissionToggleEntry[]).map((entry) => [
+				String(entry.code ?? ""),
+				entry.selected,
+			]),
 		);
 		return { permissions };
 	}
 
 	const record = updates as Record<string, unknown>;
-	const permissions = Object.fromEntries(
-		Object.entries(record)
-			.filter(
-				([code, selected]) => code.length > 0 && typeof selected === "boolean",
-			)
-			.map(([code, selected]) => [code, selected]),
-	);
+	const permissions = toBooleanPermissionsMap(Object.entries(record));
 
 	return { permissions };
 }

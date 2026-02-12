@@ -1,65 +1,107 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
-import { useMakerCheckerStore } from "@/store/maker-checker";
+
+type GlobalConfig = {
+	enabled: boolean;
+};
+
+async function fetchGlobalConfig(): Promise<GlobalConfig> {
+	const response = await fetch("/api/maker-checker/global", {
+		cache: "no-store",
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to load global configuration" }));
+		throw errorPayload;
+	}
+
+	return response.json();
+}
+
+async function updateGlobalConfig(enabled: boolean): Promise<void> {
+	const response = await fetch("/api/maker-checker/global", {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ enabled }),
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to update global configuration" }));
+		throw errorPayload;
+	}
+}
+
+function GlobalPageSkeleton() {
+	return (
+		<div className="space-y-6">
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-6 w-56" />
+					<Skeleton className="h-4 w-[34rem]" />
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="flex items-center gap-2">
+						<Skeleton className="h-4 w-4 rounded-sm" />
+						<Skeleton className="h-4 w-56" />
+					</div>
+					<Skeleton className="h-16 w-full" />
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-6 w-48" />
+				</CardHeader>
+				<CardContent className="space-y-2">
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-[26rem]" />
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
 
 export default function GlobalPage() {
-	const [loading, setLoading] = useState(true);
-	const [saving, setSaving] = useState(false);
+	const queryClient = useQueryClient();
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const { globalConfig, setGlobalConfig } = useMakerCheckerStore();
 
-	useEffect(() => {
-		async function loadConfig() {
-			try {
-				const response = await fetch("/api/maker-checker/global");
-				const config = await response.json();
-				setGlobalConfig(config);
-			} catch (error) {
-				console.error("Failed to load global configuration:", error);
-			} finally {
-				setLoading(false);
-			}
-		}
-		loadConfig();
-	}, [setGlobalConfig]);
+	const { data, isLoading, error } = useQuery({
+		queryKey: ["maker-checker-global"],
+		queryFn: fetchGlobalConfig,
+	});
 
-	const handleToggle = async (enabled: boolean) => {
-		setSaving(true);
-		setSubmitError(null);
-		try {
-			const response = await fetch("/api/maker-checker/global", {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ enabled }),
+	const updateMutation = useMutation({
+		mutationFn: (enabled: boolean) => updateGlobalConfig(enabled),
+		onSuccess: (_, enabled) => {
+			setSubmitError(null);
+			queryClient.setQueryData<GlobalConfig>(["maker-checker-global"], {
+				enabled,
 			});
-
-			if (!response.ok) {
-				const errorPayload = await response
-					.json()
-					.catch(() => ({ message: "Failed to update global config" }));
-				throw errorPayload;
-			}
-
-			setGlobalConfig({ enabled });
-			console.log(
-				`Maker checker ${enabled ? "enabled" : "disabled"} globally.`,
-			);
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["maker-checker-impact"] });
+		},
+		onError: (error) => {
 			setSubmitError(
 				toSubmitActionError(error, {
 					action: "updateMakerCheckerGlobalConfig",
@@ -67,89 +109,98 @@ export default function GlobalPage() {
 					method: "PUT",
 				}),
 			);
-		} finally {
-			setSaving(false);
-		}
-	};
+		},
+	});
 
-	if (loading) {
-		return (
-			<div className="space-y-6">
-				<div className="space-y-2">
-					<Skeleton className="h-8 w-72" />
-					<Skeleton className="h-4 w-[32rem]" />
-				</div>
-				<Card>
-					<CardHeader>
-						<Skeleton className="h-6 w-48" />
-						<Skeleton className="h-4 w-[30rem]" />
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center gap-2">
-							<Skeleton className="h-4 w-4 rounded-sm" />
-							<Skeleton className="h-4 w-52" />
-						</div>
-						<Skeleton className="h-16 w-full" />
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
+	const enabled = data?.enabled ?? false;
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-3xl font-bold">Global Maker Checker Settings</h1>
-				<p className="text-muted-foreground">
-					Control whether the maker checker system is enabled across the entire
-					platform.
-				</p>
-			</div>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>Maker Checker System</CardTitle>
-					<CardDescription>
-						When enabled, operations configured for maker checker will require
-						approval before execution. Configure specific permissions in the{" "}
-						<a
-							href="/config/system/maker-checker/tasks"
-							className="underline text-blue-600"
-						>
-							Tasks page
-						</a>
-						.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<SubmitErrorAlert
-						error={submitError}
-						title="Failed to update global configuration"
-					/>
-					<div className="flex items-center space-x-2">
-						<Checkbox
-							checked={globalConfig?.enabled || false}
-							onCheckedChange={handleToggle}
-							disabled={saving}
-						/>
-						<label
-							htmlFor="maker-checker-toggle"
-							className="text-sm font-medium"
-						>
-							Enable Maker Checker Globally
-						</label>
-					</div>
-					{saving && <p className="text-sm text-muted-foreground">Saving...</p>}
-					{globalConfig?.enabled && (
-						<div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-							<p className="text-sm text-green-800">
-								Maker-checker is enabled. Operations configured with
-								maker-checker permissions will require approval.
+		<PageShell
+			title="Global Maker Checker Settings"
+			subtitle="Enable maker-checker platform-wide. Task-level permissions still determine which operations require approval."
+			actions={
+				<Button variant="outline" asChild>
+					<Link href="/config/system/maker-checker">
+						<ArrowLeft className="h-4 w-4" />
+						Back to Maker Checker
+					</Link>
+				</Button>
+			}
+		>
+			{isLoading ? (
+				<GlobalPageSkeleton />
+			) : error ? (
+				<Alert variant="destructive">
+					<AlertTitle>Unable to load global configuration</AlertTitle>
+					<AlertDescription>
+						Refresh and try again. If this persists, confirm your permissions
+						and API availability.
+					</AlertDescription>
+				</Alert>
+			) : (
+				<div className="space-y-6">
+					<Card>
+						<CardHeader className="space-y-1.5">
+							<div className="flex items-center justify-between gap-3">
+								<CardTitle>Maker Checker System</CardTitle>
+								<Badge variant={enabled ? "success" : "secondary"}>
+									{enabled ? "Enabled" : "Disabled"}
+								</Badge>
+							</div>
+							<p className="text-sm text-muted-foreground">
+								When enabled, operations configured for maker-checker will move
+								to checker approval instead of executing immediately.
 							</p>
-						</div>
-					)}
-				</CardContent>
-			</Card>
-		</div>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<SubmitErrorAlert
+								error={submitError}
+								title="Failed to update global configuration"
+							/>
+
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="maker-checker-global-toggle"
+									checked={enabled}
+									onCheckedChange={(checked) =>
+										updateMutation.mutate(checked === true)
+									}
+									disabled={updateMutation.isPending}
+								/>
+								<label
+									htmlFor="maker-checker-global-toggle"
+									className="text-sm font-medium"
+								>
+									Enable Maker Checker Globally
+								</label>
+							</div>
+
+							<Alert>
+								<AlertTitle>Operational impact</AlertTitle>
+								<AlertDescription>
+									{enabled
+										? "Maker-checker is active. Users can submit maker actions and checkers can approve or reject from inbox."
+										: "Maker-checker is disabled. Transactions execute directly even if maker-checker permissions are marked."}
+								</AlertDescription>
+							</Alert>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader className="space-y-1.5">
+							<CardTitle>Next Step</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<Button variant="outline" asChild>
+								<Link href="/config/system/maker-checker/tasks">
+									Configure Task Permissions
+									<ArrowRight className="h-4 w-4" />
+								</Link>
+							</Button>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+		</PageShell>
 	);
 }

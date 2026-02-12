@@ -1,24 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, RotateCcw, Save } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Permission } from "@/lib/fineract/maker-checker";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
-import { useMakerCheckerStore } from "@/store/maker-checker";
 import { useTenantStore } from "@/store/tenant";
+
+const ALL_GROUPS_OPTION = "__all__";
 
 function toTitleCase(value: string): string {
 	return value
@@ -41,152 +49,173 @@ function parsePermissionCode(code: string) {
 	};
 }
 
+function getPermissionKey(permission: Permission): string {
+	return permission.code;
+}
+
+function sortPermissionsByCode(permissions: Permission[]): Permission[] {
+	return [...permissions].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+function toSelectionMap(permissions: Permission[]): Record<string, boolean> {
+	return Object.fromEntries(
+		permissions.map((permission) => [
+			getPermissionKey(permission),
+			permission.selected,
+		]),
+	);
+}
+
+function mapPermissionsToPayload(permissions: Permission[]) {
+	return permissions.map((permission) => ({
+		code: permission.code,
+		selected: permission.selected,
+	}));
+}
+
+async function fetchPermissions(tenantId: string): Promise<Permission[]> {
+	const response = await fetch("/api/maker-checker/permissions", {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+		cache: "no-store",
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to load maker-checker permissions" }));
+		throw errorPayload;
+	}
+
+	const data = (await response.json()) as Permission[];
+	return Array.isArray(data) ? data : [];
+}
+
+async function savePermissions(
+	tenantId: string,
+	permissions: Permission[],
+): Promise<void> {
+	const response = await fetch("/api/maker-checker/permissions", {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(mapPermissionsToPayload(permissions)),
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to save maker-checker permissions" }));
+		throw errorPayload;
+	}
+}
+
+function TasksPageSkeleton() {
+	return (
+		<div className="space-y-6">
+			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+				{Array.from({ length: 4 }).map((_, index) => (
+					<Card key={`maker-checker-task-stat-skeleton-${index}`}>
+						<CardContent className="pt-6">
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-28" />
+								<Skeleton className="h-8 w-16" />
+							</div>
+						</CardContent>
+					</Card>
+				))}
+			</div>
+
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-6 w-52" />
+				</CardHeader>
+				<CardContent>
+					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+						{Array.from({ length: 4 }).map((_, index) => (
+							<div
+								key={`maker-checker-filter-skeleton-${index}`}
+								className="space-y-2"
+							>
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className="h-10 w-full" />
+							</div>
+						))}
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-6 w-44" />
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{Array.from({ length: 4 }).map((_, index) => (
+						<div
+							key={`maker-checker-group-skeleton-${index}`}
+							className="space-y-3 rounded-sm border border-border/60 p-4"
+						>
+							<div className="flex items-center justify-between">
+								<Skeleton className="h-5 w-52" />
+								<Skeleton className="h-8 w-28" />
+							</div>
+							<Skeleton className="h-10 w-full" />
+							<Skeleton className="h-10 w-full" />
+						</div>
+					))}
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+
 export default function TasksPage() {
-	const [loading, setLoading] = useState(true);
-	const [saving, setSaving] = useState(false);
-	const [bulkSaving, setBulkSaving] = useState(false);
+	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
+	const [workingPermissions, setWorkingPermissions] = useState<Permission[]>(
+		[],
+	);
+	const [baselinePermissions, setBaselinePermissions] = useState<Permission[]>(
+		[],
+	);
+	const [groupFilter, setGroupFilter] = useState(ALL_GROUPS_OPTION);
+	const [searchTerm, setSearchTerm] = useState("");
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const { tenantId } = useTenantStore();
-	const { permissions, setPermissions, updatePermission } =
-		useMakerCheckerStore();
 
-	const parseSubmitErrorPayload = async (
-		response: Response,
-		fallbackMessage: string,
-	) =>
-		response.json().catch(() => ({
-			message: fallbackMessage,
-			statusCode: response.status,
-		}));
+	const {
+		data: permissionsData,
+		isLoading,
+		error,
+	} = useQuery({
+		queryKey: ["maker-checker-permissions", tenantId],
+		queryFn: () => fetchPermissions(tenantId),
+		enabled: Boolean(tenantId),
+	});
 
 	useEffect(() => {
-		async function loadPermissions() {
-			try {
-				const response = await fetch("/api/maker-checker/permissions", {
-					headers: {
-						"x-tenant-id": tenantId,
-					},
-				});
-				const perms = await response.json();
-				setPermissions(Array.isArray(perms) ? perms : []);
-			} catch (error) {
-				console.error("Failed to load permissions:", error);
-			} finally {
-				setLoading(false);
-			}
-		}
-		loadPermissions();
-	}, [setPermissions, tenantId]);
+		if (!permissionsData) return;
+		const sorted = sortPermissionsByCode(permissionsData);
+		setWorkingPermissions(sorted);
+		setBaselinePermissions(sorted);
+	}, [permissionsData]);
 
-	const handleToggle = (code: string, selected: boolean) => {
-		updatePermission(code, selected);
-	};
-
-	const handleGroupToggle = (group: string, selected: boolean) => {
-		const groupPerms = permissions.filter((p) => p.grouping === group);
-		groupPerms.forEach((perm) => updatePermission(perm.code, selected));
-	};
-
-	const handleBulkEnable = async (codes: string[]) => {
-		setBulkSaving(true);
-		setSubmitError(null);
-		try {
-			const updates = codes.map((code) => ({ code, selected: true }));
-			const response = await fetch("/api/maker-checker/permissions", {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-					"x-tenant-id": tenantId,
-				},
-				body: JSON.stringify(updates),
+	const saveMutation = useMutation({
+		mutationFn: (permissions: Permission[]) =>
+			savePermissions(tenantId, permissions),
+		onSuccess: () => {
+			setSubmitError(null);
+			setBaselinePermissions(sortPermissionsByCode(workingPermissions));
+			queryClient.invalidateQueries({
+				queryKey: ["maker-checker-permissions", tenantId],
 			});
-
-			if (!response.ok) {
-				throw await parseSubmitErrorPayload(
-					response,
-					"Failed to bulk enable permissions",
-				);
-			}
-
-			codes.forEach((code) => updatePermission(code, true));
-		} catch (error) {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: "bulkEnableMakerCheckerPermissions",
-					endpoint: "/api/maker-checker/permissions",
-					method: "PUT",
-					tenantId,
-				}),
-			);
-		} finally {
-			setBulkSaving(false);
-		}
-	};
-
-	const handleBulkDisable = async (codes: string[]) => {
-		setBulkSaving(true);
-		setSubmitError(null);
-		try {
-			const updates = codes.map((code) => ({ code, selected: false }));
-			const response = await fetch("/api/maker-checker/permissions", {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-					"x-tenant-id": tenantId,
-				},
-				body: JSON.stringify(updates),
-			});
-
-			if (!response.ok) {
-				throw await parseSubmitErrorPayload(
-					response,
-					"Failed to bulk disable permissions",
-				);
-			}
-
-			codes.forEach((code) => updatePermission(code, false));
-		} catch (error) {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: "bulkDisableMakerCheckerPermissions",
-					endpoint: "/api/maker-checker/permissions",
-					method: "PUT",
-					tenantId,
-				}),
-			);
-		} finally {
-			setBulkSaving(false);
-		}
-	};
-
-	const handleSave = async () => {
-		setSaving(true);
-		setSubmitError(null);
-		try {
-			const updates = permissions.map((p) => ({
-				code: p.code,
-				selected: p.selected,
-			}));
-			const response = await fetch("/api/maker-checker/permissions", {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-					"x-tenant-id": tenantId,
-				},
-				body: JSON.stringify(updates),
-			});
-
-			if (!response.ok) {
-				throw await parseSubmitErrorPayload(
-					response,
-					"Failed to update permissions",
-				);
-			}
-
-			console.log("Permissions updated successfully.");
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["maker-checker-impact"] });
+		},
+		onError: (error) => {
 			setSubmitError(
 				toSubmitActionError(error, {
 					action: "saveMakerCheckerPermissions",
@@ -195,235 +224,395 @@ export default function TasksPage() {
 					tenantId,
 				}),
 			);
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const groupedPermissions = permissions.reduce(
-		(acc, perm) => {
-			if (!acc[perm.grouping]) acc[perm.grouping] = [];
-			acc[perm.grouping].push(perm);
-			return acc;
 		},
-		{} as Record<string, Permission[]>,
+	});
+
+	const baselineSelectionMap = useMemo(
+		() => toSelectionMap(baselinePermissions),
+		[baselinePermissions],
+	);
+	const workingSelectionMap = useMemo(
+		() => toSelectionMap(workingPermissions),
+		[workingPermissions],
 	);
 
-	const getGroupStats = (groupPerms: Permission[]) => {
-		const enabled = groupPerms.filter((p) => p.selected).length;
-		const total = groupPerms.length;
-		return { enabled, total };
+	const isDirty = useMemo(() => {
+		const keys = Object.keys(workingSelectionMap);
+		return keys.some(
+			(key) => baselineSelectionMap[key] !== workingSelectionMap[key],
+		);
+	}, [baselineSelectionMap, workingSelectionMap]);
+
+	const groups = useMemo(() => {
+		return Array.from(
+			new Set(workingPermissions.map((item) => item.grouping)),
+		).sort((a, b) => a.localeCompare(b));
+	}, [workingPermissions]);
+
+	const visiblePermissions = useMemo(() => {
+		const query = searchTerm.trim().toLowerCase();
+
+		return workingPermissions.filter((permission) => {
+			if (
+				groupFilter !== ALL_GROUPS_OPTION &&
+				permission.grouping !== groupFilter
+			) {
+				return false;
+			}
+
+			if (!query) return true;
+			const parsed = parsePermissionCode(permission.code);
+			const haystack = [
+				permission.grouping,
+				permission.code,
+				parsed.label,
+				parsed.action,
+				parsed.resource,
+			]
+				.join(" ")
+				.toLowerCase();
+
+			return haystack.includes(query);
+		});
+	}, [groupFilter, searchTerm, workingPermissions]);
+
+	const groupedVisiblePermissions = useMemo(() => {
+		return visiblePermissions.reduce<Record<string, Permission[]>>(
+			(acc, permission) => {
+				const group = permission.grouping || "General";
+				if (!acc[group]) acc[group] = [];
+				acc[group].push(permission);
+				return acc;
+			},
+			{},
+		);
+	}, [visiblePermissions]);
+
+	const enabledCount = workingPermissions.filter(
+		(permission) => permission.selected,
+	).length;
+	const visibleEnabledCount = visiblePermissions.filter(
+		(permission) => permission.selected,
+	).length;
+
+	const updatePermission = (code: string, selected: boolean) => {
+		setWorkingPermissions((current) =>
+			current.map((permission) =>
+				permission.code === code ? { ...permission, selected } : permission,
+			),
+		);
 	};
 
-	const getAllEnabledCodes = () =>
-		permissions.filter((p) => p.selected).map((p) => p.code);
-	const getAllDisabledCodes = () =>
-		permissions.filter((p) => !p.selected).map((p) => p.code);
-
-	if (loading) {
-		return (
-			<div className="space-y-6">
-				<div className="space-y-2">
-					<Skeleton className="h-8 w-80" />
-					<Skeleton className="h-4 w-[30rem]" />
-				</div>
-				<Card>
-					<CardHeader>
-						<Skeleton className="h-6 w-32" />
-						<Skeleton className="h-4 w-[26rem]" />
-					</CardHeader>
-					<CardContent>
-						<div className="flex flex-wrap gap-4">
-							<Skeleton className="h-10 w-44" />
-							<Skeleton className="h-10 w-44" />
-						</div>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<Skeleton className="h-6 w-44" />
-						<Skeleton className="h-4 w-[28rem]" />
-					</CardHeader>
-					<CardContent className="space-y-4">
-						{Array.from({ length: 4 }).map((_, index) => (
-							<div
-								key={`maker-checker-group-skeleton-${index}`}
-								className="space-y-3 rounded-lg border p-4"
-							>
-								<div className="flex items-center justify-between gap-3">
-									<Skeleton className="h-5 w-52" />
-									<Skeleton className="h-8 w-28" />
-								</div>
-								<div className="space-y-2">
-									<Skeleton className="h-10 w-full" />
-									<Skeleton className="h-10 w-full" />
-								</div>
-							</div>
-						))}
-					</CardContent>
-				</Card>
-			</div>
+	const updateManyPermissions = (codes: string[], selected: boolean) => {
+		const codeSet = new Set(codes);
+		setWorkingPermissions((current) =>
+			current.map((permission) =>
+				codeSet.has(permission.code) ? { ...permission, selected } : permission,
+			),
 		);
-	}
+	};
+
+	const resetChanges = () => {
+		setWorkingPermissions(sortPermissionsByCode(baselinePermissions));
+		setSubmitError(null);
+	};
 
 	return (
-		<div className="space-y-6">
-			<div>
-				<h1 className="text-3xl font-bold">Configure Maker-Checker Tasks</h1>
-				<p className="text-muted-foreground">
-					Select which operations require maker checker approval.
-				</p>
-			</div>
-			<SubmitErrorAlert
-				error={submitError}
-				title="Maker-checker task update failed"
-			/>
-
-			{/* Bulk Operations */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Bulk Operations</CardTitle>
-					<CardDescription>
-						Quickly enable or disable maker-checker for multiple permissions.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="flex gap-4 flex-wrap">
-						<Button
-							variant="outline"
-							onClick={() => handleBulkEnable(getAllDisabledCodes())}
-							disabled={bulkSaving || getAllDisabledCodes().length === 0}
-						>
-							Enable All Remaining
-						</Button>
-						<Button
-							variant="outline"
-							onClick={() => handleBulkDisable(getAllEnabledCodes())}
-							disabled={bulkSaving || getAllEnabledCodes().length === 0}
-						>
-							Disable All Enabled
-						</Button>
+		<PageShell
+			title="Maker Checker Task Permissions"
+			subtitle="Configure which operations require checker approval before execution."
+			actions={
+				<Button variant="outline" asChild>
+					<Link href="/config/system/maker-checker">
+						<ArrowLeft className="h-4 w-4" />
+						Back to Maker Checker
+					</Link>
+				</Button>
+			}
+		>
+			{isLoading ? (
+				<TasksPageSkeleton />
+			) : error ? (
+				<Alert variant="destructive">
+					<AlertTitle>Unable to load maker-checker permissions</AlertTitle>
+					<AlertDescription>
+						Refresh and try again. If the issue persists, verify your role
+						permissions and API availability.
+					</AlertDescription>
+				</Alert>
+			) : (
+				<div className="space-y-6">
+					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+						<Card>
+							<CardContent className="pt-6">
+								<p className="text-sm text-muted-foreground">
+									Total Permissions
+								</p>
+								<p className="text-2xl font-bold">
+									{workingPermissions.length}
+								</p>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<p className="text-sm text-muted-foreground">Enabled</p>
+								<p className="text-2xl font-bold">{enabledCount}</p>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<p className="text-sm text-muted-foreground">Visible Results</p>
+								<p className="text-2xl font-bold">
+									{visibleEnabledCount}
+									<span className="text-sm font-medium text-muted-foreground">
+										{" "}
+										/ {visiblePermissions.length}
+									</span>
+								</p>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<p className="text-sm text-muted-foreground">Unsaved Changes</p>
+								<p className="text-2xl font-bold">{isDirty ? "Yes" : "No"}</p>
+							</CardContent>
+						</Card>
 					</div>
-				</CardContent>
-			</Card>
 
-			{/* Permission Groups */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Permission Groups</CardTitle>
-					<CardDescription>
-						Configure maker-checker settings by functional area.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-6">
-						{Object.entries(groupedPermissions).map(([group, perms]) => {
-							const stats = getGroupStats(perms);
-							const allSelected = stats.enabled === stats.total;
-							const noneSelected = stats.enabled === 0;
-							const sortedPerms = [...perms].sort((a, b) =>
-								a.code.localeCompare(b.code),
-							);
+					<SubmitErrorAlert
+						error={submitError}
+						title="Maker-checker task update failed"
+					/>
 
-							return (
-								<div key={group} className="border rounded-lg p-4">
-									<div className="flex items-center justify-between mb-4">
-										<div className="flex items-center space-x-4">
-											<Checkbox
-												checked={allSelected}
-												onCheckedChange={(checked) =>
-													handleGroupToggle(group, checked as boolean)
-												}
-											/>
-											{!allSelected && !noneSelected && (
-												<span className="text-xs text-muted-foreground ml-1">
-													({stats.enabled} selected)
-												</span>
-											)}
-											<h3 className="font-semibold">{group}</h3>
-											<Badge variant="secondary">
-												{stats.enabled}/{stats.total} enabled
-											</Badge>
-										</div>
-										<div className="flex gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() =>
-													handleBulkEnable(
-														perms.filter((p) => !p.selected).map((p) => p.code),
-													)
-												}
-												disabled={stats.enabled === stats.total}
+					<Card>
+						<CardHeader>
+							<CardTitle>Find and Bulk Edit</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+								<div className="space-y-2">
+									<label
+										htmlFor="maker-checker-search"
+										className="text-sm font-medium"
+									>
+										Search
+									</label>
+									<Input
+										id="maker-checker-search"
+										value={searchTerm}
+										onChange={(event) => setSearchTerm(event.target.value)}
+										placeholder="Filter by code, action, or resource"
+									/>
+								</div>
+								<div className="space-y-2">
+									<label
+										htmlFor="maker-checker-group"
+										className="text-sm font-medium"
+									>
+										Group
+									</label>
+									<Select value={groupFilter} onValueChange={setGroupFilter}>
+										<SelectTrigger id="maker-checker-group">
+											<SelectValue placeholder="All Groups" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={ALL_GROUPS_OPTION}>
+												All Groups
+											</SelectItem>
+											{groups.map((group) => (
+												<SelectItem key={group} value={group}>
+													{group}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="space-y-2">
+									<label className="text-sm font-medium">Bulk Enable</label>
+									<Button
+										type="button"
+										variant="outline"
+										className="w-full"
+										onClick={() =>
+											updateManyPermissions(
+												visiblePermissions.map((permission) => permission.code),
+												true,
+											)
+										}
+										disabled={visiblePermissions.length === 0}
+									>
+										Enable Visible
+									</Button>
+								</div>
+								<div className="space-y-2">
+									<label className="text-sm font-medium">Bulk Disable</label>
+									<Button
+										type="button"
+										variant="outline"
+										className="w-full"
+										onClick={() =>
+											updateManyPermissions(
+												visiblePermissions.map((permission) => permission.code),
+												false,
+											)
+										}
+										disabled={visiblePermissions.length === 0}
+									>
+										Disable Visible
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle>Permission Groups</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							{Object.keys(groupedVisiblePermissions).length === 0 ? (
+								<div className="rounded-sm border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+									No permissions match the current filters.
+								</div>
+							) : (
+								Object.entries(groupedVisiblePermissions)
+									.sort(([groupA], [groupB]) => groupA.localeCompare(groupB))
+									.map(([group, permissions]) => {
+										const selectedCount = permissions.filter(
+											(permission) => permission.selected,
+										).length;
+										const allSelected = selectedCount === permissions.length;
+
+										return (
+											<div
+												key={group}
+												className="space-y-3 rounded-sm border border-border/60 p-4"
 											>
-												Enable All
-											</Button>
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() =>
-													handleBulkDisable(
-														perms.filter((p) => p.selected).map((p) => p.code),
-													)
-												}
-												disabled={stats.enabled === 0}
-											>
-												Disable All
-											</Button>
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										{sortedPerms.map((perm) => {
-											const parsed = parsePermissionCode(perm.code);
-											return (
-												<div
-													key={perm.code}
-													className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
-												>
-													<Checkbox
-														checked={perm.selected}
-														onCheckedChange={(checked) =>
-															handleToggle(perm.code, checked as boolean)
-														}
-													/>
-													<div className="min-w-0 flex-1 space-y-1">
-														<p className="text-sm font-medium leading-5">
-															{parsed.label}
-														</p>
-														<div className="flex flex-wrap items-center gap-1.5">
-															<Badge variant="secondary">{parsed.action}</Badge>
-															<Badge variant="outline">{parsed.resource}</Badge>
-															<Badge
-																variant={
-																	perm.selected ? "success" : "secondary"
-																}
-															>
-																{perm.selected ? "Enabled" : "Disabled"}
-															</Badge>
-														</div>
-														<p className="break-all font-mono text-xs text-muted-foreground">
-															{perm.code}
-														</p>
+												<div className="flex items-center justify-between gap-3">
+													<div className="flex items-center gap-2">
+														<h3 className="font-semibold">{group}</h3>
+														<Badge variant="secondary">
+															{selectedCount}/{permissions.length} enabled
+														</Badge>
+													</div>
+													<div className="flex items-center gap-2">
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																updateManyPermissions(
+																	permissions.map(
+																		(permission) => permission.code,
+																	),
+																	true,
+																)
+															}
+															disabled={allSelected}
+														>
+															Enable Group
+														</Button>
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																updateManyPermissions(
+																	permissions.map(
+																		(permission) => permission.code,
+																	),
+																	false,
+																)
+															}
+															disabled={selectedCount === 0}
+														>
+															Disable Group
+														</Button>
 													</div>
 												</div>
-											);
-										})}
-									</div>
-								</div>
-							);
-						})}
-					</div>
 
-					<Separator className="my-4" />
+												<div className="space-y-2">
+													{sortPermissionsByCode(permissions).map(
+														(permission) => {
+															const parsed = parsePermissionCode(
+																permission.code,
+															);
+															return (
+																<div
+																	key={permission.code}
+																	className="flex items-start gap-3 rounded-sm border border-border/60 p-3"
+																>
+																	<Checkbox
+																		checked={permission.selected}
+																		onCheckedChange={(checked) =>
+																			updatePermission(
+																				permission.code,
+																				checked === true,
+																			)
+																		}
+																	/>
+																	<div className="min-w-0 flex-1 space-y-1">
+																		<p className="text-sm font-medium leading-5">
+																			{parsed.label}
+																		</p>
+																		<div className="flex flex-wrap items-center gap-1.5">
+																			<Badge variant="secondary">
+																				{parsed.action}
+																			</Badge>
+																			<Badge variant="outline">
+																				{parsed.resource}
+																			</Badge>
+																			<Badge
+																				variant={
+																					permission.selected
+																						? "success"
+																						: "secondary"
+																				}
+																			>
+																				{permission.selected
+																					? "Enabled"
+																					: "Disabled"}
+																			</Badge>
+																		</div>
+																		<p className="break-all font-mono text-xs text-muted-foreground">
+																			{permission.code}
+																		</p>
+																	</div>
+																</div>
+															);
+														},
+													)}
+												</div>
+											</div>
+										);
+									})
+							)}
 
-					<div className="flex justify-end">
-						<Button onClick={handleSave} disabled={saving}>
-							{saving ? "Saving..." : "Save All Changes"}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
+							<Separator />
+
+							<div className="flex items-center justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={resetChanges}
+									disabled={!isDirty || saveMutation.isPending}
+								>
+									<RotateCcw className="h-4 w-4" />
+									Reset
+								</Button>
+								<Button
+									type="button"
+									onClick={() => saveMutation.mutate(workingPermissions)}
+									disabled={!isDirty || saveMutation.isPending}
+								>
+									<Save className="h-4 w-4" />
+									{saveMutation.isPending ? "Saving..." : "Save Changes"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			)}
+		</PageShell>
 	);
 }

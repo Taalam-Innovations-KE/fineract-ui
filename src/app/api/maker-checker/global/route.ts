@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mapFineractError } from "@/lib/fineract/error-mapping";
 import {
 	getGlobalConfig,
 	updateGlobalConfig,
@@ -9,15 +10,10 @@ export async function GET() {
 		const config = await getGlobalConfig();
 		return NextResponse.json(config);
 	} catch (error) {
-		console.error("Failed to get global config:", error);
-		return NextResponse.json(
-			{
-				code: "INTERNAL_SERVER_ERROR",
-				message: "Failed to get global configuration",
-				statusCode: 500,
-			},
-			{ status: 500 },
-		);
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }
 
@@ -37,14 +33,9 @@ export async function PUT(request: NextRequest) {
 		await updateGlobalConfig(enabled);
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Failed to update global config:", error);
-		return NextResponse.json(
-			{
-				code: "INTERNAL_SERVER_ERROR",
-				message: "Failed to update global configuration",
-				statusCode: 500,
-			},
-			{ status: 500 },
-		);
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }

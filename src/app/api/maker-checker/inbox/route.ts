@@ -1,45 +1,147 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth/session";
+import { mapFineractError } from "@/lib/fineract/error-mapping";
 import {
 	approveRejectEntry,
-	getFilteredInbox,
+	deleteMakerCheckerEntry,
+	findUserByUsername,
+	getInbox,
+	getMakerCheckerSearchTemplate,
+	getMakerCheckerSummary,
+	matchesMakerCheckerQuery,
+	sortMakerCheckerEntries,
 } from "@/lib/fineract/maker-checker";
+
+function parseNumber(value: string | null): number | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
 
 export async function GET(request: NextRequest) {
 	try {
-		const { searchParams } = new URL(request.url);
-		const userId = searchParams.get("userId");
+		const params = request.nextUrl.searchParams;
+		const scope = params.get("scope") === "mine" ? "mine" : "pending";
+		const processingResult = params.get("processingResult");
+		const searchQuery = params.get("q") ?? "";
 
-		const entries = await getFilteredInbox(
-			userId ? parseInt(userId) : undefined,
-		);
-		return NextResponse.json(entries);
+		const session = await getSession();
+		const currentUser = await findUserByUsername(session?.username);
+		const searchTemplate = await getMakerCheckerSearchTemplate();
+
+		const entries = await getInbox({
+			actionName: params.get("actionName") || undefined,
+			entityName: params.get("entityName") || undefined,
+			resourceId: parseNumber(params.get("resourceId")),
+			makerId:
+				scope === "mine" ? currentUser?.id : parseNumber(params.get("makerId")),
+			makerDateTimeFrom: params.get("makerDateTimeFrom") || undefined,
+			makerDateTimeTo: params.get("makerDateTimeTo") || undefined,
+			officeId: parseNumber(params.get("officeId")),
+			clientId: parseNumber(params.get("clientId")),
+			loanId: parseNumber(params.get("loanId")),
+			groupId: parseNumber(params.get("groupId")),
+			savingsAccountId: parseNumber(params.get("savingsAccountId")),
+			includeJson: params.get("includeJson") === "true",
+		});
+
+		const scopedEntries =
+			scope === "mine"
+				? currentUser
+					? entries
+					: []
+				: currentUser?.isSuperChecker
+					? entries
+					: entries.filter((entry) =>
+							entry.entityName
+								? searchTemplate.entityNames.includes(entry.entityName)
+								: false,
+						);
+
+		const statusFilteredEntries = processingResult
+			? scopedEntries.filter(
+					(entry) =>
+						entry.processingResult.toLowerCase() ===
+						processingResult.toLowerCase(),
+				)
+			: scopedEntries;
+
+		const textFilteredEntries = searchQuery
+			? statusFilteredEntries.filter((entry) =>
+					matchesMakerCheckerQuery(entry, searchQuery),
+				)
+			: statusFilteredEntries;
+
+		const sortedEntries = sortMakerCheckerEntries(textFilteredEntries);
+
+		return NextResponse.json({
+			items: sortedEntries,
+			searchTemplate,
+			summary: getMakerCheckerSummary(sortedEntries),
+			currentUser: currentUser
+				? {
+						id: currentUser.id,
+						username: currentUser.username,
+						isSuperChecker: currentUser.isSuperChecker,
+					}
+				: null,
+		});
 	} catch (error) {
-		console.error("Failed to get inbox:", error);
-		return NextResponse.json(
-			{
-				code: "INTERNAL_SERVER_ERROR",
-				message: "Failed to get inbox",
-				statusCode: 500,
-			},
-			{ status: 500 },
-		);
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }
 
 export async function POST(request: NextRequest) {
 	try {
 		const { auditId, command } = await request.json();
+		if (
+			typeof auditId !== "number" ||
+			(command !== "approve" && command !== "reject")
+		) {
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "auditId and command are required",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
+		}
 		await approveRejectEntry(auditId, command);
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		console.error("Failed to approve/reject entry:", error);
-		return NextResponse.json(
-			{
-				code: "INTERNAL_SERVER_ERROR",
-				message: "Failed to approve/reject entry",
-				statusCode: 500,
-			},
-			{ status: 500 },
-		);
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+export async function DELETE(request: NextRequest) {
+	try {
+		const { auditId } = await request.json();
+		if (typeof auditId !== "number") {
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "auditId is required",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
+		}
+
+		await deleteMakerCheckerEntry(auditId);
+		return NextResponse.json({ success: true });
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
 	}
 }

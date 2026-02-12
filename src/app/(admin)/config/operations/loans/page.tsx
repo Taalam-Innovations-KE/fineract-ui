@@ -2,10 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Calendar, CreditCard, Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
-import { LoanBookingWizard } from "@/components/loans/loan-booking-wizard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,12 +33,33 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
+const LoanBookingWizard = dynamic(() =>
+	import("@/components/loans/loan-booking-wizard").then(
+		(mod) => mod.LoanBookingWizard,
+	),
+);
+
 // Type guard to filter items with defined IDs
 function hasDefinedId<T extends { id?: number | string }>(
 	item: T,
 ): item is T & { id: number | string } {
 	return item.id !== undefined;
 }
+
+function getQueryErrorStatusCode(error: unknown): number | null {
+	if (!error || typeof error !== "object") return null;
+	if ("status" in error && typeof error.status === "number") {
+		return error.status;
+	}
+	if ("statusCode" in error && typeof error.statusCode === "number") {
+		return error.statusCode;
+	}
+	if ("httpStatusCode" in error && typeof error.httpStatusCode === "number") {
+		return error.httpStatusCode;
+	}
+	return null;
+}
+
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
 const LOANS_PAGE_SIZE = 10;
 
@@ -93,20 +114,20 @@ function formatCurrency(amount: number | undefined, symbol = "KES") {
 
 function WizardSkeleton() {
 	return (
-		<div className="space-y-6 animate-pulse">
+		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				{[1, 2, 3, 4, 5, 6, 7].map((i) => (
 					<div key={i} className="flex flex-col items-center">
-						<div className="h-10 w-10 rounded-full bg-muted" />
-						<div className="h-3 w-16 mt-2 rounded bg-muted" />
+						<Skeleton className="h-10 w-10 rounded-full" />
+						<Skeleton className="mt-2 h-3 w-16 rounded" />
 					</div>
 				))}
 			</div>
 			<div className="space-y-4">
-				<div className="h-6 w-48 rounded bg-muted" />
-				<div className="h-10 w-full rounded bg-muted" />
-				<div className="h-10 w-full rounded bg-muted" />
-				<div className="h-32 w-full rounded bg-muted" />
+				<Skeleton className="h-6 w-48 rounded" />
+				<Skeleton className="h-10 w-full rounded" />
+				<Skeleton className="h-10 w-full rounded" />
+				<Skeleton className="h-32 w-full rounded" />
 			</div>
 		</div>
 	);
@@ -150,7 +171,6 @@ async function fetchLoans(
 		limit: String(pageSize),
 		orderBy: "id",
 		sortOrder: "DESC",
-		fields: "id,accountNo,clientName,productName,principal,status,currency",
 	});
 
 	const response = await fetch(`${BFF_ROUTES.loans}?${params.toString()}`, {
@@ -160,7 +180,17 @@ async function fetchLoans(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch loans");
+		const payload = await response.json().catch(() => null);
+		if (payload && typeof payload === "object") {
+			throw {
+				...(payload as Record<string, unknown>),
+				status: response.status,
+			};
+		}
+		throw {
+			message: "Failed to fetch loans",
+			status: response.status,
+		};
 	}
 
 	return response.json();
@@ -202,12 +232,20 @@ export default function LoansPage() {
 		enabled: Boolean(tenantId),
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
+		placeholderData: (previousData) => previousData,
+		retry: (failureCount, error) => {
+			const statusCode = getQueryErrorStatusCode(error);
+			if (statusCode !== null && statusCode >= 400 && statusCode < 500) {
+				return false;
+			}
+			return failureCount < 2;
+		},
 	});
 
 	const clientsQuery = useQuery({
 		queryKey: ["clients", tenantId],
 		queryFn: () => fetchClients(tenantId),
-		enabled: isDrawerOpen,
+		enabled: isDrawerOpen && Boolean(tenantId),
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
 	});
@@ -215,7 +253,7 @@ export default function LoansPage() {
 	const productsQuery = useQuery({
 		queryKey: ["loanProducts", tenantId],
 		queryFn: () => fetchLoanProducts(tenantId),
-		enabled: isDrawerOpen,
+		enabled: isDrawerOpen && Boolean(tenantId),
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
 	});
@@ -457,9 +495,9 @@ export default function LoansPage() {
 					</SheetHeader>
 
 					<div className="mt-6">
-						{isLookupsLoading && <WizardSkeleton />}
+						{isDrawerOpen && isLookupsLoading && <WizardSkeleton />}
 
-						{!isLookupsLoading && lookupErrors.length > 0 && (
+						{isDrawerOpen && !isLookupsLoading && lookupErrors.length > 0 && (
 							<Alert variant="destructive">
 								<AlertTitle>Lookup error</AlertTitle>
 								<AlertDescription>
@@ -468,7 +506,7 @@ export default function LoansPage() {
 							</Alert>
 						)}
 
-						{!isLookupsLoading && lookupErrors.length === 0 && (
+						{isDrawerOpen && !isLookupsLoading && lookupErrors.length === 0 && (
 							<LoanBookingWizard
 								clients={clients}
 								products={loanProducts}

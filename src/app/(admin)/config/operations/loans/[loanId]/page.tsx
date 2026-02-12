@@ -19,30 +19,11 @@ import {
 	Receipt,
 	Shield,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
-import { AuditTrailViewer } from "@/components/loans/audit-trail-viewer";
-import { PostLoanTransactionSheet } from "@/components/loans/dialogs/PostLoanTransactionSheet";
 import { KpiCard, KpiCardSkeleton } from "@/components/loans/kpi-card";
-import { LoanCommandDialog } from "@/components/loans/loan-command-dialog";
-import { StatusChip } from "@/components/loans/status-chip";
-import {
-	LoanChargesTab,
-	LoanChargesTabSkeleton,
-	LoanCollateralTab,
-	LoanCollateralTabSkeleton,
-	LoanDocumentsTab,
-	LoanDocumentsTabSkeleton,
-	LoanGuarantorsTab,
-	LoanGuarantorsTabSkeleton,
-	LoanOverviewTab,
-	LoanOverviewTabSkeleton,
-	LoanScheduleTab,
-	LoanScheduleTabSkeleton,
-	LoanTransactionsTab,
-	LoanTransactionsTabSkeleton,
-} from "@/components/loans/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,6 +81,107 @@ const LOAN_REPORT_NAMES: Record<LoanDownloadType, string> = {
 		"Loan Transaction Statement",
 };
 
+function LoanTabPanelSkeleton() {
+	return (
+		<div className="space-y-4">
+			<Skeleton className="h-10 w-full" />
+			<Skeleton className="h-10 w-full" />
+			<Skeleton className="h-10 w-full" />
+			<Skeleton className="h-28 w-full" />
+		</div>
+	);
+}
+
+const StatusChip = dynamic(() =>
+	import("@/components/loans/status-chip").then((mod) => mod.StatusChip),
+);
+const AuditTrailViewer = dynamic(() =>
+	import("@/components/loans/audit-trail-viewer").then(
+		(mod) => mod.AuditTrailViewer,
+	),
+);
+const LoanOverviewTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-overview-tab").then(
+			(mod) => mod.LoanOverviewTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanScheduleTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-schedule-tab").then(
+			(mod) => mod.LoanScheduleTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanTransactionsTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-transactions-tab").then(
+			(mod) => mod.LoanTransactionsTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanChargesTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-charges-tab").then(
+			(mod) => mod.LoanChargesTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanCollateralTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-collateral-tab").then(
+			(mod) => mod.LoanCollateralTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanGuarantorsTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-guarantors-tab").then(
+			(mod) => mod.LoanGuarantorsTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanDocumentsTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-documents-tab").then(
+			(mod) => mod.LoanDocumentsTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanCommandDialog = dynamic(
+	() =>
+		import("@/components/loans/loan-command-dialog").then(
+			(mod) => mod.LoanCommandDialog,
+		),
+	{
+		ssr: false,
+	},
+);
+const PostLoanTransactionSheet = dynamic(
+	() =>
+		import("@/components/loans/dialogs/PostLoanTransactionSheet").then(
+			(mod) => mod.PostLoanTransactionSheet,
+		),
+	{
+		ssr: false,
+	},
+);
+
 function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
 	if (format === "pdf") return "PDF";
 	if (format === "xlsx") return "XLSX";
@@ -155,7 +237,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	// Base loan query (no associations for fast initial load)
 	const loanQuery = useQuery({
-		queryKey: ["loan", loanId],
+		queryKey: ["loan", tenantId, loanId],
 		queryFn: async () => {
 			const response = await fetch(`${BFF_ROUTES.loans}/${loanId}`, {
 				headers: { "fineract-platform-tenantid": tenantId },
@@ -163,12 +245,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			if (!response.ok) throw new Error("Failed to fetch loan details");
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
-		enabled: !!loanId,
+		enabled: Boolean(loanId && tenantId),
+		refetchOnWindowFocus: false,
 	});
 
 	// Schedule query (lazy load when tab is active)
 	const scheduleQuery = useQuery({
-		queryKey: ["loan", loanId, "schedule"],
+		queryKey: ["loan", tenantId, loanId, "schedule"],
 		queryFn: async () => {
 			const response = await fetch(
 				`${BFF_ROUTES.loans}/${loanId}?associations=repaymentSchedule`,
@@ -179,12 +262,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			if (!response.ok) throw new Error("Failed to fetch schedule");
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
-		enabled: !!loanId && activeTab === "schedule",
+		enabled: Boolean(loanId && tenantId && activeTab === "schedule"),
+		refetchOnWindowFocus: false,
 	});
 
 	// Transactions query (load for overview, transactions, and charges tabs for disbursement/fee summary)
 	const transactionsQuery = useQuery({
-		queryKey: ["loan", loanId, "transactions"],
+		queryKey: ["loan", tenantId, loanId, "transactions"],
 		queryFn: async () => {
 			const response = await fetch(
 				`${BFF_ROUTES.loans}/${loanId}?associations=transactions`,
@@ -196,15 +280,16 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
 		enabled:
-			!!loanId &&
+			Boolean(loanId && tenantId) &&
 			(activeTab === "transactions" ||
 				activeTab === "overview" ||
 				activeTab === "charges"),
+		refetchOnWindowFocus: false,
 	});
 
 	// Audit trail query
 	const auditTrailQuery = useQuery({
-		queryKey: ["loanAudit", loanId],
+		queryKey: ["loanAudit", tenantId, loanId],
 		queryFn: async () => {
 			const response = await fetch(`${BFF_ROUTES.loanAudit}/${loanId}`, {
 				headers: { "fineract-platform-tenantid": tenantId },
@@ -218,12 +303,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			}
 			return [];
 		},
-		enabled: !!loanId && activeTab === "audit",
+		enabled: Boolean(loanId && tenantId && activeTab === "audit"),
+		refetchOnWindowFocus: false,
 	});
 
 	// Charges query (lazy load when tab is active)
 	const chargesQuery = useQuery({
-		queryKey: ["loan", loanId, "charges"],
+		queryKey: ["loan", tenantId, loanId, "charges"],
 		queryFn: async () => {
 			const response = await fetch(
 				`${BFF_ROUTES.loans}/${loanId}?associations=charges`,
@@ -234,7 +320,8 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 			if (!response.ok) throw new Error("Failed to fetch charges");
 			return response.json() as Promise<GetLoansLoanIdResponse>;
 		},
-		enabled: !!loanId && activeTab === "charges",
+		enabled: Boolean(loanId && tenantId && activeTab === "charges"),
+		refetchOnWindowFocus: false,
 	});
 
 	const loan = loanQuery.data;
@@ -265,12 +352,19 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		: summary?.penaltyChargesOutstanding;
 
 	const handleCommandSuccess = () => {
-		queryClient.invalidateQueries({ queryKey: ["loan", loanId] });
+		queryClient.invalidateQueries({ queryKey: ["loan", tenantId, loanId] });
 		queryClient.invalidateQueries({
-			queryKey: ["loan", loanId, "transactions"],
+			queryKey: ["loan", tenantId, loanId, "transactions"],
 		});
-		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "schedule"] });
-		queryClient.invalidateQueries({ queryKey: ["loan", loanId, "charges"] });
+		queryClient.invalidateQueries({
+			queryKey: ["loan", tenantId, loanId, "schedule"],
+		});
+		queryClient.invalidateQueries({
+			queryKey: ["loan", tenantId, loanId, "charges"],
+		});
+		queryClient.invalidateQueries({
+			queryKey: ["loanAudit", tenantId, loanId],
+		});
 		queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
 	};
 
@@ -743,92 +837,101 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 					<div className="mt-4">
 						<TabsContent value="overview">
-							<LoanOverviewTab loan={loan} />
+							{activeTab === "overview" && <LoanOverviewTab loan={loan} />}
 						</TabsContent>
 
 						<TabsContent value="schedule">
-							{scheduleQuery.isLoading ? (
-								<LoanScheduleTabSkeleton />
-							) : (
-								<LoanScheduleTab
-									schedule={scheduleQuery.data?.repaymentSchedule}
-									currency={currency}
-								/>
-							)}
+							{activeTab === "schedule" &&
+								(scheduleQuery.isLoading ? (
+									<LoanTabPanelSkeleton />
+								) : (
+									<LoanScheduleTab
+										schedule={scheduleQuery.data?.repaymentSchedule}
+										currency={currency}
+									/>
+								))}
 						</TabsContent>
 
 						<TabsContent value="transactions">
-							{transactionsQuery.isLoading ? (
-								<LoanTransactionsTabSkeleton />
-							) : (
-								<LoanTransactionsTab
-									transactions={transactionsQuery.data?.transactions}
-									currency={currency}
-									loan={loan}
-								/>
-							)}
+							{activeTab === "transactions" &&
+								(transactionsQuery.isLoading ? (
+									<LoanTabPanelSkeleton />
+								) : (
+									<LoanTransactionsTab
+										transactions={transactionsQuery.data?.transactions}
+										currency={currency}
+										loan={loan}
+									/>
+								))}
 						</TabsContent>
 
 						<TabsContent value="charges">
-							{chargesQuery.isLoading ? (
-								<LoanChargesTabSkeleton />
-							) : (
-								<LoanChargesTab
-									charges={chargesQuery.data?.charges ?? loan.charges}
-									currency={currency}
-									feesOutstanding={summary?.feeChargesOutstanding}
-									penaltiesOutstanding={summary?.penaltyChargesOutstanding}
-									loan={loan}
-									transactions={transactionsQuery.data?.transactions}
-								/>
-							)}
+							{activeTab === "charges" &&
+								(chargesQuery.isLoading ? (
+									<LoanTabPanelSkeleton />
+								) : (
+									<LoanChargesTab
+										charges={chargesQuery.data?.charges ?? loan.charges}
+										currency={currency}
+										feesOutstanding={summary?.feeChargesOutstanding}
+										penaltiesOutstanding={summary?.penaltyChargesOutstanding}
+										loan={loan}
+										transactions={transactionsQuery.data?.transactions}
+									/>
+								))}
 						</TabsContent>
 
 						<TabsContent value="collateral">
-							<LoanCollateralTab
-								loanId={parseInt(loanId)}
-								currency={currency}
-							/>
+							{activeTab === "collateral" && (
+								<LoanCollateralTab loanId={numericLoanId} currency={currency} />
+							)}
 						</TabsContent>
 
 						<TabsContent value="guarantors">
-							<LoanGuarantorsTab
-								loanId={parseInt(loanId)}
-								currency={currency}
-							/>
+							{activeTab === "guarantors" && (
+								<LoanGuarantorsTab loanId={numericLoanId} currency={currency} />
+							)}
 						</TabsContent>
 
 						<TabsContent value="documents">
-							<LoanDocumentsTab loanId={parseInt(loanId)} />
+							{activeTab === "documents" && (
+								<LoanDocumentsTab loanId={numericLoanId} />
+							)}
 						</TabsContent>
 
 						<TabsContent value="audit">
-							<AuditTrailViewer
-								events={auditTrailQuery.data || []}
-								isLoading={auditTrailQuery.isLoading}
-								error={auditTrailQuery.error}
-							/>
+							{activeTab === "audit" && (
+								<AuditTrailViewer
+									events={auditTrailQuery.data || []}
+									isLoading={auditTrailQuery.isLoading}
+									error={auditTrailQuery.error}
+								/>
+							)}
 						</TabsContent>
 					</div>
 				</Tabs>
 			</div>
 
 			{/* Command Dialog */}
-			<LoanCommandDialog
-				open={commandDialog.open}
-				onOpenChange={(open) => setCommandDialog({ ...commandDialog, open })}
-				commandType={commandDialog.type}
-				loanId={numericLoanId}
-				onSuccess={handleCommandSuccess}
-			/>
-			<PostLoanTransactionSheet
-				open={transactionSheetOpen}
-				onOpenChange={setTransactionSheetOpen}
-				loanId={numericLoanId}
-				currency={currency}
-				initialCommand={transactionCommand}
-				onSuccess={handleCommandSuccess}
-			/>
+			{commandDialog.open && (
+				<LoanCommandDialog
+					open={commandDialog.open}
+					onOpenChange={(open) => setCommandDialog({ ...commandDialog, open })}
+					commandType={commandDialog.type}
+					loanId={numericLoanId}
+					onSuccess={handleCommandSuccess}
+				/>
+			)}
+			{transactionSheetOpen && (
+				<PostLoanTransactionSheet
+					open={transactionSheetOpen}
+					onOpenChange={setTransactionSheetOpen}
+					loanId={numericLoanId}
+					currency={currency}
+					initialCommand={transactionCommand}
+					onSuccess={handleCommandSuccess}
+				/>
+			)}
 		</PageShell>
 	);
 }
@@ -999,7 +1102,7 @@ function LoadingState() {
 						<Skeleton key={i} className="h-8 w-24" />
 					))}
 				</div>
-				<LoanOverviewTabSkeleton />
+				<LoanTabPanelSkeleton />
 			</div>
 		</div>
 	);

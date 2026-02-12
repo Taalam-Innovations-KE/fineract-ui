@@ -7,6 +7,35 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type { PostLoansRequest } from "@/lib/fineract/generated/types.gen";
 
+const UNSUPPORTED_LOAN_LIST_FIELDS = new Set(["clientname", "productname"]);
+
+function sanitizeLoansQueryParams(
+	searchParams: URLSearchParams,
+): URLSearchParams {
+	const sanitized = new URLSearchParams(searchParams);
+	const fieldsRaw = sanitized.get("fields");
+
+	if (!fieldsRaw) {
+		return sanitized;
+	}
+
+	const requestedFields = fieldsRaw
+		.split(",")
+		.map((field) => field.trim())
+		.filter(Boolean);
+
+	// Fineract list endpoint rejects these names in `fields` even though they can
+	// appear in full response payloads. Drop `fields` entirely to avoid 400 loops.
+	const hasUnsupportedField = requestedFields.some((field) =>
+		UNSUPPORTED_LOAN_LIST_FIELDS.has(field.toLowerCase()),
+	);
+	if (hasUnsupportedField) {
+		sanitized.delete("fields");
+	}
+
+	return sanitized;
+}
+
 /**
  * GET /api/fineract/loans
  * Fetches loans
@@ -14,7 +43,9 @@ import type { PostLoansRequest } from "@/lib/fineract/generated/types.gen";
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const queryString = request.nextUrl.searchParams.toString();
+		const queryString = sanitizeLoansQueryParams(
+			request.nextUrl.searchParams,
+		).toString();
 		const path = queryString
 			? `${FINERACT_ENDPOINTS.loans}?${queryString}`
 			: FINERACT_ENDPOINTS.loans;

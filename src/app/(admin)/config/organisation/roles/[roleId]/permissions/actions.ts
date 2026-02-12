@@ -7,11 +7,21 @@ import type {
 	PutRolesRoleIdPermissionsRequest,
 } from "@/lib/fineract/generated/types.gen";
 
+export interface RolePermissionUsage {
+	code: string;
+	grouping: string;
+	actionName: string;
+	entityName: string;
+	selected: boolean;
+}
+
 export async function fetchRole(roleId: string): Promise<GetRolesResponse> {
 	return fineractFetch(`/v1/roles/${roleId}`, { method: "GET" });
 }
 
-export async function fetchRolePermissions(roleId: string): Promise<string[]> {
+export async function fetchRolePermissions(
+	roleId: string,
+): Promise<RolePermissionUsage[]> {
 	const response = await fineractFetch<GetRolesRoleIdPermissionsResponse>(
 		`/v1/roles/${roleId}/permissions`,
 		{ method: "GET" },
@@ -19,11 +29,15 @@ export async function fetchRolePermissions(roleId: string): Promise<string[]> {
 
 	return (
 		response.permissionUsageData
-			?.filter(
-				(permission): permission is { selected: true; code: string } =>
-					permission.selected === true && typeof permission.code === "string",
-			)
-			.map((permission) => permission.code) || []
+			?.map((permission) => ({
+				code: String(permission.code ?? ""),
+				grouping: String(permission.grouping ?? "General"),
+				actionName: String(permission.actionName ?? ""),
+				entityName: String(permission.entityName ?? ""),
+				selected: permission.selected === true,
+			}))
+			.filter((permission) => permission.code.length > 0)
+			.sort((a, b) => a.code.localeCompare(b.code)) ?? []
 	);
 }
 

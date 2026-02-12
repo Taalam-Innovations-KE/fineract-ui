@@ -67,9 +67,12 @@ async function fetchLoanProduct(
 	tenantId: string,
 	id: string,
 ): Promise<GetLoanProductsProductIdResponse> {
-	const response = await fetch(`${BFF_ROUTES.loanProducts}/${id}`, {
-		headers: { "x-tenant-id": tenantId },
-	});
+	const response = await fetch(
+		`${BFF_ROUTES.loanProducts}/${id}?template=true`,
+		{
+			headers: { "x-tenant-id": tenantId },
+		},
+	);
 	if (!response.ok) throw new Error("Failed to fetch loan product");
 	return response.json();
 }
@@ -831,6 +834,206 @@ export default function LoanProductDetailPage({
 	const currency = product.currency?.displaySymbol || "KES";
 	const fees = detailedCharges.filter((c) => !c.penalty);
 	const penalties = detailedCharges.filter((c) => c.penalty);
+	const accountingMappings = product.accountingMappings;
+	const paymentTypeOptions =
+		(readUnknownProperty(product, "paymentTypeOptions") as
+			| Array<{ id?: number; name?: string }>
+			| undefined) || [];
+	const paymentTypeNameById = new Map<number, string>(
+		paymentTypeOptions
+			.filter(
+				(option): option is { id: number; name: string } =>
+					typeof option.id === "number" && typeof option.name === "string",
+			)
+			.map((option) => [option.id, option.name]),
+	);
+	const coreAccountMappings = [
+		{ label: "Fund Source", account: accountingMappings?.fundSourceAccount },
+		{
+			label: "Loan Portfolio",
+			account: accountingMappings?.loanPortfolioAccount,
+		},
+		{
+			label: "Interest on Loan",
+			account: accountingMappings?.interestOnLoanAccount,
+		},
+		{
+			label: "Income from Fee",
+			account: accountingMappings?.incomeFromFeeAccount,
+		},
+		{
+			label: "Income from Penalty",
+			account: accountingMappings?.incomeFromPenaltyAccount,
+		},
+		{
+			label: "Receivable Interest",
+			account: accountingMappings?.receivableInterestAccount,
+		},
+		{
+			label: "Receivable Fee",
+			account: accountingMappings?.receivableFeeAccount,
+		},
+		{
+			label: "Receivable Penalty",
+			account: accountingMappings?.receivablePenaltyAccount,
+		},
+		{
+			label: "Write-off",
+			account: accountingMappings?.writeOffAccount,
+		},
+		{
+			label: "Overpayment Liability",
+			account: accountingMappings?.overpaymentLiabilityAccount,
+		},
+		{
+			label: "Transfers in Suspense",
+			account: accountingMappings?.transfersInSuspenseAccount,
+		},
+	] as const;
+	const configuredCoreAccountCount = coreAccountMappings.filter(
+		(mapping) => !!mapping.account,
+	).length;
+	const extendedAccountMappings = [
+		{
+			label: "Income from Recovery",
+			account: accountingMappings?.incomeFromRecoveryAccount,
+		},
+		{
+			label: "Buy Down Expense",
+			account: accountingMappings?.buyDownExpenseAccount,
+		},
+		{
+			label: "Income from Buy Down",
+			account: accountingMappings?.incomeFromBuyDownAccount,
+		},
+		{
+			label: "Income from Capitalization",
+			account: accountingMappings?.incomeFromCapitalizationAccount,
+		},
+		{
+			label: "Charge-off Expense",
+			account: accountingMappings?.chargeOffExpenseAccount,
+		},
+		{
+			label: "Charge-off Fraud Expense",
+			account: accountingMappings?.chargeOffFraudExpenseAccount,
+		},
+		{
+			label: "Deferred Income Liability",
+			account: accountingMappings?.deferredIncomeLiabilityAccount,
+		},
+		{
+			label: "Goodwill Credit",
+			account: accountingMappings?.goodwillCreditAccount,
+		},
+		{
+			label: "Charge-off Fee Income",
+			account: accountingMappings?.incomeFromChargeOffFeesAccount,
+		},
+		{
+			label: "Charge-off Interest Income",
+			account: accountingMappings?.incomeFromChargeOffInterestAccount,
+		},
+		{
+			label: "Charge-off Penalty Income",
+			account: accountingMappings?.incomeFromChargeOffPenaltyAccount,
+		},
+		{
+			label: "Goodwill Fee Income",
+			account: accountingMappings?.incomeFromGoodwillCreditFeesAccount,
+		},
+		{
+			label: "Goodwill Interest Income",
+			account: accountingMappings?.incomeFromGoodwillCreditInterestAccount,
+		},
+		{
+			label: "Goodwill Penalty Income",
+			account: accountingMappings?.incomeFromGoodwillCreditPenaltyAccount,
+		},
+	].filter((mapping) => !!mapping.account);
+	const feeToIncomeMappings = product.feeToIncomeAccountMappings || [];
+	const penaltyToIncomeMappings =
+		(readUnknownProperty(product, "penaltyToIncomeAccountMappings") as
+			| Array<{
+					charge?: { id?: number; name?: string };
+					chargeId?: number;
+					incomeAccount?: { id?: number; name?: string; glCode?: string };
+					incomeAccountId?: number;
+			  }>
+			| undefined) || [];
+	const paymentChannelMappings =
+		product.paymentChannelToFundSourceMappings || [];
+	const chargeOffReasonMappings =
+		product.chargeOffReasonToExpenseAccountMappings || [];
+	const writeOffReasonMappings = product.writeOffReasonsToExpenseMappings || [];
+	const buyDownClassificationMappings =
+		product.buydownFeeClassificationToIncomeAccountMappings || [];
+	const capitalizedIncomeClassificationMappings =
+		product.capitalizedIncomeClassificationToIncomeAccountMappings || [];
+	const accountingMappingOptions = readUnknownProperty(
+		product,
+		"accountingMappingOptions",
+	) as
+		| {
+				assetAccountOptions?: Array<{
+					id?: number;
+					name?: string;
+					glCode?: string;
+				}>;
+				liabilityAccountOptions?: Array<{
+					id?: number;
+					name?: string;
+					glCode?: string;
+				}>;
+				incomeAccountOptions?: Array<{
+					id?: number;
+					name?: string;
+					glCode?: string;
+				}>;
+				expenseAccountOptions?: Array<{
+					id?: number;
+					name?: string;
+					glCode?: string;
+				}>;
+		  }
+		| undefined;
+	const availableAccountingOptionCounts = {
+		asset: accountingMappingOptions?.assetAccountOptions?.length || 0,
+		liability: accountingMappingOptions?.liabilityAccountOptions?.length || 0,
+		income: accountingMappingOptions?.incomeAccountOptions?.length || 0,
+		expense: accountingMappingOptions?.expenseAccountOptions?.length || 0,
+	};
+	const accountLookupById = new Map<
+		number,
+		{ id?: number; name?: string; glCode?: string }
+	>();
+	for (const mapping of [...coreAccountMappings, ...extendedAccountMappings]) {
+		const account = mapping.account;
+		if (account?.id && !accountLookupById.has(account.id)) {
+			accountLookupById.set(account.id, account);
+		}
+	}
+	for (const account of accountingMappingOptions?.assetAccountOptions || []) {
+		if (account.id && !accountLookupById.has(account.id)) {
+			accountLookupById.set(account.id, account);
+		}
+	}
+	for (const account of accountingMappingOptions?.liabilityAccountOptions ||
+		[]) {
+		if (account.id && !accountLookupById.has(account.id)) {
+			accountLookupById.set(account.id, account);
+		}
+	}
+	for (const account of accountingMappingOptions?.incomeAccountOptions || []) {
+		if (account.id && !accountLookupById.has(account.id)) {
+			accountLookupById.set(account.id, account);
+		}
+	}
+	for (const account of accountingMappingOptions?.expenseAccountOptions || []) {
+		if (account.id && !accountLookupById.has(account.id)) {
+			accountLookupById.set(account.id, account);
+		}
+	}
 
 	return (
 		<PageShell
@@ -1453,13 +1656,25 @@ export default function LoanProductDetailPage({
 									<CardContent className="divide-y">
 										<InfoRow
 											label="Accounting Rule"
-											value={product.accountingRule?.description || "—"}
+											value={formatEnum(product.accountingRule)}
+										/>
+										<InfoRow
+											label="Accounting Rule Code"
+											value={product.accountingRule?.code || "—"}
+										/>
+										<InfoRow
+											label="Configured Core GL Accounts"
+											value={`${configuredCoreAccountCount}/${coreAccountMappings.length}`}
 										/>
 										<InfoRow
 											label="Accrual Activity Posting"
 											value={formatBoolean(
 												product.enableAccrualActivityPosting,
 											)}
+										/>
+										<InfoRow
+											label="Available GL Option Pools"
+											value={`A:${availableAccountingOptionCounts.asset} L:${availableAccountingOptionCounts.liability} I:${availableAccountingOptionCounts.income} E:${availableAccountingOptionCounts.expense}`}
 										/>
 									</CardContent>
 								</Card>
@@ -1490,6 +1705,209 @@ export default function LoanProductDetailPage({
 											label="Allow Full Term for Tranche"
 											value={formatBoolean(product.allowFullTermForTranche)}
 										/>
+										<InfoRow
+											label="Payment Type Options"
+											value={paymentTypeOptions.length}
+										/>
+									</CardContent>
+								</Card>
+
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<CreditCard className="h-4 w-4" />
+											Core GL Mappings
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="rounded-md border overflow-hidden">
+											<Table>
+												<TableHeader>
+													<TableRow className="bg-muted/50">
+														<TableHead>Mapping</TableHead>
+														<TableHead>Account</TableHead>
+														<TableHead>GL Code</TableHead>
+														<TableHead className="text-right">Status</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{coreAccountMappings.map((mapping) => (
+														<TableRow key={mapping.label}>
+															<TableCell className="font-medium">
+																{mapping.label}
+															</TableCell>
+															<TableCell>
+																{mapping.account?.name || "Not mapped"}
+															</TableCell>
+															<TableCell className="font-mono">
+																{mapping.account?.glCode || "—"}
+															</TableCell>
+															<TableCell className="text-right">
+																<Badge
+																	variant={
+																		mapping.account ? "success" : "secondary"
+																	}
+																>
+																	{mapping.account ? "Mapped" : "Missing"}
+																</Badge>
+															</TableCell>
+														</TableRow>
+													))}
+												</TableBody>
+											</Table>
+										</div>
+									</CardContent>
+								</Card>
+
+								{extendedAccountMappings.length > 0 && (
+									<Card className="lg:col-span-2">
+										<CardHeader className="pb-3">
+											<CardTitle className="flex items-center gap-2 text-base">
+												<Calculator className="h-4 w-4" />
+												Extended GL Mappings
+											</CardTitle>
+										</CardHeader>
+										<CardContent>
+											<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+												{extendedAccountMappings.map((mapping) => (
+													<div
+														key={mapping.label}
+														className="rounded-md border p-3"
+													>
+														<p className="text-xs text-muted-foreground">
+															{mapping.label}
+														</p>
+														<p className="text-sm font-medium mt-1">
+															{mapping.account?.name || "—"}
+															{mapping.account?.glCode
+																? ` (${mapping.account.glCode})`
+																: ""}
+														</p>
+													</div>
+												))}
+											</div>
+										</CardContent>
+									</Card>
+								)}
+
+								<Card className="lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-base">
+											<FileText className="h-4 w-4" />
+											Accounting Mapping Rules
+										</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+											<div className="space-y-2">
+												<p className="text-sm font-medium">Fee to Income</p>
+												{feeToIncomeMappings.length === 0 ? (
+													<p className="text-sm text-muted-foreground">
+														No fee income mappings configured.
+													</p>
+												) : (
+													<div className="space-y-1">
+														{feeToIncomeMappings.map((mapping, index) => (
+															<p
+																key={`${mapping.chargeId || mapping.charge?.id || index}`}
+																className="text-sm"
+															>
+																{mapping.charge?.name ||
+																	`Charge #${mapping.chargeId || mapping.charge?.id || "—"}`}{" "}
+																{"→"}{" "}
+																{mapping.incomeAccount?.name || "Unmapped"}
+															</p>
+														))}
+													</div>
+												)}
+											</div>
+
+											<div className="space-y-2">
+												<p className="text-sm font-medium">Penalty to Income</p>
+												{penaltyToIncomeMappings.length === 0 ? (
+													<p className="text-sm text-muted-foreground">
+														No penalty income mappings configured.
+													</p>
+												) : (
+													<div className="space-y-1">
+														{penaltyToIncomeMappings.map((mapping, index) => (
+															<p
+																key={`${mapping.chargeId || mapping.charge?.id || index}`}
+																className="text-sm"
+															>
+																{mapping.charge?.name ||
+																	`Penalty #${mapping.chargeId || mapping.charge?.id || "—"}`}{" "}
+																{"→"}{" "}
+																{mapping.incomeAccount?.name || "Unmapped"}
+															</p>
+														))}
+													</div>
+												)}
+											</div>
+
+											<div className="space-y-2">
+												<p className="text-sm font-medium">
+													Payment Channel to Fund Source
+												</p>
+												{paymentChannelMappings.length === 0 ? (
+													<p className="text-sm text-muted-foreground">
+														No payment channel mappings configured.
+													</p>
+												) : (
+													<div className="space-y-1">
+														{paymentChannelMappings.map((mapping, index) => {
+															const fundSource =
+																typeof mapping.fundSourceAccountId === "number"
+																	? accountLookupById.get(
+																			mapping.fundSourceAccountId,
+																		)
+																	: undefined;
+															const paymentTypeLabel =
+																typeof mapping.paymentTypeId === "number"
+																	? paymentTypeNameById.get(
+																			mapping.paymentTypeId,
+																		)
+																	: undefined;
+
+															return (
+																<p
+																	key={`${mapping.paymentTypeId || "pt"}-${mapping.fundSourceAccountId || index}`}
+																	className="text-sm"
+																>
+																	{paymentTypeLabel ||
+																		`Payment Type #${mapping.paymentTypeId || "—"}`}{" "}
+																	{"→"}{" "}
+																	{fundSource?.name ||
+																		`Fund Source #${mapping.fundSourceAccountId || "—"}`}
+																</p>
+															);
+														})}
+													</div>
+												)}
+											</div>
+
+											<div className="space-y-2">
+												<p className="text-sm font-medium">
+													Reason & Classification Mapping Counts
+												</p>
+												<div className="space-y-1">
+													<p className="text-sm">
+														Charge-off reasons: {chargeOffReasonMappings.length}
+													</p>
+													<p className="text-sm">
+														Write-off reasons: {writeOffReasonMappings.length}
+													</p>
+													<p className="text-sm">
+														Buy-down classifications:{" "}
+														{buyDownClassificationMappings.length}
+													</p>
+													<p className="text-sm">
+														Capitalized-income classifications:{" "}
+														{capitalizedIncomeClassificationMappings.length}
+													</p>
+												</div>
+											</div>
+										</div>
 									</CardContent>
 								</Card>
 

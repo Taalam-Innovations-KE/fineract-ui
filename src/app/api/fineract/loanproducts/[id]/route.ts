@@ -21,9 +21,13 @@ export async function GET(
 	try {
 		const tenantId = getTenantFromRequest(request);
 		const { id } = await params;
+		const queryString = request.nextUrl.searchParams.toString();
+		const path = queryString
+			? `${FINERACT_ENDPOINTS.loanProducts}/${id}?${queryString}`
+			: `${FINERACT_ENDPOINTS.loanProducts}/${id}`;
 
 		const product = await fineractFetch<GetLoanProductsProductIdResponse>(
-			`${FINERACT_ENDPOINTS.loanProducts}/${id}`,
+			path,
 			{
 				method: "GET",
 				tenantId,

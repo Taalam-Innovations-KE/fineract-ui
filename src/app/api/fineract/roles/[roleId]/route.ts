@@ -71,6 +71,47 @@ export async function PUT(
 }
 
 /**
+ * POST /api/fineract/roles/[roleId]?command=enable|disable
+ * Enables or disables a role
+ */
+export async function POST(
+	request: NextRequest,
+	{ params }: { params: Promise<{ roleId: string }> },
+) {
+	try {
+		const tenantId = getTenantFromRequest(request);
+		const { roleId } = await params;
+		const command = request.nextUrl.searchParams.get("command");
+
+		if (command !== "enable" && command !== "disable") {
+			return NextResponse.json(
+				{
+					code: "INVALID_REQUEST",
+					message: "Query parameter 'command' must be 'enable' or 'disable'.",
+					statusCode: 400,
+				},
+				{ status: 400 },
+			);
+		}
+
+		const response = await fineractFetch<unknown>(
+			`${FINERACT_ENDPOINTS.roles}/${roleId}?command=${command}`,
+			{
+				method: "POST",
+				tenantId,
+			},
+		);
+
+		return NextResponse.json(response ?? { success: true, command });
+	} catch (error) {
+		const mappedError = mapFineractError(error);
+		return NextResponse.json(mappedError, {
+			status: mappedError.statusCode || 500,
+		});
+	}
+}
+
+/**
  * DELETE /api/fineract/roles/[roleId]
  * Deletes a role
  */

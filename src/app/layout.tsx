@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { auth } from "@/auth";
+import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -31,7 +32,10 @@ export default async function RootLayout({
 			<body className={`${inter.variable} antialiased font-sans`}>
 				<AuthProvider session={session}>
 					<ThemeProvider>
-						<QueryProvider>{children}</QueryProvider>
+						<QueryProvider>
+							{children}
+							<Toaster richColors closeButton />
+						</QueryProvider>
 					</ThemeProvider>
 				</AuthProvider>
 			</body>

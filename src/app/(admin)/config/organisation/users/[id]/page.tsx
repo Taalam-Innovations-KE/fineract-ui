@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit, Trash } from "lucide-react";
+import { ArrowLeft, Edit, Shield, Trash } from "lucide-react";
+import Link from "next/link";
 import { use, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,6 +23,23 @@ import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { TeamMemberRequestPayload } from "@/lib/schemas/team-member";
 import { useTenantStore } from "@/store/tenant";
+
+function isSelfServiceUser(user: GetUsersResponse): boolean {
+	const record = user as unknown as Record<string, unknown>;
+	return record.isSelfServiceUser === true || record.selfServiceUser === true;
+}
+
+function readLinkedClients(user: GetUsersResponse): number[] {
+	const record = user as unknown as Record<string, unknown>;
+	const clients = record.clients;
+	if (!Array.isArray(clients)) {
+		return [];
+	}
+
+	return clients.filter(
+		(client): client is number => typeof client === "number",
+	);
+}
 
 async function fetchUser(
 	tenantId: string,
@@ -171,6 +190,8 @@ export default function UserDetailPage({
 		);
 	}
 
+	const linkedClients = readLinkedClients(user);
+
 	return (
 		<>
 			<PageShell
@@ -178,6 +199,12 @@ export default function UserDetailPage({
 				subtitle="View and manage user details"
 				actions={
 					<div className="flex gap-2">
+						<Button variant="outline" asChild>
+							<Link href="/config/organisation/users">
+								<ArrowLeft className="mr-1 h-4 w-4" />
+								Back to Users
+							</Link>
+						</Button>
 						<Button variant="outline" onClick={() => setEditDialogOpen(true)}>
 							<Edit className="mr-1 h-4 w-4" />
 							Edit
@@ -226,6 +253,27 @@ export default function UserDetailPage({
 									<label className="text-sm font-medium">Status</label>
 									<p>
 										<span className="text-muted-foreground">N/A</span>
+									</p>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Access Scope</label>
+									<div className="mt-1">
+										{isSelfServiceUser(user) ? (
+											<Badge variant="success" className="inline-flex">
+												<Shield className="mr-1 h-3.5 w-3.5" />
+												Self-Service User
+											</Badge>
+										) : (
+											<Badge variant="secondary">Back-office User</Badge>
+										)}
+									</div>
+								</div>
+								<div>
+									<label className="text-sm font-medium">
+										Linked Client IDs
+									</label>
+									<p>
+										{linkedClients.length > 0 ? linkedClients.join(", ") : "—"}
 									</p>
 								</div>
 							</div>

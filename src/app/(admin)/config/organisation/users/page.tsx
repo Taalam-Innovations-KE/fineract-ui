@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Plus, Shield, UserCog } from "lucide-react";
+import { Building2, Plus, Shield, UserCog, UserRoundCheck } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { TeamMemberForm } from "@/components/config/forms/team-member-form";
 import { PageShell } from "@/components/config/page-shell";
@@ -31,6 +32,11 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import type { TeamMemberRequestPayload } from "@/lib/schemas/team-member";
 import { useTenantStore } from "@/store/tenant";
+
+function isSelfServiceUser(user: GetUsersResponse): boolean {
+	const record = user as unknown as Record<string, unknown>;
+	return record.isSelfServiceUser === true || record.selfServiceUser === true;
+}
 
 async function fetchUsers(tenantId: string): Promise<GetUsersResponse[]> {
 	const response = await fetch(BFF_ROUTES.users, {
@@ -147,6 +153,7 @@ export default function UsersPage() {
 		queryKey: ["roles", tenantId],
 		queryFn: () => fetchRoles(tenantId),
 	});
+	const selfServiceUserCount = users.filter(isSelfServiceUser).length;
 
 	const createMutation = useMutation({
 		mutationFn: (data: TeamMemberRequestPayload) =>
@@ -192,6 +199,11 @@ export default function UsersPage() {
 					<div className="text-xs text-muted-foreground">
 						@{user.username} • {user.officeName || "No office"}
 					</div>
+					{isSelfServiceUser(user) && (
+						<Badge variant="success" className="mt-1 text-[10px]">
+							Self-Service
+						</Badge>
+					)}
 				</div>
 			),
 		},
@@ -237,15 +249,23 @@ export default function UsersPage() {
 			title="Users"
 			subtitle="Manage system users and their access permissions"
 			actions={
-				<Button onClick={handleCreateNew}>
-					<Plus className="h-4 w-4 mr-2" />
-					Create Team Member
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button variant="outline" asChild>
+						<Link href="/config/organisation/self-service">
+							<UserRoundCheck className="h-4 w-4 mr-2" />
+							Self-Service Access
+						</Link>
+					</Button>
+					<Button onClick={handleCreateNew}>
+						<Plus className="h-4 w-4 mr-2" />
+						Create Team Member
+					</Button>
+				</div>
 			}
 		>
 			<div className="space-y-6">
 				{/* Summary Cards */}
-				<div className="grid gap-4 md:grid-cols-3">
+				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 					<Card>
 						<CardContent className="pt-6">
 							<div className="flex items-center gap-3">
@@ -256,6 +276,23 @@ export default function UsersPage() {
 									<div className="text-2xl font-bold">{users.length}</div>
 									<div className="text-sm text-muted-foreground">
 										Total Users
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-warning/10">
+									<UserRoundCheck className="h-5 w-5 text-warning" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">
+										{selfServiceUserCount}
+									</div>
+									<div className="text-sm text-muted-foreground">
+										Self-Service Users
 									</div>
 								</div>
 							</div>

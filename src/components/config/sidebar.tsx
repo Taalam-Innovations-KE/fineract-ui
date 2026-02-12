@@ -164,6 +164,11 @@ const navItems: NavItem[] = [
 			{ title: "Staff", href: "/config/organisation/staff", icon: Users },
 			{ title: "Users", href: "/config/organisation/users", icon: UserCog },
 			{
+				title: "Self-Service Access",
+				href: "/config/organisation/self-service",
+				icon: UserCog,
+			},
+			{
 				title: "Roles & Permissions",
 				href: "/config/organisation/roles",
 				icon: Shield,

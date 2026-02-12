@@ -966,6 +966,11 @@ export default function LoanProductDetailPage({
 	const chargeOffReasonMappings =
 		product.chargeOffReasonToExpenseAccountMappings || [];
 	const writeOffReasonMappings = product.writeOffReasonsToExpenseMappings || [];
+	const selfServiceApplicationEnabled = readUnknownBooleanProperty(
+		product,
+		"allowSelfService",
+		false,
+	);
 	const buyDownClassificationMappings =
 		product.buydownFeeClassificationToIncomeAccountMappings || [];
 	const capitalizedIncomeClassificationMappings =
@@ -1258,6 +1263,22 @@ export default function LoanProductDetailPage({
 													}
 												>
 													{formatBoolean(product.enableDownPayment)}
+												</Badge>
+											</div>
+											<div className="text-center p-3 bg-muted/50 rounded-lg">
+												<p className="text-xs text-muted-foreground mb-1">
+													Self-Service Apply
+												</p>
+												<Badge
+													variant={
+														selfServiceApplicationEnabled
+															? "success"
+															: "secondary"
+													}
+												>
+													{selfServiceApplicationEnabled
+														? "Enabled"
+														: "Disabled"}
 												</Badge>
 											</div>
 										</div>

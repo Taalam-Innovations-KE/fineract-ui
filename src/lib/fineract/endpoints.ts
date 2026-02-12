@@ -8,7 +8,10 @@ export const FINERACT_ENDPOINTS = {
 	offices: "/v1/offices",
 	staff: "/v1/staff",
 	users: "/v1/users",
+	usersTemplate: "/v1/users/template",
 	roles: "/v1/roles",
+	rolePermissions: (roleId: number | string) =>
+		`/v1/roles/${roleId}/permissions`,
 	permissions: "/v1/permissions",
 	codes: "/v1/codes",
 	workingDays: "/v1/workingdays",
@@ -100,8 +103,11 @@ export const BFF_ROUTES = {
 	offices: "/api/fineract/offices",
 	staff: "/api/fineract/staff",
 	users: "/api/fineract/users",
+	usersTemplate: "/api/fineract/users/template",
 	onboarding: "/api/fineract/onboarding",
 	roles: "/api/fineract/roles",
+	rolePermissions: (roleId: number | string) =>
+		`/api/fineract/roles/${roleId}/permissions`,
 	permissions: "/api/fineract/permissions",
 	codes: "/api/fineract/codes",
 	workingDays: "/api/fineract/workingdays",

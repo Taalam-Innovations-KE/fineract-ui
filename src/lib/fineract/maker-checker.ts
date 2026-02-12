@@ -74,8 +74,8 @@ export async function getPermissions(): Promise<Permission[]> {
 	);
 	return response.map((p: GetPermissionsResponse, index: number) => ({
 		id: index + 1, // Placeholder - need proper ID mapping
-		code: p.code || "",
-		grouping: p.grouping || "",
+		code: String(p.code ?? ""),
+		grouping: String(p.grouping ?? ""),
 		selected: p.selected || false,
 	}));
 }

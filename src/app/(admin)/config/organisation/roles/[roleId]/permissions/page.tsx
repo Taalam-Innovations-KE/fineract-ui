@@ -16,10 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import type {
-	MakerCheckerEntry,
-	Permission,
-} from "@/lib/fineract/maker-checker";
+import type { Permission } from "@/lib/fineract/maker-checker";
 import { getPermissions } from "@/lib/fineract/maker-checker";
 import {
 	fetchRole,
@@ -42,7 +39,7 @@ export default function RolePermissionsPage() {
 		enabled: !!roleId,
 	});
 
-	const { data: rolePermissionIds = [], isLoading: permissionsLoading } =
+	const { data: rolePermissionCodes = [], isLoading: permissionsLoading } =
 		useQuery({
 			queryKey: ["role-permissions", roleId],
 			queryFn: () => fetchRolePermissions(roleId),
@@ -55,8 +52,8 @@ export default function RolePermissionsPage() {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: ({ permissionIds }: { permissionIds: number[] }) =>
-			updateRolePermissions(parseInt(roleId), permissionIds),
+		mutationFn: ({ permissions }: { permissions: Record<string, boolean> }) =>
+			updateRolePermissions(Number.parseInt(roleId, 10), permissions),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["role-permissions", roleId] });
 		},
@@ -72,38 +69,57 @@ export default function RolePermissionsPage() {
 		setExpandedModules(newExpanded);
 	};
 
-	const handlePermissionToggle = (permissionId: number, checked: boolean) => {
-		const currentIds = rolePermissionIds;
-		let newIds: number[];
+	const getPermissionCode = (permission: Permission): string =>
+		String(permission.code ?? "");
+
+	const handlePermissionToggle = (permissionCode: string, checked: boolean) => {
+		const currentCodes = rolePermissionCodes;
+		let nextCodes: string[];
 		if (checked) {
-			newIds = [...currentIds, permissionId];
+			nextCodes = currentCodes.includes(permissionCode)
+				? currentCodes
+				: [...currentCodes, permissionCode];
 		} else {
-			newIds = currentIds.filter((id) => id !== permissionId);
+			nextCodes = currentCodes.filter((code) => code !== permissionCode);
 		}
-		updateMutation.mutate({ permissionIds: newIds });
+
+		const permissions = Object.fromEntries(
+			allPermissions
+				.map((permission) => {
+					const code = getPermissionCode(permission);
+					return [code, nextCodes.includes(code)] as const;
+				})
+				.filter(([code]) => code.length > 0),
+		);
+
+		updateMutation.mutate({ permissions });
 	};
 
 	const permissionModules = {
-		Loans: allPermissions.filter((p) => p.code.includes("LOAN")),
+		Loans: allPermissions.filter((p) => getPermissionCode(p).includes("LOAN")),
 		Savings: allPermissions.filter(
-			(p) => p.code.includes("SAVINGS") || p.code.includes("SAVING"),
+			(p) =>
+				getPermissionCode(p).includes("SAVINGS") ||
+				getPermissionCode(p).includes("SAVING"),
 		),
-		Clients: allPermissions.filter((p) => p.code.includes("CLIENT")),
+		Clients: allPermissions.filter((p) =>
+			getPermissionCode(p).includes("CLIENT"),
+		),
 		Products: allPermissions.filter(
 			(p) =>
-				p.code.includes("PRODUCT") ||
-				p.code.includes("DEPOSIT") ||
-				p.code.includes("SHARE"),
+				getPermissionCode(p).includes("PRODUCT") ||
+				getPermissionCode(p).includes("DEPOSIT") ||
+				getPermissionCode(p).includes("SHARE"),
 		),
 		System: allPermissions.filter(
 			(p) =>
-				!p.code.includes("LOAN") &&
-				!p.code.includes("SAVINGS") &&
-				!p.code.includes("SAVING") &&
-				!p.code.includes("CLIENT") &&
-				!p.code.includes("PRODUCT") &&
-				!p.code.includes("DEPOSIT") &&
-				!p.code.includes("SHARE"),
+				!getPermissionCode(p).includes("LOAN") &&
+				!getPermissionCode(p).includes("SAVINGS") &&
+				!getPermissionCode(p).includes("SAVING") &&
+				!getPermissionCode(p).includes("CLIENT") &&
+				!getPermissionCode(p).includes("PRODUCT") &&
+				!getPermissionCode(p).includes("DEPOSIT") &&
+				!getPermissionCode(p).includes("SHARE"),
 		),
 	};
 
@@ -176,7 +192,7 @@ export default function RolePermissionsPage() {
 					if (perms.length === 0) return null;
 					const isExpanded = expandedModules.has(module);
 					const assignedCount = perms.filter((p) =>
-						rolePermissionIds.includes(p.id),
+						rolePermissionCodes.includes(getPermissionCode(p)),
 					).length;
 
 					return (
@@ -206,27 +222,32 @@ export default function RolePermissionsPage() {
 								<CardContent>
 									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 										{perms.map((perm) => {
-											const isAssigned = rolePermissionIds.includes(perm.id);
+											const permissionCode = getPermissionCode(perm);
+											const isAssigned =
+												rolePermissionCodes.includes(permissionCode);
 											const requiresApproval = perm.selected; // From maker checker
 
 											return (
 												<div
-													key={perm.code}
+													key={permissionCode || `permission-${perm.id}`}
 													className="flex items-center space-x-2"
 												>
 													<Checkbox
 														checked={isAssigned}
 														onCheckedChange={(checked) =>
 															handlePermissionToggle(
-																perm.id,
+																permissionCode,
 																checked as boolean,
 															)
 														}
-														disabled={updateMutation.isPending}
+														disabled={
+															updateMutation.isPending ||
+															permissionCode.length === 0
+														}
 													/>
 													<div className="flex-1">
 														<label className="text-sm font-medium">
-															{perm.code}
+															{permissionCode || "Unnamed permission"}
 														</label>
 														{requiresApproval && (
 															<Badge variant="outline" className="ml-2 text-xs">

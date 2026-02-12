@@ -31,6 +31,19 @@ const CHARGE_PAYMENT_MODE = {
 	deduct: 1,
 } as const;
 
+interface LoanProductsListQuery {
+	offset?: number;
+	limit?: number;
+	orderBy?: string;
+	sortOrder?: "ASC" | "DESC";
+	fields?: string;
+}
+
+interface LoanProductsPagedResponse<T> {
+	pageItems?: T[];
+	totalFilteredRecords?: number;
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
 	const rawPayload = await response.text();
 	const payload = rawPayload ? (JSON.parse(rawPayload) as unknown) : null;
@@ -86,8 +99,32 @@ export const loanProductsApi = {
 
 		return parseJsonResponse(response);
 	},
-	async list(tenantId: string): Promise<unknown> {
-		const response = await fetch(BFF_ROUTES.loanProducts, {
+	async list<T = unknown>(
+		tenantId: string,
+		query?: LoanProductsListQuery,
+	): Promise<T[] | LoanProductsPagedResponse<T>> {
+		const params = new URLSearchParams();
+		if (query?.offset !== undefined) {
+			params.set("offset", String(query.offset));
+		}
+		if (query?.limit !== undefined) {
+			params.set("limit", String(query.limit));
+		}
+		if (query?.orderBy) {
+			params.set("orderBy", query.orderBy);
+		}
+		if (query?.sortOrder) {
+			params.set("sortOrder", query.sortOrder);
+		}
+		if (query?.fields) {
+			params.set("fields", query.fields);
+		}
+
+		const url = params.size
+			? `${BFF_ROUTES.loanProducts}?${params.toString()}`
+			: BFF_ROUTES.loanProducts;
+
+		const response = await fetch(url, {
 			headers: {
 				"x-tenant-id": tenantId,
 			},

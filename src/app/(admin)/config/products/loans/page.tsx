@@ -2,9 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Plus, TrendingUp } from "lucide-react";
-import { useMemo, useState } from "react";
-import { LoanProductWizard } from "@/components/config/loan-product-wizard";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +34,17 @@ import type {
 import { loanProductsApi } from "@/lib/fineract/loan-products";
 import { useTenantStore } from "@/store/tenant";
 
+const LoanProductWizard = dynamic(() =>
+	import("@/components/config/loan-product-wizard").then(
+		(mod) => mod.LoanProductWizard,
+	),
+);
+
+const DEFAULT_STALE_TIME = 5 * 60 * 1000;
+const LOAN_PRODUCTS_PAGE_SIZE = 10;
+const LOAN_PRODUCTS_FIELDS =
+	"id,name,shortName,principal,interestRatePerPeriod,currency,accountingRule";
+
 type LoanProductDisplay = {
 	id?: number | string;
 	name?: string;
@@ -46,6 +59,13 @@ type LoanProductDisplay = {
 		value?: string;
 	};
 };
+
+type LoanProductsListResponse =
+	| LoanProductDisplay[]
+	| {
+			pageItems?: LoanProductDisplay[];
+			totalFilteredRecords?: number;
+	  };
 
 async function fetchCurrencies(
 	tenantId: string,
@@ -63,38 +83,99 @@ async function fetchCurrencies(
 	return response.json();
 }
 
+function LoanProductWizardSkeleton() {
+	return (
+		<div className="space-y-4">
+			<Skeleton className="h-8 w-40" />
+			<Skeleton className="h-10 w-full" />
+			<Skeleton className="h-10 w-full" />
+			<Skeleton className="h-24 w-full" />
+			<div className="grid gap-4 md:grid-cols-2">
+				<Skeleton className="h-10 w-full" />
+				<Skeleton className="h-10 w-full" />
+			</div>
+			<div className="flex justify-end gap-2">
+				<Skeleton className="h-10 w-24" />
+				<Skeleton className="h-10 w-32" />
+			</div>
+		</div>
+	);
+}
+
 export default function LoanProductsPage() {
 	const { tenantId } = useTenantStore();
-	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const queryClient = useQueryClient();
+	const previousTenantIdRef = useRef(tenantId);
+	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+	const [pageIndex, setPageIndex] = useState(0);
 
-	const {
-		data: products = [],
-		isLoading,
-		error,
-	} = useQuery({
-		queryKey: ["loanProducts", tenantId],
-		queryFn: () => loanProductsApi.list(tenantId),
-	}) as { data: LoanProductDisplay[]; isLoading: boolean; error: Error | null };
-
-	const { data: currencyConfig } = useQuery({
-		queryKey: ["currencies", tenantId],
-		queryFn: () => fetchCurrencies(tenantId),
+	const productsQuery = useQuery<LoanProductsListResponse>({
+		queryKey: ["loanProducts", tenantId, pageIndex, LOAN_PRODUCTS_PAGE_SIZE],
+		queryFn: () =>
+			loanProductsApi.list<LoanProductDisplay>(tenantId, {
+				offset: pageIndex * LOAN_PRODUCTS_PAGE_SIZE,
+				limit: LOAN_PRODUCTS_PAGE_SIZE,
+				orderBy: "id",
+				sortOrder: "DESC",
+				fields: LOAN_PRODUCTS_FIELDS,
+			}),
+		enabled: Boolean(tenantId),
+		staleTime: DEFAULT_STALE_TIME,
+		refetchOnWindowFocus: false,
+		placeholderData: (previousData) => previousData,
 	});
 
-	const enabledCurrencies = useMemo(
-		() => currencyConfig?.selectedCurrencyOptions?.map((c) => c.code!) || [],
-		[currencyConfig],
-	);
+	const currenciesQuery = useQuery({
+		queryKey: ["currencies", tenantId],
+		queryFn: () => fetchCurrencies(tenantId),
+		enabled: isDrawerOpen && Boolean(tenantId),
+		staleTime: DEFAULT_STALE_TIME,
+		refetchOnWindowFocus: false,
+	});
 
 	const createMutation = useMutation({
 		mutationFn: (data: PostLoanProductsRequest) =>
 			loanProductsApi.create(tenantId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["loanProducts", tenantId] });
+			setPageIndex(0);
 			setIsDrawerOpen(false);
 		},
 	});
+
+	useEffect(() => {
+		if (previousTenantIdRef.current !== tenantId) {
+			setPageIndex(0);
+			previousTenantIdRef.current = tenantId;
+		}
+	}, [tenantId]);
+
+	const enabledCurrencies = useMemo(
+		() =>
+			currenciesQuery.data?.selectedCurrencyOptions?.map((c) => c.code!) || [],
+		[currenciesQuery.data],
+	);
+
+	const products = useMemo(() => {
+		if (!productsQuery.data) return [];
+
+		if (Array.isArray(productsQuery.data)) {
+			const start = pageIndex * LOAN_PRODUCTS_PAGE_SIZE;
+			return productsQuery.data.slice(start, start + LOAN_PRODUCTS_PAGE_SIZE);
+		}
+
+		return productsQuery.data.pageItems || [];
+	}, [productsQuery.data, pageIndex]);
+
+	const totalProducts = useMemo(() => {
+		if (!productsQuery.data) return 0;
+
+		if (Array.isArray(productsQuery.data)) {
+			return productsQuery.data.length;
+		}
+
+		return productsQuery.data.totalFilteredRecords || products.length;
+	}, [productsQuery.data, products.length]);
 
 	const handleCreateProduct = async (
 		data: PostLoanProductsRequest,
@@ -155,15 +236,15 @@ export default function LoanProductsPage() {
 		},
 	];
 
+	const isProductsInitialLoading =
+		productsQuery.isLoading && !productsQuery.data;
+
 	return (
 		<PageShell
 			title="Loan Products"
 			subtitle="Configure and manage loan product offerings"
 			actions={
-				<Button
-					onClick={() => setIsDrawerOpen(true)}
-					disabled={enabledCurrencies.length === 0}
-				>
+				<Button onClick={() => setIsDrawerOpen(true)}>
 					<Plus className="h-4 w-4 mr-2" />
 					Create Loan Product
 				</Button>
@@ -178,7 +259,7 @@ export default function LoanProductsPage() {
 									<CreditCard className="h-5 w-5 text-primary" />
 								</div>
 								<div>
-									<div className="text-2xl font-bold">{products.length}</div>
+									<div className="text-2xl font-bold">{totalProducts}</div>
 									<div className="text-sm text-muted-foreground">
 										Total Products
 									</div>
@@ -194,7 +275,7 @@ export default function LoanProductsPage() {
 								</div>
 								<div>
 									<div className="text-2xl font-bold">
-										{enabledCurrencies.length}
+										{currenciesQuery.data ? enabledCurrencies.length : "—"}
 									</div>
 									<div className="text-sm text-muted-foreground">
 										Currencies
@@ -205,17 +286,18 @@ export default function LoanProductsPage() {
 					</Card>
 				</div>
 
-				{enabledCurrencies.length === 0 && (
+				{currenciesQuery.isSuccess && enabledCurrencies.length === 0 && (
 					<Card>
 						<CardContent className="pt-6">
 							<div className="text-center text-sm text-muted-foreground">
 								Please enable at least one currency in the{" "}
-								<a
+								<Link
 									href="/config/financial/currencies"
 									className="text-primary hover:underline"
+									prefetch={false}
 								>
 									Currencies
-								</a>{" "}
+								</Link>{" "}
 								module before creating loan products.
 							</div>
 						</CardContent>
@@ -226,49 +308,60 @@ export default function LoanProductsPage() {
 					<CardHeader>
 						<CardTitle>Loan Products</CardTitle>
 						<CardDescription>
-							{products.length} product{products.length !== 1 ? "s" : ""}{" "}
-							configured
+							{totalProducts} product{totalProducts !== 1 ? "s" : ""} configured
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						{isLoading && (
+						{isProductsInitialLoading && (
 							<div className="space-y-2">
 								<Skeleton className="h-10 w-full" />
-								{Array.from({ length: 8 }).map((_, index) => (
-									<Skeleton
-										key={`loan-products-row-skeleton-${index}`}
-										className="h-12 w-full"
-									/>
-								))}
+								{Array.from({ length: LOAN_PRODUCTS_PAGE_SIZE }).map(
+									(_, index) => (
+										<Skeleton
+											key={`loan-products-row-skeleton-${index}`}
+											className="h-12 w-full"
+										/>
+									),
+								)}
 							</div>
 						)}
-						{error && (
+						{productsQuery.error && (
 							<div className="text-center py-8 text-destructive">
 								Failed to load loan products. Please try again.
 							</div>
 						)}
-						{!isLoading && !error && products.length === 0 && (
-							<div className="text-center py-8 text-muted-foreground">
-								No loan products found. Create your first loan product to get
-								started.
-							</div>
-						)}
-						{!isLoading && !error && products.length > 0 && (
-							<DataTable
-								data={products}
-								columns={productColumns}
-								getRowId={(product: LoanProductDisplay) =>
-									String(product.id ?? product.name ?? "product-row")
-								}
-								enableActions={true}
-								getViewUrl={(product) => `/config/products/loans/${product.id}`}
-							/>
-						)}
+						{!isProductsInitialLoading &&
+							!productsQuery.error &&
+							totalProducts === 0 && (
+								<div className="text-center py-8 text-muted-foreground">
+									No loan products found. Create your first loan product to get
+									started.
+								</div>
+							)}
+						{!isProductsInitialLoading &&
+							!productsQuery.error &&
+							totalProducts > 0 && (
+								<DataTable
+									data={products}
+									columns={productColumns}
+									manualPagination={true}
+									pageSize={LOAN_PRODUCTS_PAGE_SIZE}
+									pageIndex={pageIndex}
+									totalRows={totalProducts}
+									onPageChange={setPageIndex}
+									getRowId={(product: LoanProductDisplay) =>
+										String(product.id ?? product.name ?? "product-row")
+									}
+									enableActions={true}
+									getViewUrl={(product) =>
+										`/config/products/loans/${product.id}`
+									}
+								/>
+							)}
 					</CardContent>
 				</Card>
 			</div>
 
-			{/* Create Loan Product Sheet */}
 			<Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
 				<SheetContent
 					side="right"
@@ -281,14 +374,44 @@ export default function LoanProductsPage() {
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
-						<FormErrorBoundary>
-							<LoanProductWizard
-								currencies={enabledCurrencies}
-								isOpen={isDrawerOpen}
-								onSubmit={handleCreateProduct}
-								onCancel={() => setIsDrawerOpen(false)}
-							/>
-						</FormErrorBoundary>
+						{currenciesQuery.isLoading && <LoanProductWizardSkeleton />}
+
+						{currenciesQuery.error && (
+							<Alert variant="destructive">
+								<AlertTitle>Currency lookup failed</AlertTitle>
+								<AlertDescription>
+									Unable to load currencies. Please retry opening this form.
+								</AlertDescription>
+							</Alert>
+						)}
+
+						{currenciesQuery.isSuccess && enabledCurrencies.length === 0 && (
+							<Alert>
+								<AlertTitle>No enabled currencies</AlertTitle>
+								<AlertDescription>
+									Enable at least one currency in{" "}
+									<Link
+										href="/config/financial/currencies"
+										className="underline"
+										prefetch={false}
+									>
+										Currencies
+									</Link>{" "}
+									before creating loan products.
+								</AlertDescription>
+							</Alert>
+						)}
+
+						{currenciesQuery.isSuccess && enabledCurrencies.length > 0 && (
+							<FormErrorBoundary>
+								<LoanProductWizard
+									currencies={enabledCurrencies}
+									isOpen={isDrawerOpen}
+									onSubmit={handleCreateProduct}
+									onCancel={() => setIsDrawerOpen(false)}
+								/>
+							</FormErrorBoundary>
+						)}
 					</div>
 				</SheetContent>
 			</Sheet>

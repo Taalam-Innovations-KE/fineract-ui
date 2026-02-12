@@ -282,6 +282,7 @@ export function Sidebar() {
 						) : (
 							<Link
 								href={item.href}
+								prefetch={false}
 								className={cn(
 									"flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-[14px] font-medium transition-all duration-200",
 									isActive
@@ -304,6 +305,7 @@ export function Sidebar() {
 										<Link
 											key={child.href}
 											href={child.href}
+											prefetch={false}
 											className={cn(
 												"flex items-center gap-1.5 rounded-sm px-2 py-1 text-[13px] font-medium transition-all duration-200",
 												isChildActive

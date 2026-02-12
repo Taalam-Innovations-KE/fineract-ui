@@ -121,20 +121,24 @@ function requestHeaders(tenantId: string) {
 
 function normalizeClients(response: ClientsResponse): ClientOption[] {
 	const rows = Array.isArray(response) ? response : (response.pageItems ?? []);
+	const normalized: ClientOption[] = [];
 
-	return rows
-		.map((client) => {
-			if (!client.id || !client.displayName) {
-				return null;
-			}
+	for (const client of rows) {
+		if (
+			typeof client.id !== "number" ||
+			typeof client.displayName !== "string"
+		) {
+			continue;
+		}
 
-			return {
-				id: client.id,
-				displayName: client.displayName,
-				accountNo: client.accountNo,
-			};
-		})
-		.filter((client): client is ClientOption => client !== null);
+		normalized.push({
+			id: client.id,
+			displayName: client.displayName,
+			accountNo: client.accountNo,
+		});
+	}
+
+	return normalized;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

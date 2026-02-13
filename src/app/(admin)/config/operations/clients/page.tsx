@@ -790,8 +790,9 @@ export default function ClientsPage() {
 	});
 
 	const clientTemplate = templateQuery.data;
-	const addressOptions =
-		clientTemplate?.addressOptions || clientTemplate?.address || {};
+	const addressOptions = Array.isArray(clientTemplate?.address)
+		? (clientTemplate.address[0] ?? {})
+		: clientTemplate?.addressOptions || clientTemplate?.address || {};
 
 	const genderOptions = useMemo(
 		() => (clientTemplate?.genderOptions || []) as LookupOption[],
@@ -1302,8 +1303,12 @@ export default function ClientsPage() {
 			payload.dateFormat = "dd MMMM yyyy";
 		}
 
+		const defaultAddressTypeId = getDefaultOptionId(addressTypeOptions, {
+			fallbackToFirst: true,
+		});
 		payload.address = [
 			{
+				addressTypeId: defaultAddressTypeId,
 				addressLine1: data.addressLine1?.trim() || undefined,
 				city: data.city?.trim() || undefined,
 				countryId: data.countryId,

@@ -1,12 +1,24 @@
 import { LogIn } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+import { SignInErrorFeedback } from "@/components/auth/sign-in-error-feedback";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+
+function getSignInErrorRedirectUrl(error: string, callbackUrl: string) {
+	const params = new URLSearchParams({
+		error,
+		callbackUrl,
+	});
+
+	return `/auth/signin?${params.toString()}`;
+}
 
 export default async function SignInPage({
 	searchParams,
@@ -48,11 +60,7 @@ export default async function SignInPage({
 						</h2>
 					</div>
 
-					{resolvedSearchParams?.error && (
-						<div className="rounded-sm bg-destructive/10 p-3 text-sm text-destructive">
-							Authentication failed. Please check your credentials.
-						</div>
-					)}
+					<SignInErrorFeedback errorCode={resolvedSearchParams?.error} />
 
 					{/* Credentials Form */}
 					<form
@@ -62,12 +70,20 @@ export default async function SignInPage({
 							const password = formData.get("password");
 							const tenantId = formData.get("tenantId") || "default";
 
-							await signIn("credentials", {
-								username,
-								password,
-								tenantId,
-								redirectTo: callbackUrl,
-							});
+							try {
+								await signIn("credentials", {
+									username,
+									password,
+									tenantId,
+									redirectTo: callbackUrl,
+								});
+							} catch (error) {
+								if (error instanceof AuthError) {
+									redirect(getSignInErrorRedirectUrl(error.type, callbackUrl));
+								}
+
+								throw error;
+							}
 						}}
 						className="space-y-6"
 					>
@@ -188,9 +204,17 @@ export default async function SignInPage({
 					<form
 						action={async () => {
 							"use server";
-							await signIn("keycloak", {
-								redirectTo: callbackUrl,
-							});
+							try {
+								await signIn("keycloak", {
+									redirectTo: callbackUrl,
+								});
+							} catch (error) {
+								if (error instanceof AuthError) {
+									redirect(getSignInErrorRedirectUrl(error.type, callbackUrl));
+								}
+
+								throw error;
+							}
 						}}
 					>
 						<Button

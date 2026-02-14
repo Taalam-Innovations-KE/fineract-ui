@@ -1,0 +1,62 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+type SignInErrorFeedbackProps = {
+	errorCode?: string;
+};
+
+const AUTH_ERROR_MESSAGES: Record<
+	string,
+	{ title: string; description: string }
+> = {
+	CredentialsSignin: {
+		title: "Sign in failed",
+		description:
+			"Invalid username, password, or tenant ID. Confirm your details and try again.",
+	},
+	AccessDenied: {
+		title: "Access denied",
+		description: "You do not have permission to sign in.",
+	},
+	Default: {
+		title: "Authentication failed",
+		description: "We couldn't sign you in. Please try again.",
+	},
+};
+
+export function SignInErrorFeedback({ errorCode }: SignInErrorFeedbackProps) {
+	const hasShownToast = useRef(false);
+	const message =
+		errorCode && AUTH_ERROR_MESSAGES[errorCode]
+			? AUTH_ERROR_MESSAGES[errorCode]
+			: AUTH_ERROR_MESSAGES.Default;
+
+	useEffect(() => {
+		if (!errorCode) {
+			return;
+		}
+
+		if (hasShownToast.current) {
+			return;
+		}
+
+		toast.error(message.title, {
+			description: message.description,
+		});
+		hasShownToast.current = true;
+	}, [errorCode, message.description, message.title]);
+
+	if (!errorCode) {
+		return null;
+	}
+
+	return (
+		<Alert variant="destructive">
+			<AlertTitle>{message.title}</AlertTitle>
+			<AlertDescription>{message.description}</AlertDescription>
+		</Alert>
+	);
+}

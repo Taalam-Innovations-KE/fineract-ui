@@ -74,6 +74,8 @@ type FormState = {
 	tagId: string;
 };
 
+const EMPTY_ACCOUNTS: GetGlAccountsResponse[] = [];
+
 const DEFAULT_FORM: FormState = {
 	name: "",
 	glCode: "",
@@ -303,6 +305,16 @@ function buildAccountTree(accounts: GetGlAccountsResponse[]): TreeNode[] {
 	return roots;
 }
 
+function areNumberSetsEqual(left: Set<number>, right: Set<number>): boolean {
+	if (left.size !== right.size) return false;
+	for (const value of left) {
+		if (!right.has(value)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export default function ChartOfAccountsPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
@@ -373,7 +385,7 @@ export default function ChartOfAccountsPage() {
 		return () => window.clearTimeout(timeout);
 	}, [toastMessage]);
 
-	const accounts = accountsQuery.data || [];
+	const accounts = accountsQuery.data ?? EMPTY_ACCOUNTS;
 	const template = templateQuery.data;
 	const typeOptions = template?.accountTypeOptions || [];
 	const usageOptions = template?.usageOptions || [];
@@ -433,7 +445,12 @@ export default function ChartOfAccountsPage() {
 		const rootParentIds = accountTree
 			.filter((node) => node.id && node.children.length > 0)
 			.map((node) => node.id as number);
-		setExpandedNodeIds(new Set(rootParentIds));
+		const nextExpandedNodeIds = new Set(rootParentIds);
+		setExpandedNodeIds((current) =>
+			areNumberSetsEqual(current, nextExpandedNodeIds)
+				? current
+				: nextExpandedNodeIds,
+		);
 	}, [accountTree]);
 
 	const selectedTypeId = Number(formState.type || 0);

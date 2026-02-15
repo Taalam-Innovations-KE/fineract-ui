@@ -24,6 +24,7 @@ interface ClientRegistrationWizardProps {
 	savingProductOptions: Array<{ id?: number; name?: string }>;
 	clientTypeOptions: Array<{ id?: number; name?: string }>;
 	clientClassificationOptions: Array<{ id?: number; name?: string }>;
+	addressTypeOptions: Array<{ id?: number; name?: string; value?: string }>;
 	countryOptions: Array<{ id?: number; name?: string }>;
 	canCreateBusinessClient: boolean;
 	hasBusinessTypeConfiguration: boolean;
@@ -58,6 +59,7 @@ export function ClientRegistrationWizard({
 	savingProductOptions,
 	clientTypeOptions,
 	clientClassificationOptions,
+	addressTypeOptions,
 	countryOptions,
 	canCreateBusinessClient,
 	hasBusinessTypeConfiguration,
@@ -187,6 +189,7 @@ export function ClientRegistrationWizard({
 					<ClientAddressStep
 						control={control}
 						errors={errors}
+						addressTypeOptions={addressTypeOptions}
 						countryOptions={countryOptions}
 					/>
 				)}

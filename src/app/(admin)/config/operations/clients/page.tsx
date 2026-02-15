@@ -120,6 +120,44 @@ type UpdateClientSubmission = ClientSubmission & {
 
 type ClientValidationStep = 1 | 2 | 3 | 4;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getTemplateAddressLookupOptions(
+	template: unknown,
+	key: "addressTypeIdOptions" | "countryIdOptions",
+): LookupOption[] {
+	if (!isRecord(template)) {
+		return [];
+	}
+
+	const candidates: Record<string, unknown>[] = [];
+	const addressData = template.address;
+	if (Array.isArray(addressData)) {
+		for (const entry of addressData) {
+			if (isRecord(entry)) {
+				candidates.push(entry);
+			}
+		}
+	} else if (isRecord(addressData)) {
+		candidates.push(addressData);
+	}
+
+	if (isRecord(template.addressOptions)) {
+		candidates.push(template.addressOptions);
+	}
+
+	for (const candidate of candidates) {
+		const options = candidate[key];
+		if (Array.isArray(options) && options.length > 0) {
+			return options as LookupOption[];
+		}
+	}
+
+	return [];
+}
+
 function getDefaultOptionId(
 	options: LookupOption[],
 	{ fallbackToFirst = false }: { fallbackToFirst?: boolean } = {},
@@ -781,6 +819,7 @@ export default function ClientsPage() {
 			dateOfBirth: "",
 			addressLine1: "",
 			city: "",
+			addressTypeId: undefined,
 			nationalId: "",
 			passportNo: "",
 			taxId: "",
@@ -790,9 +829,6 @@ export default function ClientsPage() {
 	});
 
 	const clientTemplate = templateQuery.data;
-	const addressOptions = Array.isArray(clientTemplate?.address)
-		? (clientTemplate.address[0] ?? {})
-		: clientTemplate?.addressOptions || clientTemplate?.address || {};
 
 	const genderOptions = useMemo(
 		() => (clientTemplate?.genderOptions || []) as LookupOption[],
@@ -833,12 +869,13 @@ export default function ClientsPage() {
 		[clientTemplate?.savingProductOptions],
 	);
 	const countryOptions = useMemo(
-		() => (addressOptions.countryIdOptions || []) as LookupOption[],
-		[addressOptions.countryIdOptions],
+		() => getTemplateAddressLookupOptions(clientTemplate, "countryIdOptions"),
+		[clientTemplate],
 	);
 	const addressTypeOptions = useMemo(
-		() => (addressOptions.addressTypeIdOptions || []) as LookupOption[],
-		[addressOptions.addressTypeIdOptions],
+		() =>
+			getTemplateAddressLookupOptions(clientTemplate, "addressTypeIdOptions"),
+		[clientTemplate],
 	);
 
 	const isEditLoading =
@@ -860,6 +897,7 @@ export default function ClientsPage() {
 	const clientKind = watch("clientKind");
 	const isBusiness = clientKind === "business";
 	const hasMissingCountry = !countryOptions.length;
+	const hasMissingAddressType = !addressTypeOptions.length;
 	const hasMissingBusinessType = isBusiness && !businessLineOptions.length;
 	const activeMutationError = isEditMode
 		? updateMutation.error
@@ -942,6 +980,7 @@ export default function ClientsPage() {
 			dateOfBirth: "",
 			addressLine1: "",
 			city: "",
+			addressTypeId: undefined,
 			countryId: undefined,
 			nationalId: "",
 			passportNo: "",
@@ -997,6 +1036,7 @@ export default function ClientsPage() {
 			dateOfBirth: toInputDate(clientData.dateOfBirth),
 			addressLine1: primaryAddress?.addressLine1 || "",
 			city: primaryAddress?.city || primaryAddress?.townVillage || "",
+			addressTypeId: primaryAddress?.addressTypeId,
 			countryId: primaryAddress?.countryId,
 			nationalId: findIdentifierValueByMatches(
 				identifierData,
@@ -1102,6 +1142,17 @@ export default function ClientsPage() {
 			setValue("countryId", defaultId, { shouldDirty: false });
 		}
 	}, [countryOptions, getValues, setValue]);
+
+	useEffect(() => {
+		if (!addressTypeOptions.length) return;
+		const currentValue = getValues("addressTypeId");
+		const defaultId = getDefaultOptionId(addressTypeOptions, {
+			fallbackToFirst: true,
+		});
+		if (!currentValue && defaultId) {
+			setValue("addressTypeId", defaultId, { shouldDirty: false });
+		}
+	}, [addressTypeOptions, getValues, setValue]);
 
 	useEffect(() => {
 		if (!officeOptions.length) return;
@@ -1218,18 +1269,24 @@ export default function ClientsPage() {
 		}
 
 		if (uptoStep >= 4) {
-			if (!countryOptions.length) {
-				pushError(
-					4,
-					"countryId",
-					"Country lookup values are missing. Configure countries first.",
-				);
-			}
-			if (!data.city?.trim()) {
-				pushError(4, "city", "City is required.");
-			}
-			if (!data.countryId) {
-				pushError(4, "countryId", "Country is required.");
+			const canSubmitAddress = addressTypeOptions.length > 0;
+			if (canSubmitAddress) {
+				if (!countryOptions.length) {
+					pushError(
+						4,
+						"countryId",
+						"Country lookup values are missing. Configure countries first.",
+					);
+				}
+				if (!data.city?.trim()) {
+					pushError(4, "city", "City is required.");
+				}
+				if (!data.addressTypeId) {
+					pushError(4, "addressTypeId", "Address type is required.");
+				}
+				if (!data.countryId) {
+					pushError(4, "countryId", "Country is required.");
+				}
 			}
 
 			if (Boolean(data.active) && !data.activationDate) {
@@ -1306,14 +1363,17 @@ export default function ClientsPage() {
 		const defaultAddressTypeId = getDefaultOptionId(addressTypeOptions, {
 			fallbackToFirst: true,
 		});
-		payload.address = [
-			{
-				addressTypeId: defaultAddressTypeId,
-				addressLine1: data.addressLine1?.trim() || undefined,
-				city: data.city?.trim() || undefined,
-				countryId: data.countryId,
-			},
-		];
+		const resolvedAddressTypeId = data.addressTypeId || defaultAddressTypeId;
+		if (resolvedAddressTypeId) {
+			payload.address = [
+				{
+					addressTypeId: resolvedAddressTypeId,
+					addressLine1: data.addressLine1?.trim() || undefined,
+					city: data.city?.trim() || undefined,
+					countryId: data.countryId,
+				},
+			];
+		}
 
 		const identifiers: IdentifierInput[] = [];
 
@@ -1362,11 +1422,14 @@ export default function ClientsPage() {
 			const updatePayload: ClientCreatePayload = { ...payload };
 			delete updatePayload.address;
 
-			const updateAddress = {
-				addressLine1: data.addressLine1?.trim() || undefined,
-				city: data.city?.trim() || undefined,
-				countryId: data.countryId,
-			};
+			const updateAddress = resolvedAddressTypeId
+				? {
+						addressTypeId: resolvedAddressTypeId,
+						addressLine1: data.addressLine1?.trim() || undefined,
+						city: data.city?.trim() || undefined,
+						countryId: data.countryId,
+					}
+				: undefined;
 
 			updateMutation.mutate({
 				clientId: editClientId,
@@ -1375,9 +1438,7 @@ export default function ClientsPage() {
 				address: updateAddress,
 				existingIdentifiers: editIdentifiersQuery.data || [],
 				existingAddresses: editAddressesQuery.data || [],
-				addressTypeId: getDefaultOptionId(addressTypeOptions, {
-					fallbackToFirst: true,
-				}),
+				addressTypeId: resolvedAddressTypeId,
 			});
 		} else {
 			createMutation.mutate({ payload, identifiers });
@@ -1481,6 +1542,7 @@ export default function ClientsPage() {
 								clientClassificationOptions={clientClassificationOptions.filter(
 									(o) => o.id,
 								)}
+								addressTypeOptions={addressTypeOptions.filter((o) => o.id)}
 								countryOptions={countryOptions.filter((o) => o.id)}
 								canCreateBusinessClient={businessLineOptions.length > 0}
 								hasBusinessTypeConfiguration={businessLineOptions.length > 0}
@@ -1507,12 +1569,14 @@ export default function ClientsPage() {
 							/>
 						)}
 
-						{(hasMissingBusinessType || hasMissingCountry) && (
+						{(hasMissingBusinessType ||
+							hasMissingAddressType ||
+							hasMissingCountry) && (
 							<Alert variant="warning">
 								<AlertTitle>Missing system configuration</AlertTitle>
 								<AlertDescription>
-									Configure required lookup values (business types or countries)
-									before onboarding clients.
+									Configure required lookup values (business types, address
+									types, or countries) before onboarding clients.
 								</AlertDescription>
 							</Alert>
 						)}

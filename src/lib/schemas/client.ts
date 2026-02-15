@@ -53,6 +53,7 @@ export type ClientFormData = {
 	dateOfBirth?: string;
 	addressLine1?: string;
 	city?: string;
+	addressTypeId?: number;
 	countryId?: number;
 	nationalId?: string;
 	passportNo?: string;

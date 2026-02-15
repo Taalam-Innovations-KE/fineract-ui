@@ -23,15 +23,18 @@ import type { ClientFormData } from "../../lib/schemas/client";
 interface ClientAddressStepProps {
 	control: Control<ClientFormData>;
 	errors: Record<string, { message?: string }>;
+	addressTypeOptions: Array<{ id?: number; name?: string; value?: string }>;
 	countryOptions: Array<{ id?: number; name?: string }>;
 }
 
 export function ClientAddressStep({
 	control,
 	errors,
+	addressTypeOptions,
 	countryOptions,
 }: ClientAddressStepProps) {
 	const activeFieldId = "client-active";
+	const isAddressCaptureEnabled = addressTypeOptions.length > 0;
 
 	return (
 		<Card>
@@ -51,8 +54,12 @@ export function ClientAddressStep({
 						)}
 					/>
 				</FormField>
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<FormField label="City" required error={errors.city?.message}>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+					<FormField
+						label="City"
+						required={isAddressCaptureEnabled}
+						error={errors.city?.message}
+					>
 						<Controller
 							control={control}
 							name="city"
@@ -61,7 +68,47 @@ export function ClientAddressStep({
 							)}
 						/>
 					</FormField>
-					<FormField label="Country" required error={errors.countryId?.message}>
+					<FormField
+						label="Address Type"
+						required={isAddressCaptureEnabled}
+						error={errors.addressTypeId?.message}
+					>
+						<Controller
+							control={control}
+							name="addressTypeId"
+							render={({ field }) => (
+								<Select
+									value={field.value !== undefined ? String(field.value) : ""}
+									onValueChange={(value) => field.onChange(Number(value))}
+									disabled={!addressTypeOptions.length}
+								>
+									<SelectTrigger>
+										<SelectValue
+											placeholder={
+												isAddressCaptureEnabled
+													? "Select address type"
+													: "No address types configured"
+											}
+										/>
+									</SelectTrigger>
+									<SelectContent>
+										{addressTypeOptions
+											.filter((option) => option.id !== undefined)
+											.map((option) => (
+												<SelectItem key={option.id} value={String(option.id)}>
+													{option.name || option.value || "Unnamed"}
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+					</FormField>
+					<FormField
+						label="Country"
+						required={isAddressCaptureEnabled}
+						error={errors.countryId?.message}
+					>
 						<Controller
 							control={control}
 							name="countryId"

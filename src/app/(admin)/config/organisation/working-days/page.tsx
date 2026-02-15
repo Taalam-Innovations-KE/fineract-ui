@@ -345,16 +345,23 @@ export default function WorkingDaysPage() {
 
 	const handleSave = () => {
 		if (selectedDays.length === 0) {
-			setSubmitError({
-				action: "updateWorkingDays",
-				code: "validation.workingDays.required",
-				endpoint: BFF_ROUTES.workingDays,
-				message: "Select at least one working day before saving.",
-				method: "PUT",
-				status: 400,
-				timestamp: new Date().toISOString(),
-				tenantId,
-			});
+			setSubmitError(
+				toSubmitActionError(
+					{
+						status: 400,
+						data: {
+							code: "validation.workingDays.required",
+							message: "Select at least one working day before saving.",
+						},
+					},
+					{
+						action: "updateWorkingDays",
+						endpoint: BFF_ROUTES.workingDays,
+						method: "PUT",
+						tenantId,
+					},
+				),
+			);
 			setSuccessMessage(null);
 			return;
 		}

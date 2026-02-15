@@ -45,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetReportsResponse,
+	GetReportsTemplateResponse,
 	ReportExportType,
 	RunReportsResponse,
 } from "@/lib/fineract/generated/types.gen";
@@ -58,12 +59,27 @@ type ReportData = GetReportsResponse & {
 	reportParameters?: Array<Record<string, unknown>>;
 };
 
+type ReportTemplateData = GetReportsTemplateResponse & {
+	allowedParameters?: Array<Record<string, unknown>>;
+};
+
+interface ReportParameterOption {
+	value: string;
+	label: string;
+}
+
 interface ReportParameterField {
 	key: string;
 	queryKey: string;
 	label: string;
 	required: boolean;
 	dataType: string;
+	options: ReportParameterOption[];
+}
+
+interface ValidationFieldError {
+	field: string;
+	message: string;
 }
 
 interface OutputOption {
@@ -88,6 +104,32 @@ const PARAMETER_KEY_FIELDS = [
 const PARAMETER_LABEL_FIELDS = ["label", "displayName", "name"] as const;
 const PARAMETER_TYPE_FIELDS = ["type", "dataType", "parameterType"] as const;
 const PARAMETER_REQUIRED_FIELDS = ["required", "mandatory"] as const;
+const PARAMETER_OPTIONS_FIELDS = [
+	"options",
+	"values",
+	"selectOptions",
+	"allowedValues",
+	"valueOptions",
+	"columnValues",
+	"choices",
+	"items",
+] as const;
+const PARAMETER_OPTION_VALUE_FIELDS = [
+	"value",
+	"id",
+	"code",
+	"key",
+	"name",
+] as const;
+const PARAMETER_OPTION_LABEL_FIELDS = [
+	"label",
+	"displayName",
+	"name",
+	"description",
+	"code",
+	"value",
+	"id",
+] as const;
 
 const PARAMETER_KEY_OVERRIDES: Record<string, string> = {
 	OfficeIdSelectOne: "R_officeId",
@@ -131,6 +173,19 @@ function readStringField(
 	return null;
 }
 
+function readArrayField(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+): unknown[] {
+	for (const key of keys) {
+		const value = record[key];
+		if (Array.isArray(value)) {
+			return value;
+		}
+	}
+	return [];
+}
+
 function readBooleanField(
 	record: Record<string, unknown>,
 	keys: readonly string[],
@@ -139,6 +194,15 @@ function readBooleanField(
 		const value = record[key];
 		if (typeof value === "boolean") {
 			return value;
+		}
+		if (typeof value === "string") {
+			const normalized = value.trim().toLowerCase();
+			if (normalized === "true") return true;
+			if (normalized === "false") return false;
+		}
+		if (typeof value === "number") {
+			if (value === 1) return true;
+			if (value === 0) return false;
 		}
 	}
 	return false;
@@ -350,6 +414,45 @@ function getPreviewCellValue(
 	return formatPreviewValue(record[column]);
 }
 
+function getParameterInputType(dataType: string): "text" | "number" | "date" {
+	const normalized = dataType.trim().toLowerCase();
+	if (
+		normalized.includes("date") ||
+		normalized.includes("localdate") ||
+		normalized.includes("datetime")
+	) {
+		return "date";
+	}
+	if (
+		normalized.includes("number") ||
+		normalized.includes("int") ||
+		normalized.includes("decimal") ||
+		normalized.includes("long")
+	) {
+		return "number";
+	}
+	return "text";
+}
+
+function getFieldErrorMap(
+	error: SubmitActionError | null,
+): Record<string, string> {
+	if (!error?.fieldErrors?.length) {
+		return {};
+	}
+
+	const fieldErrorMap: Record<string, string> = {};
+	for (const fieldError of error.fieldErrors) {
+		const field = fieldError.field?.trim();
+		if (!field || fieldErrorMap[field]) {
+			continue;
+		}
+		fieldErrorMap[field] = fieldError.message;
+	}
+
+	return fieldErrorMap;
+}
+
 async function fetchReports(tenantId: string): Promise<ReportData[]> {
 	const response = await fetch(BFF_ROUTES.reports, {
 		headers: {
@@ -503,18 +606,53 @@ export default function ReportsPage() {
 		() => (selectedReport ? extractReportParameters(selectedReport) : []),
 		[selectedReport],
 	);
+	const requiredParameterCount = useMemo(
+		() => selectedParameterFields.filter((field) => field.required).length,
+		[selectedParameterFields],
+	);
+	const additionalParameterEntries = useMemo(
+		() => parseAdditionalParams(additionalParams),
+		[additionalParams],
+	);
+	const missingRequiredFields = useMemo(() => {
+		const providedParameterKeys = new Set<string>();
+
+		for (const field of selectedParameterFields) {
+			if ((parameterValues[field.queryKey] || "").trim()) {
+				providedParameterKeys.add(field.queryKey);
+			}
+		}
+
+		for (const [key, value] of additionalParameterEntries) {
+			if (value.trim()) {
+				providedParameterKeys.add(key);
+			}
+		}
+
+		return selectedParameterFields.filter(
+			(field) => field.required && !providedParameterKeys.has(field.queryKey),
+		);
+	}, [additionalParameterEntries, parameterValues, selectedParameterFields]);
+	const missingRequiredByKey = useMemo(
+		() => new Set(missingRequiredFields.map((field) => field.queryKey)),
+		[missingRequiredFields],
+	);
 
 	const outputOptions = useMemo(
 		() => buildOutputOptions(availableExportsQuery.data),
 		[availableExportsQuery.data],
 	);
+	const outputOptionValues = useMemo(
+		() => outputOptions.map((option) => option.value),
+		[outputOptions],
+	);
 
 	useEffect(() => {
-		const available = outputOptions.map((option) => option.value);
+		const available = outputOptionValues;
 		if (!available.includes(selectedOutput)) {
 			setSelectedOutput(available[0] || "JSON");
 		}
-	}, [outputOptions, selectedOutput]);
+	}, [outputOptionValues, selectedOutput]);
 
 	const runReportMutation = useMutation({
 		mutationFn: async () => {
@@ -535,6 +673,32 @@ export default function ReportsPage() {
 					);
 				}
 
+				if (missingRequiredFields.length > 0) {
+					const fieldErrors: ValidationFieldError[] = missingRequiredFields.map(
+						(field) => ({
+							field: field.queryKey,
+							message: `${field.label} is required.`,
+						}),
+					);
+					throw toSubmitActionError(
+						{
+							code: "MISSING_REQUIRED_PARAMETERS",
+							message:
+								missingRequiredFields.length === 1
+									? "A required report parameter is missing."
+									: `${missingRequiredFields.length} required report parameters are missing.`,
+							status: 400,
+							fieldErrors,
+						},
+						{
+							action: "runReport",
+							endpoint: "/api/fineract/reports/run/[reportName]",
+							method: "POST",
+							tenantId,
+						},
+					);
+				}
+
 				const params = new URLSearchParams();
 
 				for (const field of selectedParameterFields) {
@@ -544,7 +708,7 @@ export default function ReportsPage() {
 					}
 				}
 
-				for (const [key, value] of parseAdditionalParams(additionalParams)) {
+				for (const [key, value] of additionalParameterEntries) {
 					params.append(key, value);
 				}
 
@@ -570,8 +734,7 @@ export default function ReportsPage() {
 					throw toSubmitActionError(
 						{
 							...(payload as Record<string, unknown>),
-							status: response.status,
-							status: response.status,
+							statusCode: response.status,
 							statusText: response.statusText,
 						},
 						{
@@ -611,6 +774,11 @@ export default function ReportsPage() {
 			}
 		},
 	});
+	const runReportError = runReportMutation.error as SubmitActionError | null;
+	const runReportFieldErrors = useMemo(
+		() => getFieldErrorMap(runReportError),
+		[runReportError],
+	);
 
 	const previewColumns = useMemo(
 		() => getPreviewColumns(runResult),
@@ -644,9 +812,22 @@ export default function ReportsPage() {
 		},
 		{
 			header: "Parameters",
-			cell: (report) => (
-				<span>{extractReportParameters(report).length.toLocaleString()}</span>
-			),
+			cell: (report) => {
+				const parameters = extractReportParameters(report);
+				const requiredCount = parameters.filter(
+					(parameter) => parameter.required,
+				).length;
+				if (requiredCount === 0) {
+					return <span>{parameters.length.toLocaleString()}</span>;
+				}
+
+				return (
+					<span>
+						{requiredCount.toLocaleString()} required /{" "}
+						{parameters.length.toLocaleString()} total
+					</span>
+				);
+			},
 		},
 		{
 			header: "Status",
@@ -677,6 +858,7 @@ export default function ReportsPage() {
 						setAdditionalParams("");
 						setSelectedOutput("JSON");
 						setRunResult(null);
+						runReportMutation.reset();
 						setIsRunnerOpen(true);
 					}}
 				>
@@ -854,13 +1036,31 @@ export default function ReportsPage() {
 									</div>
 								</div>
 
+								<div className="rounded-sm border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+									{selectedParameterFields.length === 0 ? (
+										<p>
+											This report does not publish parameter metadata. Use
+											additional query parameters if the backend expects inputs.
+										</p>
+									) : (
+										<p>
+											{requiredParameterCount.toLocaleString()} required and{" "}
+											{(
+												selectedParameterFields.length - requiredParameterCount
+											).toLocaleString()}{" "}
+											optional parameters from report metadata.
+										</p>
+									)}
+								</div>
+
 								<div className="space-y-2">
 									<Label>Output</Label>
 									<Select
 										value={selectedOutput}
-										onValueChange={(value) =>
-											setSelectedOutput(value as ReportOutputType)
-										}
+										onValueChange={(value) => {
+											setSelectedOutput(value as ReportOutputType);
+											runReportMutation.reset();
+										}}
 									>
 										<SelectTrigger>
 											<SelectValue placeholder="Select output type" />
@@ -873,6 +1073,23 @@ export default function ReportsPage() {
 											))}
 										</SelectContent>
 									</Select>
+									<div className="flex flex-wrap gap-1">
+										{outputOptionValues.map((outputValue) => (
+											<Badge
+												key={outputValue}
+												variant={
+													selectedOutput === outputValue
+														? "secondary"
+														: "outline"
+												}
+											>
+												{outputValue}
+											</Badge>
+										))}
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Supported by backend for this report.
+									</p>
 									{availableExportsQuery.isLoading && (
 										<Skeleton className="h-4 w-56" />
 									)}
@@ -885,30 +1102,50 @@ export default function ReportsPage() {
 								</div>
 
 								<div className="space-y-4">
-									{selectedParameterFields.map((field) => (
-										<div key={field.queryKey} className="space-y-2">
-											<Label htmlFor={`param-${field.queryKey}`}>
-												{field.label}
-												{field.required ? " *" : ""}
-											</Label>
-											<Input
-												id={`param-${field.queryKey}`}
-												value={parameterValues[field.queryKey] || ""}
-												onChange={(event) =>
-													setParameterValues((previous) => ({
-														...previous,
-														[field.queryKey]: event.target.value,
-													}))
-												}
-												placeholder={`${field.queryKey} (${field.dataType})`}
-											/>
-											{field.key !== field.queryKey && (
-												<p className="text-xs text-muted-foreground">
-													Source key: {field.key}
-												</p>
-											)}
-										</div>
-									))}
+									{selectedParameterFields.map((field) => {
+										const fieldHasClientMissingError =
+											missingRequiredByKey.has(field.queryKey) &&
+											Boolean(runReportError);
+										const fieldErrorMessage =
+											runReportFieldErrors[field.queryKey];
+
+										return (
+											<div key={field.queryKey} className="space-y-2">
+												<Label htmlFor={`param-${field.queryKey}`}>
+													{field.label}
+													{field.required ? " *" : ""}
+												</Label>
+												<Input
+													id={`param-${field.queryKey}`}
+													type={getParameterInputType(field.dataType)}
+													value={parameterValues[field.queryKey] || ""}
+													onChange={(event) => {
+														setParameterValues((previous) => ({
+															...previous,
+															[field.queryKey]: event.target.value,
+														}));
+														runReportMutation.reset();
+													}}
+													placeholder={`${field.queryKey} (${field.dataType})`}
+												/>
+												{fieldErrorMessage && (
+													<p className="text-xs text-destructive">
+														{fieldErrorMessage}
+													</p>
+												)}
+												{!fieldErrorMessage && fieldHasClientMissingError && (
+													<p className="text-xs text-destructive">
+														{field.label} is required.
+													</p>
+												)}
+												{field.key !== field.queryKey && (
+													<p className="text-xs text-muted-foreground">
+														Source key: {field.key}
+													</p>
+												)}
+											</div>
+										);
+									})}
 
 									<div className="space-y-2">
 										<Label htmlFor="additional-params">
@@ -917,9 +1154,10 @@ export default function ReportsPage() {
 										<Textarea
 											id="additional-params"
 											value={additionalParams}
-											onChange={(event) =>
-												setAdditionalParams(event.target.value)
-											}
+											onChange={(event) => {
+												setAdditionalParams(event.target.value);
+												runReportMutation.reset();
+											}}
 											placeholder="R_officeId=1&#10;R_fromDate=2026-01-01&#10;R_toDate=2026-01-31"
 											className="min-h-28"
 										/>
@@ -954,9 +1192,17 @@ export default function ReportsPage() {
 												: "Run & Download"}
 									</Button>
 								</div>
+								{missingRequiredFields.length > 0 && (
+									<p className="text-right text-xs text-muted-foreground">
+										{missingRequiredFields.length.toLocaleString()} required
+										parameter
+										{missingRequiredFields.length === 1 ? "" : "s"} still
+										missing.
+									</p>
+								)}
 
 								<SubmitErrorAlert
-									error={runReportMutation.error as SubmitActionError | null}
+									error={runReportError}
 									title="Report Execution Failed"
 								/>
 

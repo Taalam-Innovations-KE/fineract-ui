@@ -52,8 +52,10 @@ import type {
 	ClientDataWritable,
 	GetClientsClientIdIdentifiersResponse,
 	GetClientsPageItemsResponse,
+	GetClientsResponse,
 	GetCodeValuesDataResponse,
 	OfficeData,
+	PostClientsResponse,
 	PostClientsRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
@@ -117,6 +119,26 @@ type UpdateClientSubmission = ClientSubmission & {
 	existingIdentifiers: GetClientsClientIdIdentifiersResponse[];
 	existingAddresses: AddressData[];
 	addressTypeId?: number;
+};
+
+type ClientIdentifierTemplate = {
+	allowedDocumentTypes?: LookupOption[];
+};
+
+type ClientTemplateData = {
+	genderOptions?: LookupOption[];
+	clientTypeOptions?: LookupOption[];
+	clientClassificationOptions?: LookupOption[];
+	clientLegalFormOptions?: LookupOption[];
+	clientNonPersonMainBusinessLineOptions?: LookupOption[];
+	officeOptions?: OfficeData[];
+	staffOptions?: Array<{
+		id: number;
+		displayName: string;
+	}>;
+	savingProductOptions?: LookupOption[];
+	address?: unknown;
+	addressOptions?: unknown;
 };
 
 type ClientValidationStep = 1 | 2 | 3 | 4;
@@ -412,13 +434,12 @@ async function updateClient(
 
 	const data = (await response.json()) as Record<string, unknown>;
 	if (!response.ok) {
-		throw toSubmitActionError(
-			{
-				...data,
-				status: response.status,
-				status: response.status,
-				statusText: response.statusText,
-				message:
+			throw toSubmitActionError(
+				{
+					...data,
+					status: response.status,
+					statusText: response.statusText,
+					message:
 					typeof data.message === "string"
 						? data.message
 						: "Failed to update client",
@@ -602,12 +623,13 @@ export default function ClientsPage() {
 
 	const clientsQuery = useQuery({
 		queryKey: ["clients", tenantId],
-		queryFn: () => fetchClients(tenantId),
+		queryFn: async () => (await fetchClients(tenantId)) as GetClientsResponse,
 	});
 
 	const templateQuery = useQuery({
 		queryKey: ["clients-template", tenantId],
-		queryFn: () => fetchClientTemplate(tenantId),
+		queryFn: async () =>
+			(await fetchClientTemplate(tenantId)) as ClientTemplateData,
 		enabled: isDrawerOpen,
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
@@ -636,7 +658,7 @@ export default function ClientsPage() {
 
 	const createMutation = useMutation({
 		mutationFn: async ({ payload, identifiers }: ClientSubmission) => {
-			const result = await createClient(tenantId, payload);
+			const result = (await createClient(tenantId, payload)) as PostClientsResponse;
 			const clientId = result.clientId ?? result.resourceId;
 
 			if (!clientId) {
@@ -656,10 +678,10 @@ export default function ClientsPage() {
 
 			if (!identifiers.length) return result;
 
-			const identifierTemplate = await fetchClientIdentifierTemplate(
+			const identifierTemplate = (await fetchClientIdentifierTemplate(
 				tenantId,
 				clientId,
-			);
+			)) as ClientIdentifierTemplate;
 			const allowedDocumentTypes = (identifierTemplate.allowedDocumentTypes ||
 				[]) as LookupOption[];
 
@@ -751,10 +773,10 @@ export default function ClientsPage() {
 				}
 			}
 
-			const identifierTemplate = await fetchClientIdentifierTemplate(
+			const identifierTemplate = (await fetchClientIdentifierTemplate(
 				tenantId,
 				clientId,
-			);
+			)) as ClientIdentifierTemplate;
 			const allowedDocumentTypes = (identifierTemplate.allowedDocumentTypes ||
 				[]) as LookupOption[];
 

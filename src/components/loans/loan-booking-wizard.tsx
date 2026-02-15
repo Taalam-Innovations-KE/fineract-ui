@@ -32,7 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTenantStore } from "@/store/tenant";
 
-interface Client {
+export interface Client {
 	id: number;
 	displayName?: string;
 	fullname?: string;
@@ -40,7 +40,7 @@ interface Client {
 	active?: boolean;
 }
 
-interface LoanProduct {
+export interface LoanProduct {
 	id: number;
 	name?: string;
 	shortName?: string;
@@ -75,12 +75,18 @@ interface ProductCharge {
 	penalty?: boolean;
 }
 
+export type LoanBookingMode = "create" | "edit";
+
 interface LoanBookingWizardProps {
 	clients: Client[];
 	products: LoanProduct[];
 	isOpen: boolean;
 	onSubmit: (data: PostLoansRequest) => Promise<void>;
 	onCancel: () => void;
+	mode?: LoanBookingMode;
+	loanId?: number;
+	initialValues?: Partial<LoanApplicationInput>;
+	lockClientProductSelection?: boolean;
 }
 
 const STEPS = [
@@ -101,14 +107,50 @@ function getToday(): string {
 	return `${year}-${month}-${day}`;
 }
 
+function getBaseDefaultValues(): Partial<LoanApplicationInput> {
+	const today = getToday();
+	return {
+		submittedOnDate: today,
+		expectedDisbursementDate: today,
+		repaymentFrequencyType: 2,
+		loanTermFrequencyType: 2,
+		repaymentEvery: 1,
+		charges: [],
+	};
+}
+
+function mergeInitialValues(
+	initialValues?: Partial<LoanApplicationInput>,
+): Partial<LoanApplicationInput> {
+	const base = getBaseDefaultValues();
+	const merged = {
+		...base,
+		...initialValues,
+	};
+
+	if (!merged.charges) {
+		merged.charges = [];
+	}
+
+	return merged;
+}
+
 export function LoanBookingWizard({
 	clients,
 	products,
 	isOpen,
 	onSubmit,
 	onCancel,
+	mode = "create",
+	loanId,
+	initialValues,
+	lockClientProductSelection = false,
 }: LoanBookingWizardProps) {
 	const { tenantId } = useTenantStore();
+	const initialFormValues = useMemo(
+		() => mergeInitialValues(initialValues),
+		[initialValues],
+	);
 	const [currentStep, setCurrentStep] = useState(0);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
@@ -156,14 +198,7 @@ export function LoanBookingWizard({
 		resolver: zodResolver(baseLoanApplicationSchema),
 		mode: "onChange",
 		shouldUnregister: false,
-		defaultValues: {
-			submittedOnDate: getToday(),
-			expectedDisbursementDate: getToday(),
-			repaymentFrequencyType: 2,
-			loanTermFrequencyType: 2,
-			repaymentEvery: 1,
-			charges: [],
-		},
+		defaultValues: initialFormValues,
 	});
 
 	const { setValue, getValues, trigger, reset } = form;
@@ -171,23 +206,28 @@ export function LoanBookingWizard({
 	// Reset form when wizard opens
 	useEffect(() => {
 		if (!isOpen) return;
-		const today = getToday();
-		reset({
-			submittedOnDate: today,
-			expectedDisbursementDate: today,
-			repaymentFrequencyType: 2,
-			loanTermFrequencyType: 2,
-			repaymentEvery: 1,
-			charges: [],
-		});
-		setSelectedProduct(null);
+		reset(initialFormValues);
 		setCurrentStep(0);
 		setSubmitError(null);
-	}, [isOpen, reset]);
+	}, [isOpen, reset, initialFormValues]);
+
+	// Keep selected product in sync with form value and available products.
+	useEffect(() => {
+		if (!isOpen) return;
+		const productId = getValues("productId");
+		if (!productId) {
+			setSelectedProduct(null);
+			return;
+		}
+		const product =
+			products.find((candidate) => candidate.id === productId) || null;
+		setSelectedProduct(product);
+	}, [isOpen, products, getValues]);
 
 	// Update form when product is selected
 	useEffect(() => {
 		if (!selectedProduct) return;
+		if (mode === "edit") return;
 
 		if (selectedProduct.principal) {
 			setValue("principal", selectedProduct.principal);
@@ -211,7 +251,7 @@ export function LoanBookingWizard({
 				selectedProduct.repaymentFrequencyType.id,
 			);
 		}
-	}, [selectedProduct, setValue]);
+	}, [mode, selectedProduct, setValue]);
 
 	// Clear draft message after timeout
 	useEffect(() => {
@@ -264,6 +304,7 @@ export function LoanBookingWizard({
 	};
 
 	const handleSaveDraft = () => {
+		if (mode !== "create") return;
 		try {
 			const draft = getValues();
 			localStorage.setItem("loanApplicationDraft", JSON.stringify(draft));
@@ -276,6 +317,15 @@ export function LoanBookingWizard({
 	const handleFinalSubmit = async () => {
 		setSubmitError(null);
 		setIsSubmitting(true);
+		const isEditMode = mode === "edit";
+		const endpoint =
+			isEditMode && loanId ? `${BFF_ROUTES.loans}/${loanId}` : BFF_ROUTES.loans;
+		const submitContext = {
+			action: isEditMode ? "updateLoanApplication" : "createLoan",
+			endpoint,
+			method: isEditMode ? ("PUT" as const) : ("POST" as const),
+			tenantId,
+		};
 
 		try {
 			const isValid = await trigger();
@@ -291,12 +341,7 @@ export function LoanBookingWizard({
 							message: `Validation failed: ${errorMessages}`,
 							statusCode: 400,
 						},
-						{
-							action: "createLoan",
-							endpoint: BFF_ROUTES.loans,
-							method: "POST",
-							tenantId,
-						},
+						submitContext,
 					),
 				);
 				setIsSubmitting(false);
@@ -328,12 +373,15 @@ export function LoanBookingWizard({
 				),
 				dateFormat: "dd MMMM yyyy",
 				locale: "en",
-				loanType: "individual",
-				interestType: 1,
-				interestCalculationPeriodType: 1,
-				amortizationType: 1,
-				transactionProcessingStrategyCode: "mifos-standard-strategy",
 			};
+
+			if (mode === "create") {
+				payload.loanType = "individual";
+				payload.interestType = 1;
+				payload.interestCalculationPeriodType = 1;
+				payload.amortizationType = 1;
+				payload.transactionProcessingStrategyCode = "mifos-standard-strategy";
+			}
 
 			// Add optional fields
 			if (formData.externalId) {
@@ -346,7 +394,6 @@ export function LoanBookingWizard({
 					"dd MMMM yyyy",
 				);
 			}
-
 			// Grace periods
 			if (formData.graceOnPrincipalPayment) {
 				payload.graceOnPrincipalPayment = formData.graceOnPrincipalPayment;
@@ -361,6 +408,31 @@ export function LoanBookingWizard({
 				payload.graceOnArrearsAgeing = formData.graceOnArrearsAgeing;
 			}
 
+			// Advanced options
+			if (formData.enableDownPayment !== undefined) {
+				payload.enableDownPayment = formData.enableDownPayment;
+			}
+			if (formData.disbursedAmountPercentageForDownPayment !== undefined) {
+				payload.disbursedAmountPercentageForDownPayment =
+					formData.disbursedAmountPercentageForDownPayment;
+			}
+			if (formData.enableAutoRepaymentForDownPayment !== undefined) {
+				payload.enableAutoRepaymentForDownPayment =
+					formData.enableAutoRepaymentForDownPayment;
+			}
+			if (formData.maxOutstandingLoanBalance !== undefined) {
+				payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
+			}
+			if (formData.disbursementData && formData.disbursementData.length > 0) {
+				payload.disbursementData = formData.disbursementData.map((item) => ({
+					principal: item.principal,
+					expectedDisbursementDate: formatDateStringToFormat(
+						item.expectedDisbursementDate,
+						"dd MMMM yyyy",
+					),
+				}));
+			}
+
 			// Charges
 			if (formData.charges && formData.charges.length > 0) {
 				payload.charges = formData.charges.map((c) => ({
@@ -370,16 +442,11 @@ export function LoanBookingWizard({
 			}
 
 			await onSubmit(payload);
-			localStorage.removeItem("loanApplicationDraft");
+			if (mode === "create") {
+				localStorage.removeItem("loanApplicationDraft");
+			}
 		} catch (error) {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: "createLoan",
-					endpoint: BFF_ROUTES.loans,
-					method: "POST",
-					tenantId,
-				}),
-			);
+			setSubmitError(toSubmitActionError(error, submitContext));
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -396,6 +463,14 @@ export function LoanBookingWizard({
 		selectedProduct?.currency?.displaySymbol ||
 		selectedProduct?.currency?.code ||
 		"KES";
+	const isEditMode = mode === "edit";
+	const submitErrorTitle = isEditMode
+		? "Failed to update loan application"
+		: "Failed to submit loan application";
+	const submitButtonLabel = isEditMode
+		? "Update Loan Application"
+		: "Submit Loan Application";
+	const submittingButtonLabel = isEditMode ? "Updating..." : "Submitting...";
 
 	return (
 		<div className="space-y-6">
@@ -455,6 +530,7 @@ export function LoanBookingWizard({
 							products={products}
 							selectedProduct={selectedProduct}
 							onProductSelect={handleProductSelect}
+							lockSelections={lockClientProductSelection}
 						/>
 					)}
 					{currentStep === 1 && <LoanTermsStep product={selectedProduct} />}
@@ -479,10 +555,7 @@ export function LoanBookingWizard({
 					)}
 
 					<div className="mt-4">
-						<SubmitErrorAlert
-							error={submitError}
-							title="Failed to submit loan application"
-						/>
+						<SubmitErrorAlert error={submitError} title={submitErrorTitle} />
 					</div>
 
 					{draftMessage && (
@@ -504,9 +577,15 @@ export function LoanBookingWizard({
 						</Button>
 
 						<div className="flex items-center gap-2">
-							<Button type="button" variant="outline" onClick={handleSaveDraft}>
-								Save Draft
-							</Button>
+							{mode === "create" && (
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleSaveDraft}
+								>
+									Save Draft
+								</Button>
+							)}
 							<Button
 								type="button"
 								disabled={isSubmitting}
@@ -518,9 +597,9 @@ export function LoanBookingWizard({
 							>
 								{currentStep === visibleSteps.length - 1 ? (
 									isSubmitting ? (
-										"Submitting..."
+										submittingButtonLabel
 									) : (
-										"Submit Loan Application"
+										submitButtonLabel
 									)
 								) : (
 									<>

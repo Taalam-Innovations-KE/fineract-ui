@@ -15,6 +15,7 @@ import {
 	Info,
 	Loader2,
 	Package,
+	Pencil,
 	Percent,
 	Receipt,
 	Shield,
@@ -181,6 +182,15 @@ const PostLoanTransactionSheet = dynamic(
 		ssr: false,
 	},
 );
+const LoanApplicationEditSheet = dynamic(
+	() =>
+		import("@/components/loans/loan-application-edit-sheet").then(
+			(mod) => mod.LoanApplicationEditSheet,
+		),
+	{
+		ssr: false,
+	},
+);
 
 function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
 	if (format === "pdf") return "PDF";
@@ -189,6 +199,7 @@ function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
 }
 
 type LoanDetailAction =
+	| "edit"
 	| "approve"
 	| "disburse"
 	| "reject"
@@ -204,7 +215,7 @@ function getAvailableActions(
 
 	const status = loan.status;
 
-	if (status.pendingApproval) return ["approve", "reject"];
+	if (status.pendingApproval) return ["edit", "approve", "reject"];
 	if (status.waitingForDisbursal) return ["disburse", "undoApproval"];
 	if (status.active) return ["addTransaction", "writeOff"];
 	if (status.overpaid) return ["creditBalanceRefund", "addTransaction"];
@@ -229,6 +240,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		open: boolean;
 		type: "approve" | "disburse" | "reject" | "withdraw";
 	}>({ open: false, type: "approve" });
+	const [editSheetOpen, setEditSheetOpen] = useState(false);
 	const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
 	const [transactionCommand, setTransactionCommand] =
 		useState<LoanTransactionCommand>("repayment");
@@ -740,6 +752,16 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 										Approve
 									</Button>
 								)}
+								{availableActions.includes("edit") && (
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => setEditSheetOpen(true)}
+									>
+										<Pencil className="w-4 h-4 mr-2" />
+										Edit Application
+									</Button>
+								)}
 								{availableActions.includes("disburse") && (
 									<Button
 										size="sm"
@@ -919,6 +941,14 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 					onOpenChange={(open) => setCommandDialog({ ...commandDialog, open })}
 					commandType={commandDialog.type}
 					loanId={numericLoanId}
+					onSuccess={handleCommandSuccess}
+				/>
+			)}
+			{editSheetOpen && (
+				<LoanApplicationEditSheet
+					open={editSheetOpen}
+					onOpenChange={setEditSheetOpen}
+					loan={loan}
 					onSuccess={handleCommandSuccess}
 				/>
 			)}

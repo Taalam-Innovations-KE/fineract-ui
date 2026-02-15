@@ -48,6 +48,7 @@ interface LoanClientProductStepProps {
 	products: LoanProduct[];
 	selectedProduct: LoanProduct | null;
 	onProductSelect: (product: LoanProduct | null) => void;
+	lockSelections?: boolean;
 }
 
 function formatCurrency(amount: number | undefined, symbol = "KES") {
@@ -60,6 +61,7 @@ export function LoanClientProductStep({
 	products,
 	selectedProduct,
 	onProductSelect,
+	lockSelections = false,
 }: LoanClientProductStepProps) {
 	const form = useFormContext<LoanApplicationInput>();
 
@@ -90,7 +92,7 @@ export function LoanClientProductStep({
 							<Select
 								value={field.value?.toString() || ""}
 								onValueChange={(value) => field.onChange(parseInt(value, 10))}
-								disabled={hasMissingClients}
+								disabled={hasMissingClients || lockSelections}
 							>
 								<FormControl>
 									<SelectTrigger>
@@ -138,7 +140,7 @@ export function LoanClientProductStep({
 										products.find((p) => p.id === productId) || null;
 									onProductSelect(product);
 								}}
-								disabled={hasMissingProducts}
+								disabled={hasMissingProducts || lockSelections}
 							>
 								<FormControl>
 									<SelectTrigger>
@@ -168,6 +170,16 @@ export function LoanClientProductStep({
 						<AlertTitle>No loan products available</AlertTitle>
 						<AlertDescription>
 							Configure loan products before booking loans.
+						</AlertDescription>
+					</Alert>
+				)}
+
+				{lockSelections && (
+					<Alert variant="default">
+						<AlertTitle>Client and product are locked</AlertTitle>
+						<AlertDescription>
+							Use this flow to edit the current application details without
+							changing the selected client or loan product.
 						</AlertDescription>
 					</Alert>
 				)}

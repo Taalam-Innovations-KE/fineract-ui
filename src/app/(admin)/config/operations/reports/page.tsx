@@ -238,33 +238,164 @@ function toQueryParameterKey(rawKey: string): string {
 	return `R_${normalized}`;
 }
 
-function extractReportParameters(report: ReportData): ReportParameterField[] {
+function toOptionValue(value: unknown): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	if (typeof value === "string" && value.trim()) {
+		return value.trim();
+	}
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+	return null;
+}
+
+function extractParameterOptions(
+	record: Record<string, unknown>,
+): ReportParameterOption[] {
+	const rawOptions = readArrayField(record, PARAMETER_OPTIONS_FIELDS);
+	if (rawOptions.length === 0) {
+		return [];
+	}
+
+	const parsedOptions: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const rawOption of rawOptions) {
+		if (typeof rawOption === "string" || typeof rawOption === "number") {
+			const value = toOptionValue(rawOption);
+			if (!value || seenValues.has(value)) {
+				continue;
+			}
+			parsedOptions.push({
+				value,
+				label: value,
+			});
+			seenValues.add(value);
+			continue;
+		}
+
+		const optionRecord = asRecord(rawOption);
+		if (!optionRecord) {
+			continue;
+		}
+
+		const value =
+			readStringField(optionRecord, PARAMETER_OPTION_VALUE_FIELDS) ||
+			toOptionValue(optionRecord.id) ||
+			toOptionValue(optionRecord.value);
+		if (!value || seenValues.has(value)) {
+			continue;
+		}
+
+		const label =
+			readStringField(optionRecord, PARAMETER_OPTION_LABEL_FIELDS) || value;
+		parsedOptions.push({ value, label });
+		seenValues.add(value);
+	}
+
+	return parsedOptions;
+}
+
+function toParameterField(
+	record: Record<string, unknown>,
+): ReportParameterField | null {
+	const key = readStringField(record, PARAMETER_KEY_FIELDS);
+	if (!key) {
+		return null;
+	}
+
+	const queryKey = toQueryParameterKey(key);
+	const label =
+		readStringField(record, PARAMETER_LABEL_FIELDS) || toTitleLabel(key);
+	const dataType = readStringField(record, PARAMETER_TYPE_FIELDS) || "text";
+	const required = readBooleanField(record, PARAMETER_REQUIRED_FIELDS);
+	const options = extractParameterOptions(record);
+
+	return {
+		key,
+		queryKey,
+		label,
+		dataType,
+		required,
+		options,
+	};
+}
+
+function mergeParameterOptions(
+	primary: ReportParameterOption[],
+	secondary: ReportParameterOption[],
+): ReportParameterOption[] {
+	const merged: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const option of [...primary, ...secondary]) {
+		if (seenValues.has(option.value)) {
+			continue;
+		}
+		merged.push(option);
+		seenValues.add(option.value);
+	}
+
+	return merged;
+}
+
+function mergeParameterField(
+	reportField: ReportParameterField,
+	templateField: ReportParameterField | null,
+): ReportParameterField {
+	if (!templateField) {
+		return reportField;
+	}
+
+	const shouldUseTemplateDataType =
+		reportField.dataType === "text" && templateField.dataType !== "text";
+
+	return {
+		...reportField,
+		label:
+			reportField.label === toTitleLabel(reportField.key)
+				? templateField.label
+				: reportField.label,
+		dataType: shouldUseTemplateDataType
+			? templateField.dataType
+			: reportField.dataType,
+		required: reportField.required || templateField.required,
+		options: mergeParameterOptions(reportField.options, templateField.options),
+	};
+}
+
+function extractReportParameters(
+	report: ReportData,
+	template: ReportTemplateData | undefined,
+): ReportParameterField[] {
 	const rawParameters = report.reportParameters || [];
+	const templateAllowed = template?.allowedParameters || [];
 	const fields: ReportParameterField[] = [];
 	const seenKeys = new Set<string>();
+	const templateByKey = new Map<string, ReportParameterField>();
+
+	for (const rawTemplateParameter of templateAllowed) {
+		const record = asRecord(rawTemplateParameter);
+		if (!record) continue;
+		const field = toParameterField(record);
+		if (!field) continue;
+		templateByKey.set(field.queryKey, field);
+		templateByKey.set(field.key, field);
+	}
 
 	for (const rawParameter of rawParameters) {
 		const record = asRecord(rawParameter);
 		if (!record) continue;
+		const reportField = toParameterField(record);
+		if (!reportField || seenKeys.has(reportField.queryKey)) continue;
 
-		const key = readStringField(record, PARAMETER_KEY_FIELDS);
-		if (!key) continue;
-		const queryKey = toQueryParameterKey(key);
-		if (seenKeys.has(queryKey)) continue;
-
-		const label =
-			readStringField(record, PARAMETER_LABEL_FIELDS) || toTitleLabel(key);
-		const dataType = readStringField(record, PARAMETER_TYPE_FIELDS) || "text";
-		const required = readBooleanField(record, PARAMETER_REQUIRED_FIELDS);
-
-		fields.push({
-			key,
-			queryKey,
-			label,
-			dataType,
-			required,
-		});
-		seenKeys.add(queryKey);
+		const templateMatch =
+			templateByKey.get(reportField.queryKey) ||
+			templateByKey.get(reportField.key);
+		fields.push(mergeParameterField(reportField, templateMatch || null));
+		seenKeys.add(reportField.queryKey);
 	}
 
 	return fields;
@@ -448,9 +579,40 @@ function getFieldErrorMap(
 			continue;
 		}
 		fieldErrorMap[field] = fieldError.message;
+		const lowerField = field.toLowerCase();
+		if (!fieldErrorMap[lowerField]) {
+			fieldErrorMap[lowerField] = fieldError.message;
+		}
 	}
 
 	return fieldErrorMap;
+}
+
+function getParameterFieldError(
+	field: ReportParameterField,
+	fieldErrorMap: Record<string, string>,
+): string | undefined {
+	const bareQueryKey = field.queryKey.replace(/^R_/, "");
+	const bareKey = field.key.replace(/^R_/, "");
+	const candidates = [
+		field.queryKey,
+		field.key,
+		bareQueryKey,
+		bareKey,
+		field.queryKey.toLowerCase(),
+		field.key.toLowerCase(),
+		bareQueryKey.toLowerCase(),
+		bareKey.toLowerCase(),
+	];
+
+	for (const candidate of candidates) {
+		const message = fieldErrorMap[candidate];
+		if (message) {
+			return message;
+		}
+	}
+
+	return undefined;
 }
 
 async function fetchReports(tenantId: string): Promise<ReportData[]> {
@@ -465,6 +627,23 @@ async function fetchReports(tenantId: string): Promise<ReportData[]> {
 	}
 
 	return response.json();
+}
+
+async function fetchReportTemplate(
+	tenantId: string,
+): Promise<ReportTemplateData | null> {
+	const response = await fetch(BFF_ROUTES.reportsTemplate, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch report template metadata");
+	}
+
+	const payload = (await response.json()) as GetReportsTemplateResponse;
+	return payload as ReportTemplateData;
 }
 
 async function fetchReportExports(
@@ -559,6 +738,12 @@ export default function ReportsPage() {
 		queryKey: ["reports", tenantId],
 		queryFn: () => fetchReports(tenantId),
 	});
+	const reportTemplateQuery = useQuery({
+		queryKey: ["report-template", tenantId],
+		queryFn: () => fetchReportTemplate(tenantId),
+		enabled: isRunnerOpen,
+		staleTime: 5 * 60 * 1000,
+	});
 
 	const availableExportsQuery = useQuery({
 		queryKey: ["report-exports", tenantId, selectedReport?.reportName],
@@ -603,8 +788,14 @@ export default function ReportsPage() {
 	}, [applicableReports, categoryFilter, searchTerm]);
 
 	const selectedParameterFields = useMemo(
-		() => (selectedReport ? extractReportParameters(selectedReport) : []),
-		[selectedReport],
+		() =>
+			selectedReport
+				? extractReportParameters(
+						selectedReport,
+						reportTemplateQuery.data || undefined,
+					)
+				: [],
+		[selectedReport, reportTemplateQuery.data],
 	);
 	const requiredParameterCount = useMemo(
 		() => selectedParameterFields.filter((field) => field.required).length,
@@ -813,7 +1004,10 @@ export default function ReportsPage() {
 		{
 			header: "Parameters",
 			cell: (report) => {
-				const parameters = extractReportParameters(report);
+				const parameters = extractReportParameters(
+					report,
+					reportTemplateQuery.data || undefined,
+				);
 				const requiredCount = parameters.filter(
 					(parameter) => parameter.required,
 				).length;
@@ -850,7 +1044,10 @@ export default function ReportsPage() {
 				<Button
 					size="sm"
 					onClick={() => {
-						const fields = extractReportParameters(report);
+						const fields = extractReportParameters(
+							report,
+							reportTemplateQuery.data || undefined,
+						);
 						setSelectedReport(report);
 						setParameterValues(
 							Object.fromEntries(fields.map((field) => [field.queryKey, ""])),
@@ -1052,6 +1249,15 @@ export default function ReportsPage() {
 										</p>
 									)}
 								</div>
+								{reportTemplateQuery.isLoading && (
+									<Skeleton className="h-4 w-64" />
+								)}
+								{reportTemplateQuery.error && (
+									<p className="text-xs text-muted-foreground">
+										Could not load parameter catalog metadata. Showing report
+										parameters only.
+									</p>
+								)}
 
 								<div className="space-y-2">
 									<Label>Output</Label>
@@ -1106,8 +1312,10 @@ export default function ReportsPage() {
 										const fieldHasClientMissingError =
 											missingRequiredByKey.has(field.queryKey) &&
 											Boolean(runReportError);
-										const fieldErrorMessage =
-											runReportFieldErrors[field.queryKey];
+										const fieldErrorMessage = getParameterFieldError(
+											field,
+											runReportFieldErrors,
+										);
 
 										return (
 											<div key={field.queryKey} className="space-y-2">
@@ -1115,19 +1323,55 @@ export default function ReportsPage() {
 													{field.label}
 													{field.required ? " *" : ""}
 												</Label>
-												<Input
-													id={`param-${field.queryKey}`}
-													type={getParameterInputType(field.dataType)}
-													value={parameterValues[field.queryKey] || ""}
-													onChange={(event) => {
-														setParameterValues((previous) => ({
-															...previous,
-															[field.queryKey]: event.target.value,
-														}));
-														runReportMutation.reset();
-													}}
-													placeholder={`${field.queryKey} (${field.dataType})`}
-												/>
+												{field.options.length > 0 ? (
+													<Select
+														value={
+															parameterValues[field.queryKey] ||
+															(field.required ? undefined : "__empty__")
+														}
+														onValueChange={(value) => {
+															setParameterValues((previous) => ({
+																...previous,
+																[field.queryKey]:
+																	value === "__empty__" ? "" : value,
+															}));
+															runReportMutation.reset();
+														}}
+													>
+														<SelectTrigger id={`param-${field.queryKey}`}>
+															<SelectValue
+																placeholder={`Select ${field.label.toLowerCase()}`}
+															/>
+														</SelectTrigger>
+														<SelectContent>
+															{!field.required && (
+																<SelectItem value="__empty__">Any</SelectItem>
+															)}
+															{field.options.map((option) => (
+																<SelectItem
+																	key={option.value}
+																	value={option.value}
+																>
+																	{option.label}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												) : (
+													<Input
+														id={`param-${field.queryKey}`}
+														type={getParameterInputType(field.dataType)}
+														value={parameterValues[field.queryKey] || ""}
+														onChange={(event) => {
+															setParameterValues((previous) => ({
+																...previous,
+																[field.queryKey]: event.target.value,
+															}));
+															runReportMutation.reset();
+														}}
+														placeholder={`${field.queryKey} (${field.dataType})`}
+													/>
+												)}
 												{fieldErrorMessage && (
 													<p className="text-xs text-destructive">
 														{fieldErrorMessage}

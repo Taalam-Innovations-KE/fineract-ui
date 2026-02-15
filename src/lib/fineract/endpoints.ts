@@ -89,6 +89,7 @@ export const FINERACT_ENDPOINTS = {
 
 	// Reports
 	reports: "/v1/reports",
+	reportTemplate: "/v1/reports/template",
 	runReports: (reportName: string) =>
 		`/v1/runreports/${encodeURIComponent(reportName)}`,
 	runReportsAvailableExports: (reportName: string) =>
@@ -200,6 +201,7 @@ export const BFF_ROUTES = {
 
 	// Reports
 	reports: "/api/fineract/reports",
+	reportsTemplate: "/api/fineract/reports/template",
 	runReport: (reportName: string) =>
 		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,
 	runReportAvailableExports: (reportName: string) =>

@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarCheck2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -120,7 +121,7 @@ async function parseSubmitResponse<T>(
 ): Promise<T> {
 	const result = (await response.json().catch(() => ({
 		message: fallbackMessage,
-		statusCode: response.status,
+		status: response.status,
 	}))) as T;
 	if (!response.ok) {
 		throw result;
@@ -184,7 +185,6 @@ export default function AccountingClosuresPage() {
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const closuresQuery = useQuery({
 		queryKey: ["gl-closures", tenantId],
@@ -205,7 +205,7 @@ export default function AccountingClosuresPage() {
 			setEditingClosure(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Closure created successfully");
+			toast.success("Closure created successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -228,7 +228,7 @@ export default function AccountingClosuresPage() {
 			setEditingClosure(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Closure comments updated successfully");
+			toast.success("Closure comments updated successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -247,7 +247,7 @@ export default function AccountingClosuresPage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["gl-closures", tenantId] });
 			setSubmitError(null);
-			setToastMessage("Closure deleted successfully");
+			toast.success("Closure deleted successfully");
 		},
 		onError: (error, id) => {
 			setSubmitError(
@@ -260,12 +260,6 @@ export default function AccountingClosuresPage() {
 			);
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const offices = officesQuery.data || [];
 	const closures = closuresQuery.data || [];
@@ -576,16 +570,6 @@ export default function AccountingClosuresPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[320px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</>
 	);
 }

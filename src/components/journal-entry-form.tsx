@@ -3,8 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Control, Controller, useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -209,7 +209,6 @@ export function JournalEntryForm({
 }: JournalEntryFormProps) {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const officesQuery = useQuery({
 		queryKey: ["offices", tenantId],
@@ -269,7 +268,7 @@ export function JournalEntryForm({
 			createJournalEntry(tenantId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["journalEntries", tenantId] });
-			setToastMessage("Journal entry created successfully");
+			toast.success("Journal entry created successfully");
 			reset();
 			onSuccess?.();
 		},
@@ -277,7 +276,7 @@ export function JournalEntryForm({
 
 	const onSubmit = (data: JournalEntryFormData) => {
 		if (!isBalanced) {
-			alert("Debits and credits must balance");
+			toast.error("Debits and credits must balance");
 			return;
 		}
 		const formattedData = {
@@ -289,12 +288,6 @@ export function JournalEntryForm({
 		};
 		createMutation.mutate(formattedData);
 	};
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const offices = officesQuery.data || [];
 	const glAccounts = glAccountsQuery.data || [];
@@ -475,16 +468,6 @@ export function JournalEntryForm({
 					)}
 				</div>
 			</form>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[280px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</div>
 	);
 }

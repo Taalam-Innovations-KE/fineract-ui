@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	approveRejectEntry,
 	deleteMakerCheckerEntry,
@@ -11,6 +11,7 @@ import {
 	matchesMakerCheckerQuery,
 	sortMakerCheckerEntries,
 } from "@/lib/fineract/maker-checker";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 function parseNumber(value: string | null): number | undefined {
 	if (!value) {
@@ -89,9 +90,9 @@ export async function GET(request: NextRequest) {
 				: null,
 		});
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -103,21 +104,14 @@ export async function POST(request: NextRequest) {
 			typeof auditId !== "number" ||
 			(command !== "approve" && command !== "reject")
 		) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "auditId and command are required",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("auditId and command are required");
 		}
 		await approveRejectEntry(auditId, command);
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -126,22 +120,15 @@ export async function DELETE(request: NextRequest) {
 	try {
 		const { auditId } = await request.json();
 		if (typeof auditId !== "number") {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "auditId is required",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("auditId is required");
 		}
 
 		await deleteMakerCheckerEntry(auditId);
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

@@ -62,7 +62,10 @@ import {
 	updateSelfServiceUser,
 } from "@/lib/fineract/self-service";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	getSubmitFieldError,
+	toSubmitActionError,
+} from "@/lib/fineract/submit-error";
 import {
 	type SelfServiceUserFormData,
 	selfServiceUserSchema,
@@ -939,10 +942,10 @@ export default function SelfServicePage() {
 											{...register("username")}
 										/>
 										{(errors.username?.message ||
-											userFormError?.details?.username?.[0]) && (
+											getSubmitFieldError(userFormError, "username")) && (
 											<p className="text-sm text-destructive">
 												{errors.username?.message ||
-													userFormError?.details?.username?.[0]}
+													getSubmitFieldError(userFormError, "username")}
 											</p>
 										)}
 									</div>
@@ -950,10 +953,10 @@ export default function SelfServicePage() {
 										<Label htmlFor="email">Email</Label>
 										<Input id="email" type="email" {...register("email")} />
 										{(errors.email?.message ||
-											userFormError?.details?.email?.[0]) && (
+											getSubmitFieldError(userFormError, "email")) && (
 											<p className="text-sm text-destructive">
 												{errors.email?.message ||
-													userFormError?.details?.email?.[0]}
+													getSubmitFieldError(userFormError, "email")}
 											</p>
 										)}
 									</div>
@@ -966,10 +969,10 @@ export default function SelfServicePage() {
 										</Label>
 										<Input id="firstname" {...register("firstname")} />
 										{(errors.firstname?.message ||
-											userFormError?.details?.firstname?.[0]) && (
+											getSubmitFieldError(userFormError, "firstname")) && (
 											<p className="text-sm text-destructive">
 												{errors.firstname?.message ||
-													userFormError?.details?.firstname?.[0]}
+													getSubmitFieldError(userFormError, "firstname")}
 											</p>
 										)}
 									</div>
@@ -979,10 +982,10 @@ export default function SelfServicePage() {
 										</Label>
 										<Input id="lastname" {...register("lastname")} />
 										{(errors.lastname?.message ||
-											userFormError?.details?.lastname?.[0]) && (
+											getSubmitFieldError(userFormError, "lastname")) && (
 											<p className="text-sm text-destructive">
 												{errors.lastname?.message ||
-													userFormError?.details?.lastname?.[0]}
+													getSubmitFieldError(userFormError, "lastname")}
 											</p>
 										)}
 									</div>
@@ -1028,10 +1031,10 @@ export default function SelfServicePage() {
 											)}
 										/>
 										{(errors.officeId?.message ||
-											userFormError?.details?.officeId?.[0]) && (
+											getSubmitFieldError(userFormError, "officeId")) && (
 											<p className="text-sm text-destructive">
 												{errors.officeId?.message ||
-													userFormError?.details?.officeId?.[0]}
+													getSubmitFieldError(userFormError, "officeId")}
 											</p>
 										)}
 									</div>
@@ -1066,10 +1069,10 @@ export default function SelfServicePage() {
 											)}
 										/>
 										{(errors.roleId?.message ||
-											userFormError?.details?.roles?.[0]) && (
+											getSubmitFieldError(userFormError, "roles")) && (
 											<p className="text-sm text-destructive">
 												{errors.roleId?.message ||
-													userFormError?.details?.roles?.[0]}
+													getSubmitFieldError(userFormError, "roles")}
 											</p>
 										)}
 									</div>
@@ -1113,10 +1116,10 @@ export default function SelfServicePage() {
 										)}
 									/>
 									{(errors.clientId?.message ||
-										userFormError?.details?.clients?.[0]) && (
+										getSubmitFieldError(userFormError, "clients")) && (
 										<p className="text-sm text-destructive">
 											{errors.clientId?.message ||
-												userFormError?.details?.clients?.[0]}
+												getSubmitFieldError(userFormError, "clients")}
 										</p>
 									)}
 								</div>
@@ -1135,10 +1138,10 @@ export default function SelfServicePage() {
 											{...register("password")}
 										/>
 										{(errors.password?.message ||
-											userFormError?.details?.password?.[0]) && (
+											getSubmitFieldError(userFormError, "password")) && (
 											<p className="text-sm text-destructive">
 												{errors.password?.message ||
-													userFormError?.details?.password?.[0]}
+													getSubmitFieldError(userFormError, "password")}
 											</p>
 										)}
 									</div>
@@ -1155,10 +1158,10 @@ export default function SelfServicePage() {
 											{...register("repeatPassword")}
 										/>
 										{(errors.repeatPassword?.message ||
-											userFormError?.details?.repeatPassword?.[0]) && (
+											getSubmitFieldError(userFormError, "repeatPassword")) && (
 											<p className="text-sm text-destructive">
 												{errors.repeatPassword?.message ||
-													userFormError?.details?.repeatPassword?.[0]}
+													getSubmitFieldError(userFormError, "repeatPassword")}
 											</p>
 										)}
 									</div>

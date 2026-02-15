@@ -32,13 +32,13 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoanProductsChargeOptions,
 	GetLoanProductsTemplateResponse,
 	PostChargesResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import {
 	type CreateLoanProductFormData,
 	type FeeFormData,
@@ -194,7 +194,7 @@ export function LoanProductFeesStep({
 				queryKey: ["loanProductTemplate", tenantId],
 			});
 		} catch (error) {
-			const mapped = mapFineractError(error);
+			const mapped = normalizeApiError(error);
 			setFeeSubmitError(mapped.message);
 		} finally {
 			setIsCreatingFee(false);

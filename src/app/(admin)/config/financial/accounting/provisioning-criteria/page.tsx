@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Percent, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -383,7 +384,6 @@ export default function ProvisioningCriteriaPage() {
 	const [formState, setFormState] = useState<FormState>(EMPTY_FORM);
 	const [pageError, setPageError] = useState<string | null>(null);
 	const [formError, setFormError] = useState<string | null>(null);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const criteriaQuery = useQuery({
 		queryKey: ["provisioning-criteria", tenantId],
@@ -404,7 +404,7 @@ export default function ProvisioningCriteriaPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingCriteria(null);
-			setToastMessage("Provisioning criteria created successfully");
+			toast.success("Provisioning criteria created successfully");
 		},
 	});
 
@@ -421,7 +421,7 @@ export default function ProvisioningCriteriaPage() {
 			});
 			setIsSheetOpen(false);
 			setEditingCriteria(null);
-			setToastMessage("Provisioning criteria updated successfully");
+			toast.success("Provisioning criteria updated successfully");
 		},
 	});
 
@@ -432,17 +432,9 @@ export default function ProvisioningCriteriaPage() {
 			queryClient.invalidateQueries({
 				queryKey: ["provisioning-criteria", tenantId],
 			});
-			setToastMessage("Provisioning criteria deleted successfully");
+			toast.success("Provisioning criteria deleted successfully");
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) {
-			return;
-		}
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const template = templateQuery.data;
 	const criteriaList = criteriaQuery.data || [];
@@ -1063,16 +1055,6 @@ export default function ProvisioningCriteriaPage() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[320px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</>
 	);
 }

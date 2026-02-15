@@ -113,7 +113,7 @@ async function parseSubmitResponse<T>(
 ): Promise<T> {
 	const data = (await response.json().catch(() => ({
 		message: fallbackMessage,
-		statusCode: response.status,
+		status: response.status,
 	}))) as T;
 
 	if (!response.ok) {

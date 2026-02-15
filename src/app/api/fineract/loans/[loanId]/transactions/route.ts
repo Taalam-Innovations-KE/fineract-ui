@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetLoansLoanIdTransactionsResponse,
 	PostLoansLoanIdTransactionsRequest,
 	PostLoansLoanIdTransactionsResponse,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/loans/[loanId]/transactions
@@ -25,14 +26,7 @@ export async function GET(
 		const loanIdNum = Number.parseInt(loanId, 10);
 
 		if (Number.isNaN(loanIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID");
 		}
 
 		const queryString = request.nextUrl.searchParams.toString();
@@ -48,9 +42,9 @@ export async function GET(
 
 		return NextResponse.json(transactions);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -69,14 +63,7 @@ export async function POST(
 		const loanIdNum = Number.parseInt(loanId, 10);
 
 		if (Number.isNaN(loanIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID");
 		}
 
 		const body = (await request.json()) as PostLoansLoanIdTransactionsRequest;
@@ -96,9 +83,9 @@ export async function POST(
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

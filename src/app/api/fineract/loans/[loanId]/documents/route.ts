@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/loans/[loanId]/documents
@@ -20,14 +21,7 @@ export async function GET(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID");
 		}
 
 		const path = FINERACT_ENDPOINTS.loanDocuments(loanIdNum);
@@ -38,9 +32,9 @@ export async function GET(
 
 		return NextResponse.json(documents);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -59,14 +53,7 @@ export async function POST(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID");
 		}
 
 		// Parse the multipart form data
@@ -76,25 +63,11 @@ export async function POST(
 		const description = formData.get("description") as string | null;
 
 		if (!file) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "File is required",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("File is required");
 		}
 
 		if (!name) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Document name is required",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Document name is required");
 		}
 
 		// Create FormData for Fineract API
@@ -131,20 +104,22 @@ export async function POST(
 		const data = await response.json();
 
 		if (!response.ok) {
-			const mappedError = mapFineractError({
-				...data,
-				httpStatusCode: response.status,
+			const mappedError = normalizeApiError({
+				status: response.status,
+				data,
+				headers: response.headers,
+				message: response.statusText,
 			});
 			return NextResponse.json(mappedError, {
-				status: mappedError.statusCode || 500,
+				status: mappedError.httpStatus || 500,
 			});
 		}
 
 		return NextResponse.json(data, { status: 201 });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

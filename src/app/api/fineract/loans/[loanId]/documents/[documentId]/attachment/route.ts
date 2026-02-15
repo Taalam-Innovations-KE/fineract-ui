@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import { getTenantFromRequest } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/loans/[loanId]/documents/[documentId]/attachment
@@ -18,14 +19,7 @@ export async function GET(
 		const documentIdNum = parseInt(documentId, 10);
 
 		if (isNaN(loanIdNum) || isNaN(documentIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID or document ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID or document ID");
 		}
 
 		const FINERACT_BASE_URL =
@@ -51,12 +45,14 @@ export async function GET(
 
 		if (!response.ok) {
 			const errorData = await response.json().catch(() => ({}));
-			const mappedError = mapFineractError({
-				...errorData,
-				httpStatusCode: response.status,
+			const mappedError = normalizeApiError({
+				status: response.status,
+				data: errorData,
+				headers: response.headers,
+				message: response.statusText,
 			});
 			return NextResponse.json(mappedError, {
-				status: mappedError.statusCode || 500,
+				status: mappedError.httpStatus || 500,
 			});
 		}
 
@@ -78,9 +74,9 @@ export async function GET(
 
 		return new NextResponse(blob, { headers });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

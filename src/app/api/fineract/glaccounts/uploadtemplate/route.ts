@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 const FINERACT_BASE_URL =
 	process.env.FINERACT_BASE_URL ||
@@ -55,16 +56,10 @@ export async function POST(request: NextRequest) {
 			(formData.get("dateFormat") as string | null) || "dd MMMM yyyy";
 
 		if (!file) {
-			return NextResponse.json(
-				{ message: "Template file is required" },
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Template file is required");
 		}
 		if (file.size === 0) {
-			return NextResponse.json(
-				{ message: "Template file is empty" },
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Template file is empty");
 		}
 
 		const fineractFormData = new FormData();
@@ -96,20 +91,22 @@ export async function POST(request: NextRequest) {
 		}
 
 		if (!response.ok) {
-			const mappedError = mapFineractError({
-				...(typeof parsedData === "object" && parsedData ? parsedData : {}),
-				httpStatusCode: response.status,
+			const mappedError = normalizeApiError({
+				status: response.status,
+				data: parsedData,
+				headers: response.headers,
+				message: response.statusText,
 			});
 			return NextResponse.json(mappedError, {
-				status: mappedError.statusCode || response.status,
+				status: mappedError.httpStatus || response.status,
 			});
 		}
 
 		return NextResponse.json(parsedData);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

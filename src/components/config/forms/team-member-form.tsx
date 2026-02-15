@@ -22,7 +22,10 @@ import type {
 	OfficeData,
 } from "@/lib/fineract/generated/types.gen";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	getSubmitErrorsByField,
+	toSubmitActionError,
+} from "@/lib/fineract/submit-error";
 import { FINERACT_PASSWORD_MESSAGE } from "@/lib/schemas/password";
 import {
 	type CreateTeamMemberFormData,
@@ -115,28 +118,27 @@ export function TeamMemberForm({
 		rollbackSuggestion?: string,
 	) => {
 		let fieldErrorApplied = false;
+		const errorsByField = getSubmitErrorsByField(error);
 
-		if (error.details) {
-			Object.entries(error.details).forEach(([field, messages]) => {
-				if (messages.length === 0) {
-					return;
+		Object.entries(errorsByField).forEach(([field, messages]) => {
+			if (messages.length === 0) {
+				return;
+			}
+
+			const mappedField = SERVER_FIELD_MAP[field];
+			if (!mappedField) {
+				if (field === "general") {
+					setSubmitError({
+						...error,
+						message: messages[0],
+					});
 				}
+				return;
+			}
 
-				const mappedField = SERVER_FIELD_MAP[field];
-				if (!mappedField) {
-					if (field === "general") {
-						setSubmitError({
-							...error,
-							message: messages[0],
-						});
-					}
-					return;
-				}
-
-				setError(mappedField, { type: "server", message: messages[0] });
-				fieldErrorApplied = true;
-			});
-		}
+			setError(mappedField, { type: "server", message: messages[0] });
+			fieldErrorApplied = true;
+		});
 
 		const fallbackMessage = [error.message, rollbackSuggestion]
 			.filter(Boolean)

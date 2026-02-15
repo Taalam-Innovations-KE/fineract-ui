@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import { getTenantFromRequest } from "@/lib/fineract/client.server";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import { onboardStaffAndUser } from "@/lib/fineract/onboarding.server";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 type OnboardingError = Error & {
 	orphanedStaffId?: number;
@@ -18,14 +19,7 @@ export async function POST(request: NextRequest) {
 		const body = await request.json();
 
 		if (!body?.staff || !body?.user) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Staff and user payloads are required.",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Staff and user payloads are required.");
 		}
 
 		const result = await onboardStaffAndUser({
@@ -39,7 +33,7 @@ export async function POST(request: NextRequest) {
 		const onboardingError = error as OnboardingError;
 		const orphanedStaffId = onboardingError.orphanedStaffId;
 		const cause = onboardingError.cause ?? error;
-		const mappedError = mapFineractError(cause);
+		const mappedError = normalizeApiError(cause);
 		const responseBody: Record<string, unknown> = {
 			...mappedError,
 		};
@@ -53,7 +47,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		return NextResponse.json(responseBody, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

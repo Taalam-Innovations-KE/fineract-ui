@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	ExecuteJobRequest,
 	GetJobsResponse,
 	PutJobsJobIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 interface RouteContext {
 	params: Promise<{
@@ -36,9 +37,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 		return NextResponse.json(job);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -64,9 +65,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -82,9 +83,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 		const command = request.nextUrl.searchParams.get("command");
 
 		if (!command) {
-			return NextResponse.json(
-				{ message: "Missing required query parameter: command" },
-				{ status: 400 },
+			return invalidRequestResponse(
+				"Missing required query parameter: command",
 			);
 		}
 
@@ -104,9 +104,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

@@ -4,11 +4,11 @@ import {
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	PostLoansLoanIdRequest,
 	PutLoansLoanIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 interface LoanStatusSnapshot {
 	status?: {
@@ -62,9 +62,9 @@ export async function GET(
 
 		return NextResponse.json(loan);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -106,15 +106,17 @@ export async function PUT(
 			},
 		)) as LoanStatusSnapshot;
 		if (!loanStatus.status?.pendingApproval) {
-			return NextResponse.json(
-				{
+			const transitionError = normalizeApiError({
+				status: 409,
+				data: {
 					code: "LOAN_APPLICATION_EDIT_NOT_ALLOWED",
 					message:
 						"Loan application can only be edited while pending approval.",
-					statusCode: 409,
 				},
-				{ status: 409 },
-			);
+			});
+			return NextResponse.json(transitionError, {
+				status: transitionError.httpStatus || 409,
+			});
 		}
 
 		const result = await fineractFetch(
@@ -128,9 +130,9 @@ export async function PUT(
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

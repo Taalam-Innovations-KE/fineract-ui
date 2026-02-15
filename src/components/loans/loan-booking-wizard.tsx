@@ -369,7 +369,7 @@ export function LoanBookingWizard({
 						{
 							code: "VALIDATION_ERROR",
 							message: `Validation failed: ${errorMessages}`,
-							statusCode: 400,
+							status: 400,
 						},
 						submitContext,
 					),

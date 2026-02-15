@@ -4,12 +4,12 @@ import {
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetFinancialActivityAccountsResponse,
 	PostFinancialActivityAccountsRequest,
 	PostFinancialActivityAccountsResponse,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/financialactivityaccounts
@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.json(mappings);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -55,9 +55,9 @@ export async function POST(request: NextRequest) {
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

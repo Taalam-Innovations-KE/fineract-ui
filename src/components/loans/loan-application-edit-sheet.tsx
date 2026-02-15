@@ -350,7 +350,7 @@ export function LoanApplicationEditSheet({
 				throw (
 					data || {
 						message: "Failed to update loan application",
-						statusCode: response.status,
+						status: response.status,
 					}
 				);
 			}

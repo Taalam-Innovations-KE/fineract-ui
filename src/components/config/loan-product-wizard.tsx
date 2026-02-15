@@ -1131,7 +1131,7 @@ export function LoanProductWizard({
 						{
 							code: "VALIDATION_ERROR",
 							message: `Validation failed: ${errorMessages}`,
-							statusCode: 400,
+							status: 400,
 						},
 						{
 							action: isEditMode ? "updateLoanProduct" : "createLoanProduct",

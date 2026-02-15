@@ -4,6 +4,7 @@ import {
 	getSession,
 	getUserCredentials,
 } from "@/lib/auth/session";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * Server-side Fineract client
@@ -110,19 +111,12 @@ export async function fineractFetch<T = unknown>(
 	}
 
 	if (!response.ok) {
-		if (data && typeof data === "object") {
-			throw {
-				...(data as Record<string, unknown>),
-				httpStatusCode: response.status,
-				statusText: response.statusText,
-			};
-		}
-
-		throw {
+		throw normalizeApiError({
+			status: response.status,
+			data: data ?? rawBody,
+			headers: response.headers,
 			message: response.statusText || "Request failed",
-			httpStatusCode: response.status,
-			statusText: response.statusText,
-		};
+		});
 	}
 
 	return data as T;

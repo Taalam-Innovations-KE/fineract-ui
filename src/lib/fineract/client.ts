@@ -3,6 +3,7 @@
 
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import { normalizeFailedResponse } from "@/lib/fineract/ui-api-error";
 
 const BFF_ROUTES = {
 	clients: "/api/fineract/clients",
@@ -10,6 +11,19 @@ const BFF_ROUTES = {
 };
 
 export type FineractRequestError = SubmitActionError;
+
+async function parseJsonSafely(response: Response): Promise<unknown> {
+	const raw = await response.text();
+	if (!raw) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(raw) as unknown;
+	} catch {
+		return raw;
+	}
+}
 
 export async function fetchClients(tenantId: string) {
 	const response = await fetch(BFF_ROUTES.clients, {
@@ -19,10 +33,10 @@ export async function fetchClients(tenantId: string) {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch clients");
+		throw await normalizeFailedResponse(response);
 	}
 
-	return response.json();
+	return parseJsonSafely(response);
 }
 
 export async function fetchClientTemplate(tenantId: string) {
@@ -33,10 +47,10 @@ export async function fetchClientTemplate(tenantId: string) {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch client template");
+		throw await normalizeFailedResponse(response);
 	}
 
-	return response.json();
+	return parseJsonSafely(response);
 }
 
 export async function createClient(tenantId: string, payload: unknown) {
@@ -49,30 +63,16 @@ export async function createClient(tenantId: string, payload: unknown) {
 		body: JSON.stringify(payload),
 	});
 
-	const data = await response.json();
-
 	if (!response.ok) {
-		throw toSubmitActionError(
-			{
-				...(data as Record<string, unknown>),
-				statusCode: response.status,
-				httpStatusCode: response.status,
-				statusText: response.statusText,
-				message:
-					typeof data.message === "string"
-						? data.message
-						: "Failed to create client",
-			},
-			{
-				action: "createClient",
-				endpoint: BFF_ROUTES.clients,
-				method: "POST",
-				tenantId,
-			},
-		);
+		throw toSubmitActionError(await normalizeFailedResponse(response), {
+			action: "createClient",
+			endpoint: BFF_ROUTES.clients,
+			method: "POST",
+			tenantId,
+		});
 	}
 
-	return data;
+	return parseJsonSafely(response);
 }
 
 export async function fetchClientIdentifierTemplate(
@@ -89,10 +89,10 @@ export async function fetchClientIdentifierTemplate(
 	);
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch identifier template");
+		throw await normalizeFailedResponse(response);
 	}
 
-	return response.json();
+	return parseJsonSafely(response);
 }
 
 export async function createClientIdentifier(
@@ -118,26 +118,13 @@ export async function createClientIdentifier(
 	);
 
 	if (!response.ok) {
-		const data = await response.json();
-		throw toSubmitActionError(
-			{
-				...(data as Record<string, unknown>),
-				statusCode: response.status,
-				httpStatusCode: response.status,
-				statusText: response.statusText,
-				message:
-					typeof data.message === "string"
-						? data.message
-						: "Failed to create client identifier",
-			},
-			{
-				action: "createClientIdentifier",
-				endpoint: `/api/fineract/clients/${clientId}/identifiers`,
-				method: "POST",
-				tenantId,
-			},
-		);
+		throw toSubmitActionError(await normalizeFailedResponse(response), {
+			action: "createClientIdentifier",
+			endpoint: `/api/fineract/clients/${clientId}/identifiers`,
+			method: "POST",
+			tenantId,
+		});
 	}
 
-	return response.json();
+	return parseJsonSafely(response);
 }

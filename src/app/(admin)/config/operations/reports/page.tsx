@@ -524,7 +524,7 @@ export default function ReportsPage() {
 						{
 							code: "INVALID_REQUEST",
 							message: "Report name is missing",
-							statusCode: 400,
+							status: 400,
 						},
 						{
 							action: "runReport",
@@ -570,8 +570,8 @@ export default function ReportsPage() {
 					throw toSubmitActionError(
 						{
 							...(payload as Record<string, unknown>),
-							statusCode: response.status,
-							httpStatusCode: response.status,
+							status: response.status,
+							status: response.status,
 							statusText: response.statusText,
 						},
 						{

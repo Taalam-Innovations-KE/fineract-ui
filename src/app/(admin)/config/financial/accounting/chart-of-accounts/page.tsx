@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -340,7 +341,6 @@ export default function ChartOfAccountsPage() {
 
 	const [uploadFile, setUploadFile] = useState<File | null>(null);
 	const [uploadInputKey, setUploadInputKey] = useState(0);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 
 	const accountsQuery = useQuery({
@@ -360,7 +360,7 @@ export default function ChartOfAccountsPage() {
 			queryClient.invalidateQueries({ queryKey: ["glaccounts", tenantId] });
 			setIsSheetOpen(false);
 			setEditingAccount(null);
-			setToastMessage("GL account created successfully");
+			toast.success("GL account created successfully");
 		},
 	});
 
@@ -371,7 +371,7 @@ export default function ChartOfAccountsPage() {
 			queryClient.invalidateQueries({ queryKey: ["glaccounts", tenantId] });
 			setIsSheetOpen(false);
 			setEditingAccount(null);
-			setToastMessage("GL account updated successfully");
+			toast.success("GL account updated successfully");
 		},
 	});
 
@@ -379,15 +379,9 @@ export default function ChartOfAccountsPage() {
 		mutationFn: (id: number) => deleteAccount(tenantId, id),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["glaccounts", tenantId] });
-			setToastMessage("GL account deleted successfully");
+			toast.success("GL account deleted successfully");
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const accounts = accountsQuery.data ?? EMPTY_ACCOUNTS;
 	const template = templateQuery.data;
@@ -625,7 +619,7 @@ export default function ChartOfAccountsPage() {
 
 			setUploadFile(null);
 			setUploadInputKey((prev) => prev + 1);
-			setToastMessage("Template uploaded successfully");
+			toast.success("Template uploaded successfully");
 			queryClient.invalidateQueries({ queryKey: ["glaccounts", tenantId] });
 			queryClient.invalidateQueries({
 				queryKey: ["glaccounts-template", tenantId],
@@ -1245,16 +1239,6 @@ export default function ChartOfAccountsPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[320px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</>
 	);
 }

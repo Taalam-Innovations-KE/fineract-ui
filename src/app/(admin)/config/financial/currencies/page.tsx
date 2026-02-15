@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +163,6 @@ export default function CurrenciesPage() {
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const {
 		data: currencyConfig,
@@ -183,15 +183,9 @@ export default function CurrenciesPage() {
 				queryKey: ["currencies", effectiveTenantId],
 			});
 			setIsDrawerOpen(false);
-			setToastMessage("Currencies updated successfully");
+			toast.success("Currencies updated successfully");
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const activeCurrencies = useMemo(
 		() => currencyConfig?.selectedCurrencyOptions || [],
@@ -484,15 +478,6 @@ export default function CurrenciesPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
-					<Alert variant="success">
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</>
 	);
 }

@@ -5,6 +5,7 @@ import type {
 	PostLoanProductsRequest,
 	PutChargesChargeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import type {
 	CreateLoanProductFormData,
 	FeeFormData,
@@ -46,15 +47,22 @@ interface LoanProductsPagedResponse<T> {
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
 	const rawPayload = await response.text();
-	const payload = rawPayload ? (JSON.parse(rawPayload) as unknown) : null;
+	let payload: unknown = null;
+	if (rawPayload) {
+		try {
+			payload = JSON.parse(rawPayload) as unknown;
+		} catch {
+			payload = rawPayload;
+		}
+	}
 
 	if (!response.ok) {
-		throw (
-			payload ?? {
-				message: response.statusText || "Request failed",
-				statusCode: response.status,
-			}
-		);
+		throw normalizeApiError({
+			status: response.status,
+			data: payload ?? response.statusText,
+			headers: response.headers,
+			message: response.statusText || "Request failed",
+		});
 	}
 
 	return (payload ?? {}) as T;

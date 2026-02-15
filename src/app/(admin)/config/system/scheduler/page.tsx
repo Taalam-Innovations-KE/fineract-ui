@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { toastApiError } from "@/lib/fineract/error-toast";
 import type { GetJobsResponse } from "@/lib/fineract/generated/types.gen";
 import { useTenantStore } from "@/store/tenant";
 
@@ -56,7 +57,6 @@ async function runJob(tenantId: string, jobId: number): Promise<unknown> {
 
 export default function SchedulerJobsPage() {
 	const { tenantId } = useTenantStore();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const {
 		data: jobs,
@@ -73,20 +73,13 @@ export default function SchedulerJobsPage() {
 		mutationFn: (jobId: number) => runJob(tenantId, jobId),
 		onSuccess: (_, jobId) => {
 			const job = jobs?.find((j) => j.jobId === jobId);
-			setToastMessage(`Job "${job?.displayName}" started successfully`);
+			toast.success(`Job "${job?.displayName}" started successfully`);
 			refetch();
 		},
 		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+			toastApiError(error);
 		},
 	});
-
-	useEffect(() => {
-		if (toastMessage) {
-			const timer = setTimeout(() => setToastMessage(null), 5000);
-			return () => clearTimeout(timer);
-		}
-	}, [toastMessage]);
 
 	const columns = [
 		{
@@ -373,15 +366,6 @@ export default function SchedulerJobsPage() {
 					</Card>
 				)}
 			</div>
-
-			{toastMessage && (
-				<div className="fixed bottom-4 right-4 z-50">
-					<Alert>
-						<AlertTitle>Notification</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</PageShell>
 	);
 }

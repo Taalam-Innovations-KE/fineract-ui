@@ -47,7 +47,6 @@ import {
 	parseFineractDate,
 } from "@/lib/date-utils";
 import { BFF_ROUTES, FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { getFieldError, mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetGlobalConfigurationsResponse,
 	GlobalConfigurationPropertyData,
@@ -55,6 +54,7 @@ import type {
 } from "@/lib/fineract/generated/types.gen";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import { getFieldError, normalizeApiError } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
 
 type ConfigType = "toggle" | "numeric" | "text" | "date" | "mixed" | "other";
@@ -523,7 +523,9 @@ export default function GlobalConfigurationPage() {
 			>
 				<Alert variant="destructive">
 					<AlertTitle>Unable to load global configurations</AlertTitle>
-					<AlertDescription>{mapFineractError(error).message}</AlertDescription>
+					<AlertDescription>
+						{normalizeApiError(error).message}
+					</AlertDescription>
 				</Alert>
 			</PageShell>
 		);

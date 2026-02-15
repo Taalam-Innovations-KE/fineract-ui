@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/loans/[loanId]/collaterals/template
@@ -20,14 +21,7 @@ export async function GET(
 		const loanIdNum = parseInt(loanId, 10);
 
 		if (isNaN(loanIdNum)) {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Invalid loan ID",
-					statusCode: 400,
-				},
-				{ status: 400 },
-			);
+			return invalidRequestResponse("Invalid loan ID");
 		}
 
 		const path = FINERACT_ENDPOINTS.loanCollateralTemplate(loanIdNum);
@@ -38,9 +32,9 @@ export async function GET(
 
 		return NextResponse.json(template);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

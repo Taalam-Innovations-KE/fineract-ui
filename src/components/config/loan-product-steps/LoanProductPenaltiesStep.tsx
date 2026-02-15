@@ -33,7 +33,6 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetChargesResponse,
 	GetLoanProductsChargeOptions,
@@ -42,6 +41,7 @@ import type {
 	PutChargesChargeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import {
 	type CreateLoanProductFormData,
 	type PenaltyFormData,
@@ -418,7 +418,7 @@ export function LoanProductPenaltiesStep({
 				queryKey: ["loanProductTemplate", tenantId],
 			});
 		} catch (error) {
-			const mapped = mapFineractError(error);
+			const mapped = normalizeApiError(error);
 			setPenaltySubmitError(mapped.message);
 		} finally {
 			setIsCreatingPenalty(false);

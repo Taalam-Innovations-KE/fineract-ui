@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { ClientRegistrationWizard } from "@/components/clients/ClientRegistrationWizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -232,12 +233,16 @@ function LookupSkeleton() {
 	);
 }
 
-function flattenErrorDetails(details?: Record<string, string[]>) {
-	if (!details) return [];
+function flattenErrorDetails(error?: FineractRequestError | null) {
+	if (!error?.fieldErrors) {
+		return [];
+	}
 
-	return Object.entries(details)
-		.flatMap(([field, messages]) =>
-			(messages || []).map((message) => `${field}: ${message}`),
+	return error.fieldErrors
+		.map((fieldError) =>
+			fieldError.field
+				? `${fieldError.field}: ${fieldError.message}`
+				: fieldError.message,
 		)
 		.filter(Boolean);
 }
@@ -273,18 +278,15 @@ function normalizeClientSubmissionError({
 		return error;
 	}
 
-	return {
-		code: "UNKNOWN_ERROR",
-		message: error instanceof Error ? error.message : "Failed to submit client",
+	return toSubmitActionError(error, {
 		action: isEditMode ? "updateClient" : "createClient",
 		endpoint:
 			isEditMode && editClientId !== null
 				? `${BFF_ROUTES.clients}/${editClientId}`
 				: BFF_ROUTES.clients,
 		method: isEditMode ? "PUT" : "POST",
-		timestamp: new Date().toISOString(),
 		tenantId,
-	};
+	});
 }
 
 function toInputDate(value?: string): string {
@@ -413,8 +415,8 @@ async function updateClient(
 		throw toSubmitActionError(
 			{
 				...data,
-				statusCode: response.status,
-				httpStatusCode: response.status,
+				status: response.status,
+				status: response.status,
 				statusText: response.statusText,
 				message:
 					typeof data.message === "string"
@@ -559,7 +561,6 @@ export default function ClientsPage() {
 	const searchParams = useSearchParams();
 	const queryClient = useQueryClient();
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const editClientIdParam = searchParams.get("editClientId");
 	const editClientId = editClientIdParam ? Number(editClientIdParam) : null;
 	const isEditMode = editClientId !== null && !Number.isNaN(editClientId);
@@ -672,9 +673,14 @@ export default function ClientsPage() {
 						{
 							code: "IDENTIFIER_DOCUMENT_TYPE_MISSING",
 							message: `Missing document type for ${identifier.label}. Configure identifier types in System Settings.`,
-							details: {
-								identifier: [identifier.label],
-							},
+							fieldErrors: [
+								{
+									field: "identifier",
+									code: "IDENTIFIER_DOCUMENT_TYPE_MISSING",
+									message: `Missing document type for ${identifier.label}`,
+									value: identifier.label,
+								},
+							],
 						},
 						{
 							action: "createClientIdentifier",
@@ -703,7 +709,7 @@ export default function ClientsPage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
 			closeDrawer();
-			setToastMessage("Client created successfully");
+			toast.success("Client created successfully");
 		},
 	});
 	const updateMutation = useMutation({
@@ -792,7 +798,7 @@ export default function ClientsPage() {
 				});
 			}
 			closeDrawer();
-			setToastMessage("Client updated successfully");
+			toast.success("Client updated successfully");
 		},
 	});
 	const resetCreateMutation = createMutation.reset;
@@ -913,7 +919,7 @@ export default function ClientsPage() {
 				tenantId,
 			})
 		: null;
-	const submissionErrorDetails = flattenErrorDetails(submissionError?.details);
+	const submissionErrorDetails = flattenErrorDetails(submissionError);
 
 	const clients = clientsQuery.data?.pageItems || [];
 
@@ -1161,12 +1167,6 @@ export default function ClientsPage() {
 			setValue("officeId", officeOptions[0].id, { shouldDirty: false });
 		}
 	}, [officeOptions, getValues, setValue]);
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const handleRefreshLookups = async () => {
 		await templateQuery.refetch();
@@ -1583,15 +1583,6 @@ export default function ClientsPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
-					<Alert variant="success">
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</>
 	);
 }

@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Link2, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -119,7 +120,7 @@ async function parseSubmitResponse<T>(
 ): Promise<T> {
 	const result = (await response.json().catch(() => ({
 		message: fallbackMessage,
-		statusCode: response.status,
+		status: response.status,
 	}))) as T;
 	if (!response.ok) {
 		throw result;
@@ -201,7 +202,6 @@ export default function FinancialActivityMappingsPage() {
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const mappingsQuery = useQuery({
 		queryKey: ["financial-activity-mappings", tenantId],
@@ -224,7 +224,7 @@ export default function FinancialActivityMappingsPage() {
 			setEditingMapping(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Mapping created successfully");
+			toast.success("Mapping created successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -249,7 +249,7 @@ export default function FinancialActivityMappingsPage() {
 			setEditingMapping(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Mapping updated successfully");
+			toast.success("Mapping updated successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -272,7 +272,7 @@ export default function FinancialActivityMappingsPage() {
 				queryKey: ["financial-activity-mappings", tenantId],
 			});
 			setSubmitError(null);
-			setToastMessage("Mapping deleted successfully");
+			toast.success("Mapping deleted successfully");
 		},
 		onError: (error, id) => {
 			setSubmitError(
@@ -285,12 +285,6 @@ export default function FinancialActivityMappingsPage() {
 			);
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const template = templateQuery.data;
 	const mappings = mappingsQuery.data || [];
@@ -579,16 +573,6 @@ export default function FinancialActivityMappingsPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[320px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</>
 	);
 }

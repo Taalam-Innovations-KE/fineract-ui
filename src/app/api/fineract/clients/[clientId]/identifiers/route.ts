@@ -3,7 +3,7 @@ import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/clients/[clientId]/identifiers
@@ -28,9 +28,9 @@ export async function GET(
 
 		return NextResponse.json(identifiers);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -55,9 +55,9 @@ export async function POST(
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

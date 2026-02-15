@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	ClientDataWritable,
 	DeleteClientsClientIdResponse,
@@ -12,6 +12,7 @@ import type {
 	PostClientsClientIdResponse,
 	PutClientsClientIdResponse,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/clients/[clientId]
@@ -36,9 +37,9 @@ export async function GET(
 
 		return NextResponse.json(client);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -67,9 +68,9 @@ export async function PUT(
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -96,9 +97,9 @@ export async function DELETE(
 
 		return NextResponse.json(result);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -117,9 +118,8 @@ export async function POST(
 		const command = request.nextUrl.searchParams.get("command");
 
 		if (!command) {
-			return NextResponse.json(
-				{ message: "Missing required query parameter: command" },
-				{ status: 400 },
+			return invalidRequestResponse(
+				"Missing required query parameter: command",
 			);
 		}
 
@@ -154,9 +154,9 @@ export async function POST(
 
 		throw lastError;
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

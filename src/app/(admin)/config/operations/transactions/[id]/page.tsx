@@ -11,7 +11,8 @@ import {
 	RotateCcw,
 	X,
 } from "lucide-react";
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { JournalEntryForm } from "@/components/journal-entry-form";
@@ -84,7 +85,6 @@ export default function TransactionDetailPage({
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
 	const { setStatus } = useTransactionStore();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
@@ -111,7 +111,7 @@ export default function TransactionDetailPage({
 			});
 			queryClient.invalidateQueries({ queryKey: ["journalEntries", tenantId] });
 			setSubmitError(null);
-			setToastMessage("Journal entry reversed successfully");
+			toast.success("Journal entry reversed successfully");
 		},
 		onError: (error, transactionId) => {
 			setSubmitError(
@@ -124,12 +124,6 @@ export default function TransactionDetailPage({
 			);
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const entry = entryQuery.data;
 
@@ -221,7 +215,7 @@ export default function TransactionDetailPage({
 												)
 											) {
 												setStatus(transactionId, "approved");
-												setToastMessage("Journal entry approved");
+												toast.success("Journal entry approved");
 											}
 										}}
 									>
@@ -240,7 +234,7 @@ export default function TransactionDetailPage({
 												)
 											) {
 												setStatus(transactionId, "rejected");
-												setToastMessage("Journal entry rejected");
+												toast.success("Journal entry rejected");
 											}
 										}}
 									>
@@ -289,15 +283,6 @@ export default function TransactionDetailPage({
 					)}
 				</div>
 			</PageShell>
-
-			{toastMessage && (
-				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
-					<Alert variant="success">
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 
 			<Sheet open={isEditDrawerOpen} onOpenChange={setIsEditDrawerOpen}>
 				<SheetContent

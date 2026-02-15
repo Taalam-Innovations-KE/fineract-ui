@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { toastApiError } from "@/lib/fineract/error-toast";
 import type {
 	GetHolidaysResponse,
 	GetOfficesResponse,
@@ -171,7 +172,6 @@ async function activateHoliday(
 export default function HolidaysPage() {
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [editingHoliday, setEditingHoliday] =
 		useState<GetHolidaysResponse | null>(null);
@@ -204,12 +204,12 @@ export default function HolidaysPage() {
 			createHoliday(tenantId, holiday),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["holidays"] });
-			setToastMessage("Holiday created successfully");
+			toast.success("Holiday created successfully");
 			setIsSheetOpen(false);
 			resetForm();
 		},
 		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+			toastApiError(error);
 		},
 	});
 
@@ -223,13 +223,13 @@ export default function HolidaysPage() {
 		}) => updateHoliday(tenantId, holidayId, holiday),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["holidays"] });
-			setToastMessage("Holiday updated successfully");
+			toast.success("Holiday updated successfully");
 			setIsSheetOpen(false);
 			setEditingHoliday(null);
 			resetForm();
 		},
 		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+			toastApiError(error);
 		},
 	});
 
@@ -237,19 +237,12 @@ export default function HolidaysPage() {
 		mutationFn: (holidayId: number) => activateHoliday(tenantId, holidayId),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["holidays"] });
-			setToastMessage("Holiday activated successfully");
+			toast.success("Holiday activated successfully");
 		},
 		onError: (error) => {
-			setToastMessage(mapFineractError(error).message);
+			toastApiError(error);
 		},
 	});
-
-	useEffect(() => {
-		if (toastMessage) {
-			const timer = setTimeout(() => setToastMessage(null), 5000);
-			return () => clearTimeout(timer);
-		}
-	}, [toastMessage]);
 
 	const [formData, setFormData] = useState({
 		name: "",
@@ -312,11 +305,11 @@ export default function HolidaysPage() {
 		const parsedReschedulingType = Number(formData.reschedulingType);
 
 		if (!effectiveRepaymentRescheduleDate) {
-			setToastMessage("Repayments rescheduled to date is required");
+			toast.error("Repayments rescheduled to date is required");
 			return;
 		}
 		if (!Number.isInteger(parsedReschedulingType)) {
-			setToastMessage("Repayment reschedule type is required");
+			toast.error("Repayment reschedule type is required");
 			return;
 		}
 
@@ -683,15 +676,6 @@ export default function HolidaysPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<div className="fixed bottom-4 right-4 z-50">
-					<Alert>
-						<AlertTitle>Notification</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</PageShell>
 	);
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 const FINERACT_BASE_URL =
 	process.env.FINERACT_BASE_URL ||
@@ -70,12 +70,14 @@ export async function GET(request: NextRequest) {
 			} catch {
 				errorData = { message: text || response.statusText };
 			}
-			const mappedError = mapFineractError({
-				...(typeof errorData === "object" ? errorData : {}),
-				httpStatusCode: response.status,
+			const mappedError = normalizeApiError({
+				status: response.status,
+				data: errorData,
+				headers: response.headers,
+				message: response.statusText,
 			});
 			return NextResponse.json(mappedError, {
-				status: mappedError.statusCode || response.status,
+				status: mappedError.httpStatus || response.status,
 			});
 		}
 
@@ -94,9 +96,9 @@ export async function GET(request: NextRequest) {
 			},
 		});
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

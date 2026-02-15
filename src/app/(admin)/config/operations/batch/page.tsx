@@ -1,8 +1,9 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Package, Play, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -113,7 +114,6 @@ const SAMPLE_REQUESTS: BatchRequest[] = [
 
 export default function BatchOperationsPage() {
 	const { tenantId } = useTenantStore();
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 	const [batchResults, setBatchResults] = useState<BatchResponse[] | null>(
 		null,
 	);
@@ -142,7 +142,7 @@ export default function BatchOperationsPage() {
 		onSuccess: (results) => {
 			setBatchResults(results);
 			setSubmitError(null);
-			setToastMessage(
+			toast.success(
 				`Batch executed successfully. ${results.length} requests processed.`,
 			);
 		},
@@ -154,16 +154,8 @@ export default function BatchOperationsPage() {
 				tenantId,
 			});
 			setSubmitError(trackedError);
-			setToastMessage(trackedError.message);
 		},
 	});
-
-	useEffect(() => {
-		if (toastMessage) {
-			const timer = setTimeout(() => setToastMessage(null), 5000);
-			return () => clearTimeout(timer);
-		}
-	}, [toastMessage]);
 
 	const addRequest = () => {
 		const newRequest: BatchRequest = {
@@ -434,15 +426,6 @@ export default function BatchOperationsPage() {
 					</Card>
 				)}
 			</div>
-
-			{toastMessage && (
-				<div className="fixed bottom-4 right-4 z-50">
-					<Alert>
-						<AlertTitle>Notification</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</PageShell>
 	);
 }

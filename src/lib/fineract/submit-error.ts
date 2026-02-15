@@ -1,9 +1,14 @@
-import type { FineractError } from "@/lib/fineract/error-mapping";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
+import {
+	getErrorMessages,
+	getFieldError as getUiFieldError,
+	groupFieldErrorsByField,
+	normalizeApiError,
+	type UiApiError,
+} from "@/lib/fineract/ui-api-error";
 
 export type SubmitMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
-export interface SubmitActionError extends FineractError {
+export interface SubmitActionError extends UiApiError {
 	action: string;
 	endpoint: string;
 	method: SubmitMethod;
@@ -23,21 +28,29 @@ function dedupeMessages(messages: string[]): string[] {
 }
 
 export function getSubmitErrorDetails(
-	error: Pick<FineractError, "details"> | null | undefined,
+	error: Pick<UiApiError, "fieldErrors"> | null | undefined,
 ): string[] {
-	if (!error?.details) {
-		return [];
-	}
+	return dedupeMessages(getErrorMessages(error));
+}
 
-	const detailMessages = Object.values(error.details).flat();
-	return dedupeMessages(detailMessages);
+export function getSubmitFieldError(
+	error: Pick<UiApiError, "fieldErrors"> | null | undefined,
+	field: string,
+): string | undefined {
+	return getUiFieldError(error as UiApiError | null | undefined, field);
+}
+
+export function getSubmitErrorsByField(
+	error: Pick<UiApiError, "fieldErrors"> | null | undefined,
+): Record<string, string[]> {
+	return groupFieldErrorsByField(error);
 }
 
 export function toSubmitActionError(
 	error: unknown,
 	context: SubmitActionContext,
 ): SubmitActionError {
-	const mapped = mapFineractError(error);
+	const mapped = normalizeApiError(error);
 	const trackedError: SubmitActionError = {
 		...mapped,
 		...context,

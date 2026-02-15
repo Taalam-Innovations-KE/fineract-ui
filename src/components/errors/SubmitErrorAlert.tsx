@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toastApiError } from "@/lib/fineract/error-toast";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { getSubmitErrorDetails } from "@/lib/fineract/submit-error";
 
@@ -11,6 +15,16 @@ export function SubmitErrorAlert({
 	error,
 	title = "Unable to complete request",
 }: SubmitErrorAlertProps) {
+	useEffect(() => {
+		if (!error) {
+			return;
+		}
+
+		toastApiError(error, {
+			title,
+		});
+	}, [error, title]);
+
 	if (!error) {
 		return null;
 	}

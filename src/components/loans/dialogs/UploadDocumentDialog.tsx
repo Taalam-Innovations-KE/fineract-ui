@@ -146,7 +146,7 @@ export function UploadDocumentDialog({
 					{
 						code: "VALIDATION_ERROR",
 						message: "Please select a file",
-						statusCode: 400,
+						status: 400,
 					},
 					{
 						action: "uploadLoanDocument",

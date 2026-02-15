@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -123,7 +124,7 @@ async function parseSubmitResponse<T>(
 ): Promise<T> {
 	const result = (await response.json().catch(() => ({
 		message: fallbackMessage,
-		statusCode: response.status,
+		status: response.status,
 	}))) as T;
 	if (!response.ok) {
 		throw result;
@@ -184,7 +185,6 @@ export default function AccountingRulesPage() {
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const rulesQuery = useQuery({
 		queryKey: ["accounting-rules", tenantId],
@@ -206,7 +206,7 @@ export default function AccountingRulesPage() {
 			setEditingRule(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Accounting rule created successfully");
+			toast.success("Accounting rule created successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -231,7 +231,7 @@ export default function AccountingRulesPage() {
 			setEditingRule(null);
 			setFormError(null);
 			setSubmitError(null);
-			setToastMessage("Accounting rule updated successfully");
+			toast.success("Accounting rule updated successfully");
 		},
 		onError: (error) => {
 			const trackedError = toSubmitActionError(error, {
@@ -252,7 +252,7 @@ export default function AccountingRulesPage() {
 				queryKey: ["accounting-rules", tenantId],
 			});
 			setSubmitError(null);
-			setToastMessage("Accounting rule deleted successfully");
+			toast.success("Accounting rule deleted successfully");
 		},
 		onError: (error, id) => {
 			setSubmitError(
@@ -265,12 +265,6 @@ export default function AccountingRulesPage() {
 			);
 		},
 	});
-
-	useEffect(() => {
-		if (!toastMessage) return;
-		const timeout = window.setTimeout(() => setToastMessage(null), 3000);
-		return () => window.clearTimeout(timeout);
-	}, [toastMessage]);
 
 	const template = templateQuery.data;
 	const rules = rulesQuery.data || [];
@@ -618,16 +612,6 @@ export default function AccountingRulesPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<Alert
-					variant="success"
-					className="fixed bottom-6 right-6 z-50 w-[320px]"
-				>
-					<AlertTitle>Success</AlertTitle>
-					<AlertDescription>{toastMessage}</AlertDescription>
-				</Alert>
-			)}
 		</>
 	);
 }

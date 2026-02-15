@@ -5,6 +5,7 @@ import { Banknote, Calendar, CreditCard, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import type {
 	GetLoanProductsResponse,
 	PostLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
 
 const LoanBookingWizard = dynamic(() =>
@@ -47,17 +49,8 @@ function hasDefinedId<T extends { id?: number | string }>(
 }
 
 function getQueryErrorStatusCode(error: unknown): number | null {
-	if (!error || typeof error !== "object") return null;
-	if ("status" in error && typeof error.status === "number") {
-		return error.status;
-	}
-	if ("statusCode" in error && typeof error.statusCode === "number") {
-		return error.statusCode;
-	}
-	if ("httpStatusCode" in error && typeof error.httpStatusCode === "number") {
-		return error.httpStatusCode;
-	}
-	return null;
+	const normalized = normalizeApiError(error);
+	return Number.isFinite(normalized.httpStatus) ? normalized.httpStatus : null;
 }
 
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
@@ -208,7 +201,7 @@ async function createLoan(tenantId: string, payload: PostLoansRequest) {
 
 	const data = await response.json().catch(() => ({
 		message: "Failed to create loan",
-		statusCode: response.status,
+		status: response.status,
 	}));
 
 	if (!response.ok) {
@@ -224,7 +217,6 @@ export default function LoansPage() {
 	const previousTenantIdRef = useRef(tenantId);
 	const [pageIndex, setPageIndex] = useState(0);
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	const loansQuery = useQuery({
 		queryKey: ["loans", tenantId, pageIndex, LOANS_PAGE_SIZE],
@@ -264,7 +256,7 @@ export default function LoansPage() {
 			queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
 			setPageIndex(0);
 			setIsDrawerOpen(false);
-			setToastMessage("Loan application submitted successfully");
+			toast.success("Loan application submitted successfully");
 		},
 	});
 
@@ -353,16 +345,6 @@ export default function LoansPage() {
 	const handleWizardSubmit = async (data: PostLoansRequest) => {
 		await createMutation.mutateAsync(data);
 	};
-
-	useEffect(() => {
-		if (!toastMessage) return;
-
-		const timeoutId = setTimeout(() => {
-			setToastMessage(null);
-		}, 3000);
-
-		return () => clearTimeout(timeoutId);
-	}, [toastMessage]);
 
 	useEffect(() => {
 		if (previousTenantIdRef.current !== tenantId) {
@@ -518,15 +500,6 @@ export default function LoansPage() {
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			{toastMessage && (
-				<div className="fixed bottom-6 right-6 z-50 w-[280px]">
-					<Alert variant="success">
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>{toastMessage}</AlertDescription>
-					</Alert>
-				</div>
-			)}
 		</>
 	);
 }

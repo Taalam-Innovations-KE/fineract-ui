@@ -32,7 +32,10 @@ import type {
 	WorkingDaysData,
 } from "@/lib/fineract/generated/types.gen";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	getSubmitErrorDetails,
+	toSubmitActionError,
+} from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type WorkingDaysForm = {
@@ -348,7 +351,7 @@ export default function WorkingDaysPage() {
 				endpoint: BFF_ROUTES.workingDays,
 				message: "Select at least one working day before saving.",
 				method: "PUT",
-				statusCode: 400,
+				status: 400,
 				timestamp: new Date().toISOString(),
 				tenantId,
 			});
@@ -432,16 +435,13 @@ export default function WorkingDaysPage() {
 						<AlertTitle>Failed to update working days</AlertTitle>
 						<AlertDescription className="space-y-2">
 							<p>{submitError.message}</p>
-							{submitError.details &&
-								Object.values(submitError.details).flat().length > 0 && (
-									<ul className="list-disc space-y-1 pl-5 text-xs">
-										{Array.from(
-											new Set(Object.values(submitError.details).flat()),
-										).map((message) => (
-											<li key={message}>{message}</li>
-										))}
-									</ul>
-								)}
+							{getSubmitErrorDetails(submitError).length > 0 && (
+								<ul className="list-disc space-y-1 pl-5 text-xs">
+									{getSubmitErrorDetails(submitError).map((message) => (
+										<li key={message}>{message}</li>
+									))}
+								</ul>
+							)}
 						</AlertDescription>
 					</Alert>
 				)}

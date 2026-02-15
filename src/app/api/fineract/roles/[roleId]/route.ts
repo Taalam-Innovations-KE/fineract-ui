@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { invalidRequestResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import { mapFineractError } from "@/lib/fineract/error-mapping";
 import type {
 	GetRolesResponse,
 	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
  * GET /api/fineract/roles/[roleId]
@@ -32,9 +33,9 @@ export async function GET(
 
 		return NextResponse.json(role);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -63,9 +64,9 @@ export async function PUT(
 
 		return NextResponse.json(role);
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -84,13 +85,8 @@ export async function POST(
 		const command = request.nextUrl.searchParams.get("command");
 
 		if (command !== "enable" && command !== "disable") {
-			return NextResponse.json(
-				{
-					code: "INVALID_REQUEST",
-					message: "Query parameter 'command' must be 'enable' or 'disable'.",
-					statusCode: 400,
-				},
-				{ status: 400 },
+			return invalidRequestResponse(
+				"Query parameter 'command' must be 'enable' or 'disable'.",
 			);
 		}
 
@@ -104,9 +100,9 @@ export async function POST(
 
 		return NextResponse.json(response ?? { success: true, command });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }
@@ -130,9 +126,9 @@ export async function DELETE(
 
 		return NextResponse.json({ success: true });
 	} catch (error) {
-		const mappedError = mapFineractError(error);
+		const mappedError = normalizeApiError(error);
 		return NextResponse.json(mappedError, {
-			status: mappedError.statusCode || 500,
+			status: mappedError.httpStatus || 500,
 		});
 	}
 }

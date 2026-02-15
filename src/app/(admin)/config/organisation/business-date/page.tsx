@@ -25,7 +25,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateStringToFormat, parseFineractDate } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import { getFieldError } from "@/lib/fineract/error-mapping";
 import type {
 	BusinessDateUpdateRequest,
 	BusinessDateUpdateResponse,
@@ -36,6 +35,7 @@ import {
 	type SubmitActionError,
 	toSubmitActionError,
 } from "@/lib/fineract/submit-error";
+import { getFieldError } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
 
 const DATE_FORMAT = "dd MMMM yyyy";

@@ -156,7 +156,6 @@ export function LoanCommandDialog({
 	const schema = getCommandSchema(commandType);
 
 	const form = useForm<CommandFormData>({
-		// @ts-expect-error - Resolver type incompatibility with union schema types
 		resolver: zodResolver(schema),
 		defaultValues: getDefaultValues(commandType),
 		// biome-ignore lint/suspicious/noExplicitAny: Union schema type inference issue

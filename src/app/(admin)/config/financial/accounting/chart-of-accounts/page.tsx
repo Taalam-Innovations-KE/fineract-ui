@@ -88,6 +88,10 @@ const DEFAULT_FORM: FormState = {
 	tagId: "none",
 };
 
+function isXlsTemplateFile(file: File) {
+	return file.name.toLowerCase().endsWith(".xls");
+}
+
 function AccountsTableSkeleton() {
 	return (
 		<div className="space-y-2">
@@ -590,11 +594,17 @@ export default function ChartOfAccountsPage() {
 			setUploadError("Please choose a template file first");
 			return;
 		}
+		if (!isXlsTemplateFile(uploadFile)) {
+			setUploadError(
+				"Only .xls files are supported for chart of accounts template upload",
+			);
+			return;
+		}
 
 		try {
 			setUploadError(null);
 			const payload = new FormData();
-			payload.append("uploadedInputStream", uploadFile);
+			payload.append("file", uploadFile);
 			payload.append("locale", "en");
 			payload.append("dateFormat", "dd MMMM yyyy");
 
@@ -854,10 +864,26 @@ export default function ChartOfAccountsPage() {
 										id="upload-template"
 										key={uploadInputKey}
 										type="file"
-										accept=".xls,.xlsx"
-										onChange={(event) =>
-											setUploadFile(event.target.files?.[0] || null)
-										}
+										accept=".xls"
+										onChange={(event) => {
+											const selectedFile = event.target.files?.[0] || null;
+											if (!selectedFile) {
+												setUploadFile(null);
+												setUploadError(null);
+												return;
+											}
+
+											if (!isXlsTemplateFile(selectedFile)) {
+												setUploadFile(null);
+												setUploadError(
+													"Only .xls files are supported for chart of accounts template upload",
+												);
+												return;
+											}
+
+											setUploadError(null);
+											setUploadFile(selectedFile);
+										}}
 									/>
 								</div>
 								<div className="flex items-center gap-2">

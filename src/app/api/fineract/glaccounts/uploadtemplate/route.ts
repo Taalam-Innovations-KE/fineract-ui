@@ -47,22 +47,28 @@ export async function POST(request: NextRequest) {
 	try {
 		const { authorization, tenantId } = await resolveAuthHeaders(request);
 		const formData = await request.formData();
-		const uploadedFile =
-			(formData.get("uploadedInputStream") as File | null) ||
-			(formData.get("file") as File | null);
+		const fileEntry =
+			formData.get("file") || formData.get("uploadedInputStream");
+		const file = fileEntry instanceof File ? fileEntry : null;
 		const locale = (formData.get("locale") as string | null) || "en";
 		const dateFormat =
 			(formData.get("dateFormat") as string | null) || "dd MMMM yyyy";
 
-		if (!uploadedFile) {
+		if (!file) {
 			return NextResponse.json(
 				{ message: "Template file is required" },
 				{ status: 400 },
 			);
 		}
+		if (file.size === 0) {
+			return NextResponse.json(
+				{ message: "Template file is empty" },
+				{ status: 400 },
+			);
+		}
 
 		const fineractFormData = new FormData();
-		fineractFormData.append("uploadedInputStream", uploadedFile);
+		fineractFormData.append("file", file, file.name);
 		fineractFormData.append("locale", locale);
 		fineractFormData.append("dateFormat", dateFormat);
 

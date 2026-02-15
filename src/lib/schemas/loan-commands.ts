@@ -56,6 +56,10 @@ export const loanWithdrawalSchema = z.object({
 	note: z.string().optional(),
 });
 
+export const loanUndoApprovalSchema = z.object({
+	note: z.string().optional(),
+});
+
 export const LOAN_TRANSACTION_COMMANDS = [
 	"repayment",
 	"merchantIssuedRefund",
@@ -100,6 +104,7 @@ export type LoanApprovalFormData = z.infer<typeof loanApprovalSchema>;
 export type LoanDisbursementFormData = z.infer<typeof loanDisbursementSchema>;
 export type LoanRejectionFormData = z.infer<typeof loanRejectionSchema>;
 export type LoanWithdrawalFormData = z.infer<typeof loanWithdrawalSchema>;
+export type LoanUndoApprovalFormData = z.infer<typeof loanUndoApprovalSchema>;
 export type LoanTransactionCommand = z.infer<
 	typeof loanTransactionCommandSchema
 >;

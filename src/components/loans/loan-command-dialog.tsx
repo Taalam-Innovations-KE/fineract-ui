@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 	Form,
@@ -40,21 +41,29 @@ import {
 	type LoanApprovalFormData,
 	type LoanDisbursementFormData,
 	type LoanRejectionFormData,
+	type LoanUndoApprovalFormData,
 	type LoanWithdrawalFormData,
 	loanApprovalSchema,
 	loanDisbursementSchema,
 	loanRejectionSchema,
+	loanUndoApprovalSchema,
 	loanWithdrawalSchema,
 } from "@/lib/schemas/loan-commands";
 import { useTenantStore } from "@/store/tenant";
 
-type CommandType = "approve" | "disburse" | "reject" | "withdraw";
+type CommandType =
+	| "approve"
+	| "disburse"
+	| "reject"
+	| "withdraw"
+	| "undoApproval";
 
 type CommandFormData =
 	| LoanApprovalFormData
 	| LoanDisbursementFormData
 	| LoanRejectionFormData
-	| LoanWithdrawalFormData;
+	| LoanWithdrawalFormData
+	| LoanUndoApprovalFormData;
 
 interface LoanCommandDialogProps {
 	open: boolean;
@@ -74,6 +83,8 @@ function getCommandTitle(commandType: CommandType): string {
 			return "Reject Loan";
 		case "withdraw":
 			return "Withdraw Loan";
+		case "undoApproval":
+			return "Undo Approval";
 		default:
 			return "Loan Command";
 	}
@@ -89,6 +100,8 @@ function getCommandDescription(commandType: CommandType): string {
 			return "Reject this loan application.";
 		case "withdraw":
 			return "Allow the applicant to withdraw from this loan application.";
+		case "undoApproval":
+			return "Move this loan back to submitted and pending approval.";
 		default:
 			return "";
 	}
@@ -104,6 +117,8 @@ function getCommandSchema(commandType: CommandType) {
 			return loanRejectionSchema;
 		case "withdraw":
 			return loanWithdrawalSchema;
+		case "undoApproval":
+			return loanUndoApprovalSchema;
 	}
 }
 
@@ -118,6 +133,8 @@ function getDefaultValues(commandType: CommandType): Partial<CommandFormData> {
 			return { rejectedOnDate: today };
 		case "withdraw":
 			return { withdrawnOnDate: today };
+		case "undoApproval":
+			return {};
 		default:
 			return {};
 	}
@@ -167,7 +184,10 @@ export function LoanCommandDialog({
 
 	const commandMutation = useMutation({
 		mutationFn: async (data: CommandFormData) => {
-			const response = await fetch(`${BFF_ROUTES.loans}/${loanId}`, {
+			const endpoint = `${BFF_ROUTES.loans}/${loanId}${
+				commandType === "undoApproval" ? "?command=undoapproval" : ""
+			}`;
+			const response = await fetch(endpoint, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",
@@ -200,10 +220,13 @@ export function LoanCommandDialog({
 			onSuccess?.();
 		},
 		onError: (error) => {
+			const endpoint = `${BFF_ROUTES.loans}/${loanId}${
+				commandType === "undoApproval" ? "?command=undoapproval" : ""
+			}`;
 			setSubmitError(
 				toSubmitActionError(error, {
 					action: `loan:${commandType}`,
-					endpoint: `${BFF_ROUTES.loans}/${loanId}`,
+					endpoint,
 					method: "PUT",
 					tenantId,
 				}),
@@ -498,6 +521,35 @@ export function LoanCommandDialog({
 									<FormControl>
 										<Textarea
 											placeholder="Reason for withdrawal..."
+											className="resize-none"
+											{...field}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+					</>
+				);
+			case "undoApproval":
+				return (
+					<>
+						<Alert variant="warning">
+							<AlertTitle>Confirm undo approval</AlertTitle>
+							<AlertDescription>
+								This will move the loan from approved back to submitted and
+								pending approval.
+							</AlertDescription>
+						</Alert>
+						<FormField
+							control={form.control}
+							name="note"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>Note (Optional)</FormLabel>
+									<FormControl>
+										<Textarea
+											placeholder="Reason for undo approval..."
 											className="resize-none"
 											{...field}
 										/>

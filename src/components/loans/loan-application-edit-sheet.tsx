@@ -17,6 +17,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateStringToFormat } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsResponse,
@@ -146,6 +147,22 @@ function mapLoanToInitialValues(
 	};
 }
 
+function inferLoanType(
+	loanType: GetLoansLoanIdResponse["loanType"],
+): PostLoansRequest["loanType"] {
+	const signature =
+		`${loanType?.code || ""} ${loanType?.description || ""}`.toLowerCase();
+	if (signature.includes("jlg")) return "jlg";
+	if (signature.includes("group")) return "group";
+	return "individual";
+}
+
+function toFineractDateValue(value: unknown): string | undefined {
+	const dateInput = toDateInputValue(value);
+	if (!dateInput) return undefined;
+	return formatDateStringToFormat(dateInput, "dd MMMM yyyy");
+}
+
 function EditWizardSkeleton() {
 	return (
 		<div className="space-y-6">
@@ -202,6 +219,84 @@ export function LoanApplicationEditSheet({
 		() => mapLoanToInitialValues(loanForEdit),
 		[loanForEdit],
 	);
+	const submissionDefaults = useMemo(
+		() => ({
+			loanType: inferLoanType(loanForEdit.loanType),
+			interestType: loanForEdit.interestType?.id,
+			interestCalculationPeriodType:
+				loanForEdit.interestCalculationPeriodType?.id,
+			amortizationType: loanForEdit.amortizationType?.id,
+			transactionProcessingStrategyCode:
+				loanForEdit.transactionProcessingStrategyCode,
+		}),
+		[loanForEdit],
+	);
+	const basePayload = useMemo<Partial<PostLoansRequest>>(() => {
+		const dynamicLoan = loanForEdit as Record<string, unknown>;
+		return {
+			clientId: loanForEdit.clientId,
+			productId: loanForEdit.loanProductId,
+			principal: loanForEdit.principal,
+			numberOfRepayments: loanForEdit.numberOfRepayments,
+			interestRatePerPeriod: loanForEdit.interestRatePerPeriod,
+			loanTermFrequency:
+				loanForEdit.termFrequency || loanForEdit.numberOfRepayments,
+			loanTermFrequencyType:
+				loanForEdit.termPeriodFrequencyType?.id ||
+				loanForEdit.repaymentFrequencyType?.id,
+			repaymentEvery: loanForEdit.repaymentEvery,
+			repaymentFrequencyType: loanForEdit.repaymentFrequencyType?.id,
+			submittedOnDate: toFineractDateValue(
+				loanForEdit.timeline?.submittedOnDate,
+			),
+			expectedDisbursementDate: toFineractDateValue(
+				loanForEdit.timeline?.expectedDisbursementDate,
+			),
+			repaymentsStartingFromDate: toFineractDateValue(
+				dynamicLoan.repaymentsStartingFromDate,
+			),
+			externalId: loanForEdit.externalId,
+			graceOnPrincipalPayment: loanForEdit.graceOnPrincipalPayment,
+			graceOnInterestPayment: loanForEdit.graceOnInterestPayment,
+			graceOnInterestCharged: loanForEdit.graceOnInterestCharged,
+			graceOnArrearsAgeing: loanForEdit.graceOnArrearsAgeing,
+			enableDownPayment: loanForEdit.enableDownPayment,
+			disbursedAmountPercentageForDownPayment:
+				loanForEdit.disbursedAmountPercentageForDownPayment,
+			enableAutoRepaymentForDownPayment:
+				loanForEdit.enableAutoRepaymentForDownPayment,
+			maxOutstandingLoanBalance: loanForEdit.summary?.maxOutstandingLoanBalance,
+			disbursementData:
+				loanForEdit.disbursementDetails
+					?.map((item) => ({
+						principal: item.principal,
+						expectedDisbursementDate: toFineractDateValue(
+							item.expectedDisbursementDate,
+						),
+					}))
+					.filter(
+						(item) =>
+							typeof item.principal === "number" &&
+							Boolean(item.expectedDisbursementDate),
+					) || [],
+			charges:
+				loanForEdit.charges
+					?.map((charge) => ({
+						chargeId: charge.chargeId || charge.id,
+						amount: charge.amount,
+					}))
+					.filter((charge) => typeof charge.chargeId === "number") || [],
+			loanType: inferLoanType(loanForEdit.loanType),
+			interestType: loanForEdit.interestType?.id,
+			interestCalculationPeriodType:
+				loanForEdit.interestCalculationPeriodType?.id,
+			amortizationType: loanForEdit.amortizationType?.id,
+			transactionProcessingStrategyCode:
+				loanForEdit.transactionProcessingStrategyCode,
+			dateFormat: "dd MMMM yyyy",
+			locale: "en",
+		};
+	}, [loanForEdit]);
 
 	const clientsQuery = useQuery({
 		queryKey: ["loan-edit-clients", tenantId],
@@ -321,6 +416,8 @@ export function LoanApplicationEditSheet({
 							loanId={loanForEdit.id}
 							initialValues={initialValues}
 							lockClientProductSelection
+							submissionDefaults={submissionDefaults}
+							basePayload={basePayload}
 							onSubmit={(payload) => updateMutation.mutateAsync(payload)}
 							onCancel={() => onOpenChange(false)}
 						/>

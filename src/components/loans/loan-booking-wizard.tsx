@@ -77,6 +77,15 @@ interface ProductCharge {
 
 export type LoanBookingMode = "create" | "edit";
 
+type LoanSubmissionDefaults = Pick<
+	PostLoansRequest,
+	| "loanType"
+	| "interestType"
+	| "interestCalculationPeriodType"
+	| "amortizationType"
+	| "transactionProcessingStrategyCode"
+>;
+
 interface LoanBookingWizardProps {
 	clients: Client[];
 	products: LoanProduct[];
@@ -87,6 +96,8 @@ interface LoanBookingWizardProps {
 	loanId?: number;
 	initialValues?: Partial<LoanApplicationInput>;
 	lockClientProductSelection?: boolean;
+	submissionDefaults?: Partial<LoanSubmissionDefaults>;
+	basePayload?: Partial<PostLoansRequest>;
 }
 
 const STEPS = [
@@ -145,6 +156,8 @@ export function LoanBookingWizard({
 	loanId,
 	initialValues,
 	lockClientProductSelection = false,
+	submissionDefaults,
+	basePayload,
 }: LoanBookingWizardProps) {
 	const { tenantId } = useTenantStore();
 	const initialFormValues = useMemo(
@@ -160,6 +173,23 @@ export function LoanBookingWizard({
 	const [selectedProduct, setSelectedProduct] = useState<LoanProduct | null>(
 		null,
 	);
+	const resolvedSubmissionDefaults = useMemo(() => {
+		const createDefaults: Partial<LoanSubmissionDefaults> =
+			mode === "create"
+				? {
+						loanType: "individual",
+						interestType: 1,
+						interestCalculationPeriodType: 1,
+						amortizationType: 1,
+						transactionProcessingStrategyCode: "mifos-standard-strategy",
+					}
+				: {};
+
+		return {
+			...createDefaults,
+			...submissionDefaults,
+		};
+	}, [mode, submissionDefaults]);
 
 	// Fetch product details when product is selected
 	const productDetailQuery = useQuery({
@@ -349,81 +379,139 @@ export function LoanBookingWizard({
 			}
 
 			const formData = getValues();
+			const isFieldChanged = <TField extends keyof LoanApplicationInput>(
+				field: TField,
+			) =>
+				mode === "create" ||
+				JSON.stringify(formData[field]) !==
+					JSON.stringify(initialFormValues[field]);
 
 			// Build the payload
-			const payload: PostLoansRequest = {
-				clientId: formData.clientId,
-				productId: formData.productId,
-				principal: formData.principal,
-				numberOfRepayments: formData.numberOfRepayments,
-				interestRatePerPeriod: formData.interestRatePerPeriod,
-				loanTermFrequency:
-					formData.loanTermFrequency || formData.numberOfRepayments,
-				loanTermFrequencyType:
-					formData.loanTermFrequencyType || formData.repaymentFrequencyType,
-				repaymentEvery: formData.repaymentEvery || 1,
-				repaymentFrequencyType: formData.repaymentFrequencyType,
-				expectedDisbursementDate: formatDateStringToFormat(
+			const payload: PostLoansRequest =
+				mode === "edit" ? { ...(basePayload || {}) } : {};
+
+			if (isFieldChanged("clientId")) {
+				payload.clientId = formData.clientId;
+			}
+			if (isFieldChanged("productId")) {
+				payload.productId = formData.productId;
+			}
+			if (isFieldChanged("principal")) {
+				payload.principal = formData.principal;
+			}
+			if (isFieldChanged("numberOfRepayments")) {
+				payload.numberOfRepayments = formData.numberOfRepayments;
+			}
+			if (isFieldChanged("interestRatePerPeriod")) {
+				payload.interestRatePerPeriod = formData.interestRatePerPeriod;
+			}
+			if (
+				isFieldChanged("loanTermFrequency") ||
+				isFieldChanged("numberOfRepayments")
+			) {
+				payload.loanTermFrequency =
+					formData.loanTermFrequency || formData.numberOfRepayments;
+			}
+			if (
+				isFieldChanged("loanTermFrequencyType") ||
+				isFieldChanged("repaymentFrequencyType")
+			) {
+				payload.loanTermFrequencyType =
+					formData.loanTermFrequencyType || formData.repaymentFrequencyType;
+			}
+			if (isFieldChanged("repaymentEvery")) {
+				payload.repaymentEvery = formData.repaymentEvery || 1;
+			}
+			if (isFieldChanged("repaymentFrequencyType")) {
+				payload.repaymentFrequencyType = formData.repaymentFrequencyType;
+			}
+			if (isFieldChanged("expectedDisbursementDate")) {
+				payload.expectedDisbursementDate = formatDateStringToFormat(
 					formData.expectedDisbursementDate,
 					"dd MMMM yyyy",
-				),
-				submittedOnDate: formatDateStringToFormat(
+				);
+			}
+			if (isFieldChanged("submittedOnDate")) {
+				payload.submittedOnDate = formatDateStringToFormat(
 					formData.submittedOnDate,
 					"dd MMMM yyyy",
-				),
-				dateFormat: "dd MMMM yyyy",
-				locale: "en",
-			};
+				);
+			}
 
-			if (mode === "create") {
-				payload.loanType = "individual";
-				payload.interestType = 1;
-				payload.interestCalculationPeriodType = 1;
-				payload.amortizationType = 1;
-				payload.transactionProcessingStrategyCode = "mifos-standard-strategy";
+			payload.loanType = resolvedSubmissionDefaults.loanType || "individual";
+			if (resolvedSubmissionDefaults.interestType !== undefined) {
+				payload.interestType = resolvedSubmissionDefaults.interestType;
+			}
+			if (
+				resolvedSubmissionDefaults.interestCalculationPeriodType !== undefined
+			) {
+				payload.interestCalculationPeriodType =
+					resolvedSubmissionDefaults.interestCalculationPeriodType;
+			}
+			if (resolvedSubmissionDefaults.amortizationType !== undefined) {
+				payload.amortizationType = resolvedSubmissionDefaults.amortizationType;
+			}
+			if (
+				resolvedSubmissionDefaults.transactionProcessingStrategyCode !==
+				undefined
+			) {
+				payload.transactionProcessingStrategyCode =
+					resolvedSubmissionDefaults.transactionProcessingStrategyCode;
 			}
 
 			// Add optional fields
-			if (formData.externalId) {
-				payload.externalId = formData.externalId;
+			if (isFieldChanged("externalId")) {
+				payload.externalId = formData.externalId || undefined;
 			}
 
-			if (formData.repaymentsStartingFromDate) {
+			if (
+				isFieldChanged("repaymentsStartingFromDate") &&
+				formData.repaymentsStartingFromDate
+			) {
 				payload.repaymentsStartingFromDate = formatDateStringToFormat(
 					formData.repaymentsStartingFromDate,
 					"dd MMMM yyyy",
 				);
+			} else if (
+				isFieldChanged("repaymentsStartingFromDate") &&
+				mode === "edit"
+			) {
+				payload.repaymentsStartingFromDate = undefined;
 			}
 			// Grace periods
-			if (formData.graceOnPrincipalPayment) {
+			if (isFieldChanged("graceOnPrincipalPayment")) {
 				payload.graceOnPrincipalPayment = formData.graceOnPrincipalPayment;
 			}
-			if (formData.graceOnInterestPayment) {
+			if (isFieldChanged("graceOnInterestPayment")) {
 				payload.graceOnInterestPayment = formData.graceOnInterestPayment;
 			}
-			if (formData.graceOnInterestCharged) {
+			if (isFieldChanged("graceOnInterestCharged")) {
 				payload.graceOnInterestCharged = formData.graceOnInterestCharged;
 			}
-			if (formData.graceOnArrearsAgeing) {
+			if (isFieldChanged("graceOnArrearsAgeing")) {
 				payload.graceOnArrearsAgeing = formData.graceOnArrearsAgeing;
 			}
 
 			// Advanced options
-			if (formData.enableDownPayment !== undefined) {
+			if (isFieldChanged("enableDownPayment")) {
 				payload.enableDownPayment = formData.enableDownPayment;
 			}
-			if (formData.disbursedAmountPercentageForDownPayment !== undefined) {
+			if (isFieldChanged("disbursedAmountPercentageForDownPayment")) {
 				payload.disbursedAmountPercentageForDownPayment =
 					formData.disbursedAmountPercentageForDownPayment;
 			}
-			if (formData.enableAutoRepaymentForDownPayment !== undefined) {
+			if (isFieldChanged("enableAutoRepaymentForDownPayment")) {
 				payload.enableAutoRepaymentForDownPayment =
 					formData.enableAutoRepaymentForDownPayment;
 			}
-			if (formData.maxOutstandingLoanBalance !== undefined) {
+			if (isFieldChanged("maxOutstandingLoanBalance")) {
 				payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
 			}
-			if (formData.disbursementData && formData.disbursementData.length > 0) {
+			if (
+				isFieldChanged("disbursementData") &&
+				formData.disbursementData &&
+				formData.disbursementData.length > 0
+			) {
 				payload.disbursementData = formData.disbursementData.map((item) => ({
 					principal: item.principal,
 					expectedDisbursementDate: formatDateStringToFormat(
@@ -431,15 +519,20 @@ export function LoanBookingWizard({
 						"dd MMMM yyyy",
 					),
 				}));
+			} else if (isFieldChanged("disbursementData") && mode === "edit") {
+				payload.disbursementData = [];
 			}
 
 			// Charges
-			if (formData.charges && formData.charges.length > 0) {
+			if (isFieldChanged("charges") && formData.charges) {
 				payload.charges = formData.charges.map((c) => ({
 					chargeId: c.chargeId,
 					amount: c.amount,
 				}));
 			}
+
+			payload.dateFormat = "dd MMMM yyyy";
+			payload.locale = "en";
 
 			await onSubmit(payload);
 			if (mode === "create") {

@@ -238,7 +238,7 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	const [commandDialog, setCommandDialog] = useState<{
 		open: boolean;
-		type: "approve" | "disburse" | "reject" | "withdraw";
+		type: "approve" | "disburse" | "reject" | "withdraw" | "undoApproval";
 	}>({ open: false, type: "approve" });
 	const [editSheetOpen, setEditSheetOpen] = useState(false);
 	const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
@@ -526,6 +526,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				</DropdownMenu>
 			)}
 
+			{loan?.status?.pendingApproval && (
+				<Button variant="outline" onClick={() => setEditSheetOpen(true)}>
+					<Pencil className="w-4 h-4 mr-2" />
+					Edit Application
+				</Button>
+			)}
+
 			<Button variant="outline" onClick={() => router.back()}>
 				<ArrowLeft className="w-4 h-4 mr-2" />
 				Back to Loans
@@ -752,16 +759,6 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 										Approve
 									</Button>
 								)}
-								{availableActions.includes("edit") && (
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => setEditSheetOpen(true)}
-									>
-										<Pencil className="w-4 h-4 mr-2" />
-										Edit Application
-									</Button>
-								)}
 								{availableActions.includes("disburse") && (
 									<Button
 										size="sm"
@@ -771,6 +768,17 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 									>
 										<DollarSign className="w-4 h-4 mr-2" />
 										Disburse
+									</Button>
+								)}
+								{availableActions.includes("undoApproval") && (
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() =>
+											setCommandDialog({ open: true, type: "undoApproval" })
+										}
+									>
+										Undo Approval
 									</Button>
 								)}
 								{availableActions.includes("reject") && (

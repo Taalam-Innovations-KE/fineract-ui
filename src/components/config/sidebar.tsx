@@ -187,6 +187,11 @@ const navItems: NavItem[] = [
 		children: [
 			{ title: "Code Registry", href: "/config/system/codes", icon: Settings },
 			{
+				title: "Payment Types",
+				href: "/config/system/payment-types",
+				icon: Banknote,
+			},
+			{
 				title: "Global Configuration",
 				href: "/config/system/global",
 				icon: Globe,

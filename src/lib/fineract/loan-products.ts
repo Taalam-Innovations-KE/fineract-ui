@@ -283,6 +283,15 @@ export function buildLoanProductRequest(
 			? data.supportedInterestRefundTypes
 			: undefined;
 
+	const paymentChannelToFundSourceMappings =
+		data.accountingRule >= 2 &&
+		data.paymentChannelToFundSourceMappings.length > 0
+			? data.paymentChannelToFundSourceMappings.map((mapping) => ({
+					paymentTypeId: mapping.paymentTypeId,
+					fundSourceAccountId: mapping.fundSourceAccountId,
+				}))
+			: undefined;
+
 	const supportsChargeOffBehaviour = data.loanScheduleType === "PROGRESSIVE";
 
 	const chargeOffReasonToExpenseAccountMappings =
@@ -416,6 +425,7 @@ export function buildLoanProductRequest(
 		supportedInterestRefundTypes,
 		paymentAllocation,
 		creditAllocation,
+		paymentChannelToFundSourceMappings,
 		accountingRule: data.accountingRule,
 		fundSourceAccountId: data.fundSourceAccountId,
 		loanPortfolioAccountId: data.loanPortfolioAccountId,

@@ -77,6 +77,13 @@ type SavingsAccountingMappingRow = {
 	name: string | undefined;
 };
 
+type SavingsPaymentChannelMappingRow = {
+	paymentTypeId: number;
+	paymentTypeName: string;
+	fundSourceAccountId: number;
+	fundSourceAccountName: string;
+};
+
 function getMappingRows(product: GetSavingsProductsProductIdResponse) {
 	const mappingObject = readUnknownProperty(product, "accountingMappings");
 	if (!mappingObject || typeof mappingObject !== "object") {
@@ -109,6 +116,33 @@ function getMappingRows(product: GetSavingsProductsProductIdResponse) {
 			};
 		})
 		.filter((row): row is SavingsAccountingMappingRow => row !== null);
+}
+
+function getPaymentChannelMappingRows(
+	product: GetSavingsProductsProductIdResponse,
+) {
+	return (product.paymentChannelToFundSourceMappings || [])
+		.map((mapping) => {
+			const paymentTypeId = mapping.paymentType?.id;
+			const fundSourceAccountId = mapping.fundSourceAccount?.id;
+			if (
+				typeof paymentTypeId !== "number" ||
+				typeof fundSourceAccountId !== "number"
+			) {
+				return null;
+			}
+
+			return {
+				paymentTypeId,
+				paymentTypeName:
+					mapping.paymentType?.name || `Payment Type #${paymentTypeId}`,
+				fundSourceAccountId,
+				fundSourceAccountName:
+					mapping.fundSourceAccount?.name ||
+					`Fund Source #${fundSourceAccountId}`,
+			};
+		})
+		.filter((row): row is SavingsPaymentChannelMappingRow => row !== null);
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -202,6 +236,10 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 
 	const mappingRows = useMemo(
 		() => (product ? getMappingRows(product) : []),
+		[product],
+	);
+	const paymentChannelMappingRows = useMemo(
+		() => (product ? getPaymentChannelMappingRows(product) : []),
 		[product],
 	);
 
@@ -448,6 +486,34 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 								))}
 							</div>
 						)}
+
+						<div className="mt-6">
+							<div className="text-sm font-medium text-muted-foreground mb-2">
+								Payment Channel to Fund Source
+							</div>
+							{paymentChannelMappingRows.length === 0 ? (
+								<div className="text-sm text-muted-foreground">
+									No payment channel mappings configured.
+								</div>
+							) : (
+								<div className="space-y-2">
+									{paymentChannelMappingRows.map((mapping) => (
+										<div
+											key={`${mapping.paymentTypeId}-${mapping.fundSourceAccountId}`}
+											className="flex items-center justify-between rounded-sm border p-3"
+										>
+											<div className="text-sm text-muted-foreground">
+												{mapping.paymentTypeName} (#{mapping.paymentTypeId})
+											</div>
+											<div className="text-sm font-medium text-right">
+												{mapping.fundSourceAccountName} (#
+												{mapping.fundSourceAccountId})
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 

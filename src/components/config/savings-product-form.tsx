@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Resolver } from "react-hook-form";
 import { useForm, useFormContext } from "react-hook-form";
@@ -19,6 +20,7 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -274,8 +276,11 @@ export function SavingsProductForm({
 		feesReceivableAccountId: undefined,
 		penaltiesReceivableAccountId: undefined,
 		interestPayableAccountId: undefined,
+		paymentChannelToFundSourceMappings: [],
 		...initialData,
 		charges: initialData?.charges ?? [],
+		paymentChannelToFundSourceMappings:
+			initialData?.paymentChannelToFundSourceMappings ?? [],
 	};
 
 	const form = useForm<SavingsProductFormData>({
@@ -316,6 +321,10 @@ export function SavingsProductForm({
 	);
 	const chargeOptions = useMemo(
 		() => template?.chargeOptions || [],
+		[template],
+	);
+	const paymentTypeOptions = useMemo(
+		() => template?.paymentTypeOptions || [],
 		[template],
 	);
 
@@ -408,6 +417,80 @@ export function SavingsProductForm({
 
 	const requiresCashMappings = accountingRule >= 2;
 	const requiresAccrualMappings = accountingRule >= 3;
+	const paymentChannelMappings =
+		form.watch("paymentChannelToFundSourceMappings") || [];
+
+	const setPaymentChannelMappings = (
+		nextMappings: SavingsProductFormData["paymentChannelToFundSourceMappings"],
+	) => {
+		form.setValue("paymentChannelToFundSourceMappings", nextMappings, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
+	};
+
+	const addPaymentChannelMapping = () => {
+		if (paymentTypeOptions.length === 0 || assetAccountOptions.length === 0) {
+			return;
+		}
+
+		const typedPaymentTypeOptions = paymentTypeOptions.filter(
+			(option): option is { id: number; name?: string; description?: string } =>
+				typeof option.id === "number",
+		);
+		if (typedPaymentTypeOptions.length === 0) {
+			return;
+		}
+
+		const usedPaymentTypeIds = new Set(
+			paymentChannelMappings.map((mapping) => mapping.paymentTypeId),
+		);
+		const nextPaymentTypeId =
+			typedPaymentTypeOptions.find(
+				(option) => !usedPaymentTypeIds.has(option.id),
+			)?.id || typedPaymentTypeOptions[0]?.id;
+		const nextFundSourceAccountId =
+			form.getValues("savingsReferenceAccountId") || assetAccountOptions[0]?.id;
+
+		if (
+			typeof nextPaymentTypeId !== "number" ||
+			typeof nextFundSourceAccountId !== "number"
+		) {
+			return;
+		}
+
+		setPaymentChannelMappings([
+			...paymentChannelMappings,
+			{
+				paymentTypeId: nextPaymentTypeId,
+				fundSourceAccountId: nextFundSourceAccountId,
+			},
+		]);
+	};
+
+	const updatePaymentChannelMapping = (
+		index: number,
+		field: "paymentTypeId" | "fundSourceAccountId",
+		value: number,
+	) => {
+		const nextMappings = [...paymentChannelMappings];
+		const mapping = nextMappings[index];
+		if (!mapping) {
+			return;
+		}
+
+		nextMappings[index] = {
+			...mapping,
+			[field]: value,
+		};
+		setPaymentChannelMappings(nextMappings);
+	};
+
+	const removePaymentChannelMapping = (index: number) => {
+		setPaymentChannelMappings(
+			paymentChannelMappings.filter((_, rowIndex) => rowIndex !== index),
+		);
+	};
 
 	const handleSubmit = async (values: SavingsProductFormData) => {
 		setIsSubmitting(true);
@@ -682,6 +765,143 @@ export function SavingsProductForm({
 										placeholder="Select expense account"
 										required={true}
 									/>
+								</div>
+								<div className="space-y-3 rounded-sm border border-border/60 p-3">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<p className="text-sm font-medium">
+												Payment Channel to Fund Source Mappings
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Map payment types to fund source accounts for this
+												savings product.
+											</p>
+										</div>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={addPaymentChannelMapping}
+											disabled={
+												paymentTypeOptions.length === 0 ||
+												assetAccountOptions.length === 0
+											}
+										>
+											<Plus className="h-3.5 w-3.5 mr-1.5" />
+											Add Mapping
+										</Button>
+									</div>
+									{paymentTypeOptions.length === 0 ? (
+										<p className="text-xs text-muted-foreground">
+											No payment types are available in the template.
+										</p>
+									) : paymentChannelMappings.length === 0 ? (
+										<p className="text-xs text-muted-foreground">
+											No payment channel mappings configured.
+										</p>
+									) : (
+										<div className="space-y-3">
+											{paymentChannelMappings.map((mapping, index) => (
+												<div
+													key={`savings-payment-channel-mapping-${mapping.paymentTypeId}-${mapping.fundSourceAccountId}-${index}`}
+													className="grid gap-3 rounded-sm border border-border/60 p-3 md:grid-cols-[1fr_1fr_auto]"
+												>
+													<div className="space-y-2">
+														<Label htmlFor={`paymentTypeId-${index}`}>
+															Payment Type
+														</Label>
+														<Select
+															value={String(mapping.paymentTypeId)}
+															onValueChange={(value) =>
+																updatePaymentChannelMapping(
+																	index,
+																	"paymentTypeId",
+																	Number(value),
+																)
+															}
+														>
+															<SelectTrigger id={`paymentTypeId-${index}`}>
+																<SelectValue placeholder="Select payment type" />
+															</SelectTrigger>
+															<SelectContent>
+																{paymentTypeOptions
+																	.filter(
+																		(
+																			option,
+																		): option is {
+																			id: number;
+																			name?: string;
+																			description?: string;
+																		} => typeof option.id === "number",
+																	)
+																	.map((option) => (
+																		<SelectItem
+																			key={option.id}
+																			value={String(option.id)}
+																		>
+																			{option.name ||
+																				option.description ||
+																				`Payment Type #${option.id}`}
+																		</SelectItem>
+																	))}
+															</SelectContent>
+														</Select>
+													</div>
+													<div className="space-y-2">
+														<Label htmlFor={`fundSourceAccountId-${index}`}>
+															Fund Source Account
+														</Label>
+														<Select
+															value={String(mapping.fundSourceAccountId)}
+															onValueChange={(value) =>
+																updatePaymentChannelMapping(
+																	index,
+																	"fundSourceAccountId",
+																	Number(value),
+																)
+															}
+														>
+															<SelectTrigger
+																id={`fundSourceAccountId-${index}`}
+															>
+																<SelectValue placeholder="Select account" />
+															</SelectTrigger>
+															<SelectContent>
+																{assetAccountOptions.map((option) => (
+																	<SelectItem
+																		key={option.id}
+																		value={String(option.id)}
+																	>
+																		{getOptionLabel(option)}
+																	</SelectItem>
+																))}
+															</SelectContent>
+														</Select>
+													</div>
+													<div className="flex items-end">
+														<Button
+															type="button"
+															size="icon-sm"
+															variant="outline"
+															onClick={() => removePaymentChannelMapping(index)}
+															aria-label={`Remove mapping ${index + 1}`}
+														>
+															<Trash2 className="h-3.5 w-3.5" />
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+									{form.formState.errors.paymentChannelToFundSourceMappings
+										?.message ? (
+										<p className="text-sm text-destructive">
+											{String(
+												form.formState.errors.paymentChannelToFundSourceMappings
+													.message,
+											)}
+										</p>
+									) : null}
 								</div>
 							</div>
 						) : null}

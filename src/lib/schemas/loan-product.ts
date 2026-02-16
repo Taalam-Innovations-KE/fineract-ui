@@ -88,6 +88,11 @@ const reasonToExpenseMappingSchema = z.object({
 	expenseAccountId: z.number().int().positive(),
 });
 
+const paymentChannelToFundSourceMappingSchema = z.object({
+	paymentTypeId: z.number().int().positive(),
+	fundSourceAccountId: z.number().int().positive(),
+});
+
 // Step 1: Identity & Currency
 export const loanProductIdentitySchema = z.object({
 	name: z.string().min(3, "Product name must be at least 3 characters"),
@@ -393,6 +398,9 @@ export const loanProductAccountingSchema = z
 		paymentAllocationFutureInstallmentAllocationRule: z.string().optional(),
 		creditAllocationTransactionTypes: z.array(z.string()).default([]),
 		creditAllocationRules: z.array(z.string()).default([]),
+		paymentChannelToFundSourceMappings: z
+			.array(paymentChannelToFundSourceMappingSchema)
+			.default([]),
 		accountingRule: z.number().min(1),
 		fundSourceAccountId: z.number().int().optional(),
 		loanPortfolioAccountId: z.number().int().optional(),
@@ -509,6 +517,20 @@ export const loanProductAccountingSchema = z
 				code: z.ZodIssueCode.custom,
 				path: ["creditAllocationTransactionTypes"],
 				message: "Select at least one credit transaction type",
+			});
+		}
+
+		const paymentTypeIds = data.paymentChannelToFundSourceMappings
+			.map((mapping) => mapping.paymentTypeId)
+			.filter((id): id is number => typeof id === "number" && id > 0);
+		const hasDuplicatePaymentTypes =
+			new Set(paymentTypeIds).size !== paymentTypeIds.length;
+
+		if (hasDuplicatePaymentTypes) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["paymentChannelToFundSourceMappings"],
+				message: "Each payment type can be mapped only once",
 			});
 		}
 

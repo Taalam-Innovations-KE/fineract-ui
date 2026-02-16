@@ -451,6 +451,30 @@ function transformProductToFormData(
 				.sort((a, b) => (a.order || 0) - (b.order || 0))
 				.map((entry) => entry.creditAllocationRule)
 				.filter((value): value is string => Boolean(value)) || [],
+		paymentChannelToFundSourceMappings:
+			product.paymentChannelToFundSourceMappings
+				?.map((mapping) => ({
+					paymentTypeId:
+						typeof mapping.paymentTypeId === "number"
+							? mapping.paymentTypeId
+							: undefined,
+					fundSourceAccountId:
+						typeof mapping.fundSourceAccountId === "number"
+							? mapping.fundSourceAccountId
+							: undefined,
+				}))
+				.filter(
+					(
+						mapping,
+					): mapping is {
+						paymentTypeId: number;
+						fundSourceAccountId: number;
+					} =>
+						typeof mapping.paymentTypeId === "number" &&
+						mapping.paymentTypeId > 0 &&
+						typeof mapping.fundSourceAccountId === "number" &&
+						mapping.fundSourceAccountId > 0,
+				) || [],
 		accountingRule: product.accountingRule?.id,
 		fundSourceAccountId: product.accountingMappings?.fundSourceAccount?.id,
 		loanPortfolioAccountId:

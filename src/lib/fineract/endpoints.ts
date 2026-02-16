@@ -37,6 +37,7 @@ export const FINERACT_ENDPOINTS = {
 	loanProductTemplate: "/v1/loanproducts/template",
 	savingsProducts: "/v1/savingsproducts",
 	savingsProductTemplate: "/v1/savingsproducts/template",
+	savingsAccounts: "/v1/savingsaccounts",
 	charges: "/v1/charges",
 	chargeById: (chargeId: number | string) => `/v1/charges/${chargeId}`,
 
@@ -44,6 +45,8 @@ export const FINERACT_ENDPOINTS = {
 	loans: "/v1/loans",
 	loansTemplate: "/v1/loans/template",
 	paymentTypes: "/v1/paymenttypes",
+	paymentTypeById: (paymentTypeId: number | string) =>
+		`/v1/paymenttypes/${paymentTypeId}`,
 
 	// Loan Nested Resources
 	loanGuarantors: (loanId: number) => `/v1/loans/${loanId}/guarantors`,
@@ -125,6 +128,7 @@ export const BFF_ROUTES = {
 	datatables: "/api/fineract/datatables",
 	clients: "/api/fineract/clients",
 	clientsTemplate: "/api/fineract/clients/template",
+	clientAudit: "/api/fineract/clients/audit",
 	clientAccounts: (clientId: number | string) =>
 		`/api/fineract/clients/${clientId}/accounts`,
 	clientAddresses: (clientId: number | string) =>
@@ -146,6 +150,9 @@ export const BFF_ROUTES = {
 	loanProductTemplate: "/api/fineract/loanproducts/template",
 	savingsProducts: "/api/fineract/savingsproducts",
 	savingsProductTemplate: "/api/fineract/savingsproducts/template",
+	savingsAccounts: "/api/fineract/savingsaccounts",
+	savingsAccountById: (accountId: number | string) =>
+		`/api/fineract/savingsaccounts/${accountId}`,
 	charges: "/api/fineract/charges",
 	chargeById: (chargeId: number | string) =>
 		`/api/fineract/charges/${chargeId}`,
@@ -154,6 +161,8 @@ export const BFF_ROUTES = {
 	loans: "/api/fineract/loans",
 	loansTemplate: "/api/fineract/loans/template",
 	paymentTypes: "/api/fineract/paymenttypes",
+	paymentTypeById: (paymentTypeId: number | string) =>
+		`/api/fineract/paymenttypes/${paymentTypeId}`,
 	loanAudit: "/api/fineract/loans/audit",
 	loanGuarantors: (loanId: number) =>
 		`/api/fineract/loans/${loanId}/guarantors`,

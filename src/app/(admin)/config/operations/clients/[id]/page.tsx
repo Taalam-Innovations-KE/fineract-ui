@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
+	ArrowUpRight,
 	Banknote,
 	Building2,
 	CreditCard,
@@ -15,6 +16,7 @@ import {
 	Users,
 	UserX,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
@@ -79,7 +81,12 @@ import { useTenantStore } from "@/store/tenant";
 
 const CLIENT_TRANSACTIONS_PAGE_SIZE = 10;
 
-type ClientTab = "overview" | "accounts" | "identifiers" | "activity";
+type ClientTab = "overview" | "accounts" | "identifiers" | "activity" | "audit";
+
+type ClientAuditResponse = {
+	events?: unknown[];
+	totalFilteredRecords?: number;
+};
 
 type ClientStatusChip = {
 	label: string;
@@ -120,6 +127,12 @@ type ClientActionDefinition = {
 	variant?: "default" | "destructive";
 	icon: React.ElementType;
 };
+
+const AuditTrailViewer = dynamic(() =>
+	import("@/components/loans/audit-trail-viewer").then(
+		(mod) => mod.AuditTrailViewer,
+	),
+);
 
 function titleCaseWords(value: string): string {
 	return value
@@ -667,6 +680,21 @@ async function fetchClientTransactions(
 	return response.json();
 }
 
+async function fetchClientAudit(
+	tenantId: string,
+	id: string,
+): Promise<ClientAuditResponse> {
+	const response = await fetch(`${BFF_ROUTES.clientAudit}/${id}`, {
+		headers: { "x-tenant-id": tenantId },
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch client audit trail");
+	}
+
+	return response.json();
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex items-start justify-between gap-3 py-2">
@@ -793,6 +821,12 @@ export default function ClientDetailPage({
 		queryKey: ["client-transactions", tenantId, id],
 		queryFn: () => fetchClientTransactions(tenantId, id),
 		enabled: Boolean(tenantId && id),
+	});
+
+	const auditTrailQuery = useQuery({
+		queryKey: ["client-audit", tenantId, id],
+		queryFn: () => fetchClientAudit(tenantId, id),
+		enabled: Boolean(tenantId && id && activeTab === "audit"),
 	});
 
 	const lifecycleState = useMemo(() => {
@@ -961,6 +995,9 @@ export default function ClientDetailPage({
 			queryClient.invalidateQueries({
 				queryKey: ["client-transactions", tenantId, id],
 			});
+			queryClient.invalidateQueries({
+				queryKey: ["client-audit", tenantId, id],
+			});
 
 			if (action === "delete") {
 				router.push("/config/operations/clients");
@@ -1080,6 +1117,9 @@ export default function ClientDetailPage({
 	const primaryAddress =
 		addresses.find((address) => address.isActive !== false) || addresses[0];
 	const transactions = transactionsQuery.data?.pageItems || [];
+	const auditEvents = auditTrailQuery.data?.events || [];
+	const auditEventsCount =
+		auditTrailQuery.data?.totalFilteredRecords ?? auditEvents.length;
 	const groups = client.groups || [];
 	const linkedAccountsCount = loanAccounts.length + savingsAccounts.length;
 	const hasPartialDataError =
@@ -1130,6 +1170,22 @@ export default function ClientDetailPage({
 				</Badge>
 			),
 		},
+		{
+			header: "Account Page",
+			className: "text-right",
+			headerClassName: "text-right",
+			cell: (row: GetClientsLoanAccounts) =>
+				row.id ? (
+					<Button variant="outline" size="sm" asChild>
+						<Link href={`/config/operations/loans/${row.id}`}>
+							Open
+							<ArrowUpRight className="ml-2 h-3 w-3" />
+						</Link>
+					</Button>
+				) : (
+					<span className="text-xs text-muted-foreground">Unavailable</span>
+				),
+		},
 	];
 
 	const savingsColumns = [
@@ -1153,6 +1209,22 @@ export default function ClientDetailPage({
 					{formatText(formatCodeLabel(row.status?.code))}
 				</Badge>
 			),
+		},
+		{
+			header: "Account Page",
+			className: "text-right",
+			headerClassName: "text-right",
+			cell: (row: GetClientsSavingsAccounts) =>
+				row.id ? (
+					<Button variant="outline" size="sm" asChild>
+						<Link href={`/config/operations/savings/${row.id}`}>
+							Open
+							<ArrowUpRight className="ml-2 h-3 w-3" />
+						</Link>
+					</Button>
+				) : (
+					<span className="text-xs text-muted-foreground">Unavailable</span>
+				),
 		},
 	];
 
@@ -1433,12 +1505,14 @@ export default function ClientDetailPage({
 									{activeTab === "accounts" && "Accounts"}
 									{activeTab === "identifiers" && "Identifiers"}
 									{activeTab === "activity" && "Activity"}
+									{activeTab === "audit" && "Audit"}
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="overview">Overview</SelectItem>
 									<SelectItem value="accounts">Accounts</SelectItem>
 									<SelectItem value="identifiers">Identifiers</SelectItem>
 									<SelectItem value="activity">Activity</SelectItem>
+									<SelectItem value="audit">Audit</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -1448,9 +1522,30 @@ export default function ClientDetailPage({
 							className="hidden w-full justify-start border-b md:flex"
 						>
 							<TabsTrigger value="overview">Overview</TabsTrigger>
-							<TabsTrigger value="accounts">Accounts</TabsTrigger>
-							<TabsTrigger value="identifiers">Identifiers</TabsTrigger>
-							<TabsTrigger value="activity">Activity</TabsTrigger>
+							<TabsTrigger value="accounts" className="gap-2">
+								Accounts
+								<Badge variant="secondary" className="rounded-sm text-[10px]">
+									{linkedAccountsCount}
+								</Badge>
+							</TabsTrigger>
+							<TabsTrigger value="identifiers" className="gap-2">
+								Identifiers
+								<Badge variant="secondary" className="rounded-sm text-[10px]">
+									{identifiers.length}
+								</Badge>
+							</TabsTrigger>
+							<TabsTrigger value="activity" className="gap-2">
+								Activity
+								<Badge variant="secondary" className="rounded-sm text-[10px]">
+									{transactions.length}
+								</Badge>
+							</TabsTrigger>
+							<TabsTrigger value="audit" className="gap-2">
+								Audit
+								<Badge variant="secondary" className="rounded-sm text-[10px]">
+									{auditEventsCount}
+								</Badge>
+							</TabsTrigger>
 						</TabsList>
 
 						<div className="mt-4">
@@ -1685,6 +1780,51 @@ export default function ClientDetailPage({
 								<div className="grid grid-cols-1 gap-4">
 									<Card>
 										<CardHeader>
+											<CardTitle>Accounts Summary</CardTitle>
+											<CardDescription>
+												Direct navigation to all customer account records
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+												<div className="rounded-sm border border-border/60 p-3">
+													<div className="flex items-center justify-between gap-2">
+														<div>
+															<p className="text-sm font-semibold">
+																Loan Accounts
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{loanAccounts.length} linked loan account
+																{loanAccounts.length === 1 ? "" : "s"}
+															</p>
+														</div>
+														<Badge variant="secondary">
+															{loanAccounts.length}
+														</Badge>
+													</div>
+												</div>
+												<div className="rounded-sm border border-border/60 p-3">
+													<div className="flex items-center justify-between gap-2">
+														<div>
+															<p className="text-sm font-semibold">
+																Savings Accounts
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{savingsAccounts.length} linked savings account
+																{savingsAccounts.length === 1 ? "" : "s"}
+															</p>
+														</div>
+														<Badge variant="secondary">
+															{savingsAccounts.length}
+														</Badge>
+													</div>
+												</div>
+											</div>
+										</CardContent>
+									</Card>
+
+									<Card>
+										<CardHeader>
 											<CardTitle>Loan Accounts</CardTitle>
 											<CardDescription>
 												{loanAccounts.length} linked loan account
@@ -1836,6 +1976,20 @@ export default function ClientDetailPage({
 										</CardContent>
 									</Card>
 								</div>
+							</TabsContent>
+
+							<TabsContent value="audit">
+								{activeTab === "audit" && (
+									<AuditTrailViewer
+										events={auditEvents}
+										isLoading={auditTrailQuery.isLoading}
+										error={
+											auditTrailQuery.error
+												? (auditTrailQuery.error as Error)
+												: null
+										}
+									/>
+								)}
 							</TabsContent>
 						</div>
 					</Tabs>

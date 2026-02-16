@@ -13,6 +13,11 @@ const optionalAccountId = z.preprocess(
 	z.number().int().positive().optional(),
 );
 
+const paymentChannelToFundSourceMappingSchema = z.object({
+	paymentTypeId: z.number().int().positive(),
+	fundSourceAccountId: z.number().int().positive(),
+});
+
 export const savingsProductSchema = z
 	.object({
 		name: z.string().min(3, "Product name must be at least 3 characters"),
@@ -54,6 +59,9 @@ export const savingsProductSchema = z
 		feesReceivableAccountId: optionalAccountId,
 		penaltiesReceivableAccountId: optionalAccountId,
 		interestPayableAccountId: optionalAccountId,
+		paymentChannelToFundSourceMappings: z
+			.array(paymentChannelToFundSourceMappingSchema)
+			.default([]),
 	})
 	.superRefine((data, ctx) => {
 		if (
@@ -110,6 +118,17 @@ export const savingsProductSchema = z
 					});
 				}
 			}
+		}
+
+		const paymentTypeIds = data.paymentChannelToFundSourceMappings.map(
+			(mapping) => mapping.paymentTypeId,
+		);
+		if (new Set(paymentTypeIds).size !== paymentTypeIds.length) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["paymentChannelToFundSourceMappings"],
+				message: "Each payment type can be mapped only once",
+			});
 		}
 	});
 

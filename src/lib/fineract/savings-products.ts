@@ -8,6 +8,11 @@ import type {
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import type { SavingsProductFormData } from "@/lib/schemas/savings-product";
 
+type PaymentChannelToFundSourceMappingPayload = {
+	paymentTypeId: number;
+	fundSourceAccountId: number;
+};
+
 export type SavingsProductRequestPayload = PostSavingsProductsRequest & {
 	lockinPeriodFrequency?: number;
 	lockinPeriodFrequencyType?: number;
@@ -23,6 +28,7 @@ export type SavingsProductRequestPayload = PostSavingsProductsRequest & {
 	feesReceivableAccountId?: number;
 	penaltiesReceivableAccountId?: number;
 	interestPayableAccountId?: number;
+	paymentChannelToFundSourceMappings?: Array<PaymentChannelToFundSourceMappingPayload>;
 };
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -223,6 +229,13 @@ export function buildSavingsProductRequest(
 		payload.overdraftPortfolioControlId = data.overdraftPortfolioControlId;
 		payload.incomeFromInterestId = data.incomeFromInterestId;
 		payload.writeOffAccountId = data.writeOffAccountId;
+		if (data.paymentChannelToFundSourceMappings.length > 0) {
+			payload.paymentChannelToFundSourceMappings =
+				data.paymentChannelToFundSourceMappings.map((mapping) => ({
+					paymentTypeId: mapping.paymentTypeId,
+					fundSourceAccountId: mapping.fundSourceAccountId,
+				}));
+		}
 	}
 
 	if (data.accountingRule >= 3) {
@@ -322,5 +335,29 @@ export function mapSavingsProductToFormData(
 			product,
 			"interestPayableAccount",
 		),
+		paymentChannelToFundSourceMappings:
+			product.paymentChannelToFundSourceMappings
+				?.map((mapping) => ({
+					paymentTypeId:
+						typeof mapping.paymentType?.id === "number"
+							? mapping.paymentType.id
+							: undefined,
+					fundSourceAccountId:
+						typeof mapping.fundSourceAccount?.id === "number"
+							? mapping.fundSourceAccount.id
+							: undefined,
+				}))
+				.filter(
+					(
+						mapping,
+					): mapping is {
+						paymentTypeId: number;
+						fundSourceAccountId: number;
+					} =>
+						typeof mapping.paymentTypeId === "number" &&
+						mapping.paymentTypeId > 0 &&
+						typeof mapping.fundSourceAccountId === "number" &&
+						mapping.fundSourceAccountId > 0,
+				) || [],
 	};
 }

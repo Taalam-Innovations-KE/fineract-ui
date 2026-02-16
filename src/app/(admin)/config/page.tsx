@@ -46,7 +46,12 @@ const configModules = [
 		description: "Manage codes, global settings, and automated processes",
 		icon: Settings,
 		href: "/config/system/codes",
-		items: ["Code Registry", "Global Configuration", "Scheduler Jobs"],
+		items: [
+			"Code Registry",
+			"Payment Types",
+			"Global Configuration",
+			"Scheduler Jobs",
+		],
 	},
 	{
 		title: "Products",

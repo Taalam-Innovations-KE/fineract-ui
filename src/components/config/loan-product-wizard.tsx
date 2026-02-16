@@ -141,6 +141,7 @@ const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
 		"paymentAllocationFutureInstallmentAllocationRule",
 		"creditAllocationTransactionTypes",
 		"creditAllocationRules",
+		"paymentChannelToFundSourceMappings",
 		"accountingRule",
 		"fundSourceAccountId",
 		"loanPortfolioAccountId",
@@ -289,6 +290,10 @@ export function LoanProductWizard({
 		paymentAllocationRules: [] as string[],
 		creditAllocationTransactionTypes: [] as string[],
 		creditAllocationRules: [] as string[],
+		paymentChannelToFundSourceMappings: [] as Array<{
+			paymentTypeId: number;
+			fundSourceAccountId: number;
+		}>,
 	};
 
 	const defaultFormValues = {

@@ -1,8 +1,9 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info, Plus, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Controller, useFormContext } from "react-hook-form";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -172,6 +173,11 @@ export function LoanProductAccountingStep({
 	const chargeOffBehaviourOptions = template?.chargeOffBehaviourOptions || [];
 	const chargeOffReasonOptions = template?.chargeOffReasonOptions || [];
 	const writeOffReasonOptions = template?.writeOffReasonOptions || [];
+	const paymentTypeOptions =
+		template?.paymentTypeOptions?.filter(
+			(option): option is { id: number; name?: string; description?: string } =>
+				typeof option.id === "number",
+		) || [];
 
 	const selectedSupportedInterestRefundTypes =
 		watch("supportedInterestRefundTypes") || [];
@@ -181,6 +187,8 @@ export function LoanProductAccountingStep({
 	const selectedCreditAllocationTransactionTypes =
 		watch("creditAllocationTransactionTypes") || [];
 	const selectedCreditAllocationRules = watch("creditAllocationRules") || [];
+	const paymentChannelMappings =
+		watch("paymentChannelToFundSourceMappings") || [];
 	const isIncomeCapitalizationEnabled = Boolean(
 		watch("enableIncomeCapitalization"),
 	);
@@ -250,6 +258,69 @@ export function LoanProductAccountingStep({
 		}
 
 		setValue(field, nextMappings);
+	}
+
+	function setPaymentChannelMappings(
+		nextMappings: CreateLoanProductFormData["paymentChannelToFundSourceMappings"],
+	) {
+		setValue("paymentChannelToFundSourceMappings", nextMappings, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
+	}
+
+	function updatePaymentChannelMapping(
+		index: number,
+		field: "paymentTypeId" | "fundSourceAccountId",
+		value: number,
+	) {
+		const nextMappings = [...paymentChannelMappings];
+		const target = nextMappings[index];
+		if (!target) {
+			return;
+		}
+
+		nextMappings[index] = {
+			...target,
+			[field]: value,
+		};
+		setPaymentChannelMappings(nextMappings);
+	}
+
+	function addPaymentChannelMapping() {
+		if (paymentTypeOptions.length === 0 || assetOptions.length === 0) {
+			return;
+		}
+
+		const usedPaymentTypeIds = new Set(
+			paymentChannelMappings.map((mapping) => mapping.paymentTypeId),
+		);
+		const nextPaymentTypeId =
+			paymentTypeOptions.find((option) => !usedPaymentTypeIds.has(option.id))
+				?.id || paymentTypeOptions[0]?.id;
+		const defaultFundSourceAccountId =
+			getValues("fundSourceAccountId") || assetOptions[0]?.id;
+
+		if (
+			typeof nextPaymentTypeId !== "number" ||
+			typeof defaultFundSourceAccountId !== "number"
+		) {
+			return;
+		}
+
+		setPaymentChannelMappings([
+			...paymentChannelMappings,
+			{
+				paymentTypeId: nextPaymentTypeId,
+				fundSourceAccountId: defaultFundSourceAccountId,
+			},
+		]);
+	}
+
+	function removePaymentChannelMapping(index: number) {
+		setPaymentChannelMappings(
+			paymentChannelMappings.filter((_, rowIndex) => rowIndex !== index),
+		);
 	}
 
 	useEffect(() => {
@@ -1600,6 +1671,127 @@ export function LoanProductAccountingStep({
 										</>
 									)}
 								</div>
+							</div>
+
+							{/* Income Accounts */}
+							<div className="space-y-3">
+								<div className="flex items-center justify-between">
+									<h4 className="text-sm font-medium text-muted-foreground">
+										Payment Channel to Fund Source Mapping
+									</h4>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={addPaymentChannelMapping}
+										disabled={
+											paymentTypeOptions.length === 0 ||
+											assetOptions.length === 0
+										}
+									>
+										<Plus className="h-3.5 w-3.5 mr-1.5" />
+										Add Mapping
+									</Button>
+								</div>
+								<p className="text-xs text-muted-foreground">
+									Map each payment type to a fund source account for
+									product-specific accounting behavior.
+								</p>
+								{paymentTypeOptions.length === 0 ? (
+									<p className="rounded-sm border border-border/60 p-3 text-xs text-muted-foreground">
+										No payment types are available in the product template.
+									</p>
+								) : paymentChannelMappings.length === 0 ? (
+									<p className="rounded-sm border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
+										No payment channel mappings configured.
+									</p>
+								) : (
+									<div className="space-y-3">
+										{paymentChannelMappings.map((mapping, index) => (
+											<div
+												key={`payment-channel-mapping-${mapping.paymentTypeId}-${mapping.fundSourceAccountId}-${index}`}
+												className="grid gap-3 rounded-sm border border-border/60 p-3 md:grid-cols-[1fr_1fr_auto]"
+											>
+												<div className="space-y-2">
+													<Label htmlFor={`paymentTypeId-${index}`}>
+														Payment Type
+													</Label>
+													<Select
+														value={String(mapping.paymentTypeId)}
+														onValueChange={(value) =>
+															updatePaymentChannelMapping(
+																index,
+																"paymentTypeId",
+																Number(value),
+															)
+														}
+													>
+														<SelectTrigger id={`paymentTypeId-${index}`}>
+															<SelectValue placeholder="Select payment type" />
+														</SelectTrigger>
+														<SelectContent>
+															{paymentTypeOptions.map((option) => (
+																<SelectItem
+																	key={option.id}
+																	value={String(option.id)}
+																>
+																	{option.name ||
+																		option.description ||
+																		`Payment Type #${option.id}`}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</div>
+												<div className="space-y-2">
+													<Label htmlFor={`fundSourceAccountId-${index}`}>
+														Fund Source Account
+													</Label>
+													<Select
+														value={String(mapping.fundSourceAccountId)}
+														onValueChange={(value) =>
+															updatePaymentChannelMapping(
+																index,
+																"fundSourceAccountId",
+																Number(value),
+															)
+														}
+													>
+														<SelectTrigger id={`fundSourceAccountId-${index}`}>
+															<SelectValue placeholder="Select account" />
+														</SelectTrigger>
+														<SelectContent>
+															{assetOptions.map((option) => (
+																<SelectItem
+																	key={option.id}
+																	value={String(option.id)}
+																>
+																	{accountOptionLabel(option)}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</div>
+												<div className="flex items-end">
+													<Button
+														type="button"
+														size="icon-sm"
+														variant="outline"
+														onClick={() => removePaymentChannelMapping(index)}
+														aria-label={`Remove mapping ${index + 1}`}
+													>
+														<Trash2 className="h-3.5 w-3.5" />
+													</Button>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
+								{errors.paymentChannelToFundSourceMappings?.message && (
+									<p className="text-sm text-destructive">
+										{String(errors.paymentChannelToFundSourceMappings.message)}
+									</p>
+								)}
 							</div>
 
 							{/* Income Accounts */}

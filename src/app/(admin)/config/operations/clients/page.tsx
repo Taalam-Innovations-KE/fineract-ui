@@ -1,7 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format as formatDate, parse as parseDate } from "date-fns";
+import {
+	format as formatDate,
+	isValid,
+	parse as parseDate,
+	parseISO,
+	startOfDay,
+} from "date-fns";
 import { Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -63,6 +69,10 @@ import type { ClientFormData } from "@/lib/schemas/client";
 import { useTenantStore } from "@/store/tenant";
 
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
+const MAX_FULLNAME_LENGTH = 160;
+const MAX_NAME_LENGTH = 50;
+const MAX_EXTERNAL_ID_LENGTH = 100;
+const MAX_MOBILE_NO_LENGTH = 50;
 
 const DOCUMENT_TYPE_MATCHES = {
 	nationalId: [
@@ -126,6 +136,8 @@ type ClientIdentifierTemplate = {
 };
 
 type ClientTemplateData = {
+	isAddressEnabled?: boolean;
+	enableAddress?: boolean;
 	genderOptions?: LookupOption[];
 	clientTypeOptions?: LookupOption[];
 	clientClassificationOptions?: LookupOption[];
@@ -344,6 +356,25 @@ function toInputDate(value?: string | number[] | null): string {
 	} catch {
 		return "";
 	}
+}
+
+function parseDateInputValue(dateValue?: string): Date | null {
+	if (!dateValue) {
+		return null;
+	}
+
+	const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateValue)
+		? parseISO(dateValue)
+		: parseDate(dateValue, "dd MMMM yyyy", new Date());
+	if (!isValid(parsed)) {
+		return null;
+	}
+
+	return startOfDay(parsed);
+}
+
+function isPositiveNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function includesMatch(value: string | undefined, matches: string[]) {
@@ -746,7 +777,7 @@ export default function ClientsPage() {
 				return {
 					documentTypeId,
 					documentKey: identifier.value,
-					status: "Active",
+					status: "ACTIVE",
 					description: `${identifier.label} captured during onboarding`,
 				};
 			});
@@ -827,7 +858,7 @@ export default function ClientsPage() {
 				const identifierPayload = {
 					documentTypeId,
 					documentKey: identifier.value,
-					status: "Active",
+					status: "ACTIVE",
 					description: `${identifier.label} captured during onboarding`,
 				};
 
@@ -935,6 +966,9 @@ export default function ClientsPage() {
 		() =>
 			getTemplateAddressLookupOptions(clientTemplate, "addressTypeIdOptions"),
 		[clientTemplate],
+	);
+	const isAddressEnabled = Boolean(
+		clientTemplate?.isAddressEnabled ?? clientTemplate?.enableAddress,
 	);
 
 	const isEditLoading =
@@ -1247,6 +1281,16 @@ export default function ClientsPage() {
 		clearErrors();
 		let firstInvalidStep: ClientValidationStep | null = null;
 		const isBusinessClient = data.clientKind === "business";
+		const today = startOfDay(new Date());
+		const parsedDateOfBirth = parseDateInputValue(data.dateOfBirth);
+		const parsedActivationDate = parseDateInputValue(data.activationDate);
+		const firstName = data.firstname.trim();
+		const middleName = data.middlename?.trim() || "";
+		const lastName = data.lastname.trim();
+		const fullName = data.fullname.trim();
+		const city = data.city?.trim() || "";
+		const mobileNo = data.mobileNo?.trim() || "";
+		const externalId = data.externalId?.trim() || "";
 
 		const pushError = (
 			step: ClientValidationStep,
@@ -1260,14 +1304,19 @@ export default function ClientsPage() {
 		};
 
 		if (uptoStep >= 1) {
-			if (!data.officeId) {
+			if (!isPositiveNumber(data.officeId)) {
 				pushError(1, "officeId", "Office is required.");
 			}
-			if (!data.legalFormId) {
+			if (!isPositiveNumber(data.legalFormId)) {
 				pushError(1, "legalFormId", "Legal form is required.");
+			} else if (data.legalFormId < 1 || data.legalFormId > 2) {
+				pushError(1, "legalFormId", "Legal form must be Person or Entity.");
 			}
 			if (!data.clientKind) {
 				pushError(1, "clientKind", "Client kind is required.");
+			}
+			if (data.groupId !== undefined && !isPositiveNumber(data.groupId)) {
+				pushError(1, "groupId", "Group must be a positive ID.");
 			}
 			if (isBusinessClient && !businessLineOptions.length) {
 				pushError(
@@ -1280,65 +1329,113 @@ export default function ClientsPage() {
 
 		if (uptoStep >= 2) {
 			if (isBusinessClient) {
-				if (!data.fullname.trim()) {
+				if (!fullName) {
 					pushError(2, "fullname", "Business name is required.");
+				} else if (fullName.length > MAX_FULLNAME_LENGTH) {
+					pushError(
+						2,
+						"fullname",
+						`Business name cannot exceed ${MAX_FULLNAME_LENGTH} characters.`,
+					);
 				}
-				if (!data.businessTypeId) {
+				if (!isPositiveNumber(data.businessTypeId)) {
 					pushError(2, "businessTypeId", "Business type is required.");
 				}
 			} else {
-				if (!data.firstname.trim()) {
+				if (!firstName) {
 					pushError(2, "firstname", "First name is required.");
+				} else if (firstName.length > MAX_NAME_LENGTH) {
+					pushError(
+						2,
+						"firstname",
+						`First name cannot exceed ${MAX_NAME_LENGTH} characters.`,
+					);
 				}
-				if (!data.lastname.trim()) {
+				if (!lastName) {
 					pushError(2, "lastname", "Last name is required.");
+				} else if (lastName.length > MAX_NAME_LENGTH) {
+					pushError(
+						2,
+						"lastname",
+						`Last name cannot exceed ${MAX_NAME_LENGTH} characters.`,
+					);
 				}
+				if (middleName.length > MAX_NAME_LENGTH) {
+					pushError(
+						2,
+						"middlename",
+						`Middle name cannot exceed ${MAX_NAME_LENGTH} characters.`,
+					);
+				}
+				if (data.genderId !== undefined && !isPositiveNumber(data.genderId)) {
+					pushError(2, "genderId", "Gender must be a positive ID.");
+				}
+			}
+
+			if (data.staffId !== undefined && !isPositiveNumber(data.staffId)) {
+				pushError(2, "staffId", "Staff must be a positive ID.");
+			}
+			if (
+				data.savingsProductId !== undefined &&
+				!isPositiveNumber(data.savingsProductId)
+			) {
+				pushError(
+					2,
+					"savingsProductId",
+					"Savings product must be a positive ID.",
+				);
+			}
+			if (data.dateOfBirth && !parsedDateOfBirth) {
+				pushError(2, "dateOfBirth", "Date of birth must be a valid date.");
+			}
+			if (parsedDateOfBirth && parsedDateOfBirth >= today) {
+				pushError(2, "dateOfBirth", "Date of birth must be in the past.");
 			}
 		}
 
 		if (uptoStep >= 3) {
-			if (!isBusinessClient) {
-				const hasNationalId = Boolean(data.nationalId?.trim());
-				const hasPassportNo = Boolean(data.passportNo?.trim());
-
-				if (!hasNationalId && !hasPassportNo) {
-					pushError(
-						3,
-						"nationalId",
-						"Provide either National ID or Passport number.",
-					);
-					pushError(
-						3,
-						"passportNo",
-						"Provide either National ID or Passport number.",
-					);
-				}
-
-				if (hasNationalId && hasPassportNo) {
-					pushError(
-						3,
-						"nationalId",
-						"Provide only one identifier: National ID or Passport number, not both.",
-					);
-					pushError(
-						3,
-						"passportNo",
-						"Provide only one identifier: National ID or Passport number, not both.",
-					);
-				}
+			if (
+				data.clientTypeId !== undefined &&
+				!isPositiveNumber(data.clientTypeId)
+			) {
+				pushError(3, "clientTypeId", "Client type must be a positive ID.");
 			}
-			if (isBusinessClient && !data.businessLicenseNo?.trim()) {
+			if (
+				data.clientClassificationId !== undefined &&
+				!isPositiveNumber(data.clientClassificationId)
+			) {
 				pushError(
 					3,
-					"businessLicenseNo",
-					"Business license number is required.",
+					"clientClassificationId",
+					"Client classification must be a positive ID.",
+				);
+			}
+			if (externalId.length > MAX_EXTERNAL_ID_LENGTH) {
+				pushError(
+					3,
+					"externalId",
+					`External ID cannot exceed ${MAX_EXTERNAL_ID_LENGTH} characters.`,
+				);
+			}
+			if (mobileNo.length > MAX_MOBILE_NO_LENGTH) {
+				pushError(
+					3,
+					"mobileNo",
+					`Mobile number cannot exceed ${MAX_MOBILE_NO_LENGTH} characters.`,
 				);
 			}
 		}
 
 		if (uptoStep >= 4) {
-			const canSubmitAddress = addressTypeOptions.length > 0;
+			const canSubmitAddress = isAddressEnabled;
 			if (canSubmitAddress) {
+				if (!addressTypeOptions.length) {
+					pushError(
+						4,
+						"addressTypeId",
+						"Address type lookup values are missing. Configure address types first.",
+					);
+				}
 				if (!countryOptions.length) {
 					pushError(
 						4,
@@ -1346,19 +1443,39 @@ export default function ClientsPage() {
 						"Country lookup values are missing. Configure countries first.",
 					);
 				}
-				if (!data.city?.trim()) {
+				if (!city) {
 					pushError(4, "city", "City is required.");
 				}
-				if (!data.addressTypeId) {
+				if (!isPositiveNumber(data.addressTypeId)) {
 					pushError(4, "addressTypeId", "Address type is required.");
 				}
-				if (!data.countryId) {
+				if (!isPositiveNumber(data.countryId)) {
 					pushError(4, "countryId", "Country is required.");
 				}
 			}
 
-			if (Boolean(data.active) && !data.activationDate) {
-				pushError(4, "activationDate", "Activation date is required.");
+			if (data.activationDate && !parsedActivationDate) {
+				pushError(4, "activationDate", "Activation date must be a valid date.");
+			}
+
+			if (parsedActivationDate && parsedActivationDate > today) {
+				pushError(
+					4,
+					"activationDate",
+					"Activation date cannot be in the future.",
+				);
+			}
+
+			if (Boolean(data.active)) {
+				if (!data.activationDate) {
+					pushError(4, "activationDate", "Activation date is required.");
+				} else if (!parsedActivationDate) {
+					pushError(
+						4,
+						"activationDate",
+						"Activation date must be a valid date.",
+					);
+				}
 			}
 		}
 
@@ -1382,6 +1499,11 @@ export default function ClientsPage() {
 		}
 
 		const isBusinessClient = data.clientKind === "business";
+		const trimmedMobileNo = data.mobileNo?.trim();
+		const trimmedEmailAddress = data.emailAddress?.trim();
+		const trimmedExternalId = data.externalId?.trim();
+		const trimmedAddressLine1 = data.addressLine1?.trim() ?? "";
+		const trimmedCity = data.city?.trim() ?? "";
 
 		const payload: ClientCreatePayload = {
 			active: Boolean(data.active),
@@ -1407,9 +1529,9 @@ export default function ClientsPage() {
 			if (data.genderId) payload.genderId = data.genderId;
 		}
 
-		if (data.mobileNo) payload.mobileNo = data.mobileNo;
-		if (data.emailAddress) payload.emailAddress = data.emailAddress;
-		if (data.externalId) payload.externalId = data.externalId;
+		if (trimmedMobileNo) payload.mobileNo = trimmedMobileNo;
+		if (trimmedEmailAddress) payload.emailAddress = trimmedEmailAddress;
+		if (trimmedExternalId) payload.externalId = trimmedExternalId;
 		if (data.clientTypeId) payload.clientTypeId = data.clientTypeId;
 		if (data.clientClassificationId)
 			payload.clientClassificationId = data.clientClassificationId;
@@ -1432,12 +1554,18 @@ export default function ClientsPage() {
 			fallbackToFirst: true,
 		});
 		const resolvedAddressTypeId = data.addressTypeId || defaultAddressTypeId;
-		if (resolvedAddressTypeId) {
+		if (
+			resolvedAddressTypeId &&
+			(isAddressEnabled ||
+				trimmedAddressLine1.length > 0 ||
+				trimmedCity.length > 0 ||
+				Boolean(data.countryId))
+		) {
 			payload.address = [
 				{
 					addressTypeId: resolvedAddressTypeId,
-					addressLine1: data.addressLine1?.trim() || undefined,
-					city: data.city?.trim() || undefined,
+					addressLine1: trimmedAddressLine1 || undefined,
+					city: trimmedCity || undefined,
 					countryId: data.countryId,
 				},
 			];
@@ -1493,8 +1621,8 @@ export default function ClientsPage() {
 			const updateAddress = resolvedAddressTypeId
 				? {
 						addressTypeId: resolvedAddressTypeId,
-						addressLine1: data.addressLine1?.trim() || undefined,
-						city: data.city?.trim() || undefined,
+						addressLine1: trimmedAddressLine1 || undefined,
+						city: trimmedCity || undefined,
 						countryId: data.countryId,
 					}
 				: undefined;

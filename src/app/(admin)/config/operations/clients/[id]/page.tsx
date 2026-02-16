@@ -478,7 +478,7 @@ function uniqueReasonOptions(
 
 async function fetchLifecycleReasonOptions(
 	tenantId: string,
-	reasonType: "rejection" | "withdrawal",
+	reasonType: "closure" | "rejection" | "withdrawal",
 ): Promise<ClientReasonOption[]> {
 	const codesResponse = await fetch(BFF_ROUTES.codes, {
 		headers: { "x-tenant-id": tenantId },
@@ -489,12 +489,21 @@ async function fetchLifecycleReasonOptions(
 	}
 
 	const codes = (await codesResponse.json()) as GetCodesResponse[];
-	const tokens =
-		reasonType === "rejection" ? ["client", "reject"] : ["client", "withdraw"];
+	const tokenGroups =
+		reasonType === "rejection"
+			? [["client", "reject"]]
+			: reasonType === "withdrawal"
+				? [["client", "withdraw"]]
+				: [
+						["client", "closure"],
+						["client", "close"],
+					];
 
 	const matchedCode = codes.find((code) => {
 		const name = (code.name || "").toLowerCase();
-		return tokens.every((token) => name.includes(token));
+		return tokenGroups.some((tokens) =>
+			tokens.every((token) => name.includes(token)),
+		);
 	});
 
 	if (!matchedCode?.id) {
@@ -545,6 +554,11 @@ function getLifecycleActionRequestContext(
 	id: string,
 	action: ClientActionKey,
 ): { endpoint: string; method: SubmitMethod } {
+	const commandByAction: Partial<Record<ClientActionKey, string>> = {
+		undoReject: "undoRejection",
+		undoWithdraw: "undoWithdrawal",
+	};
+
 	if (action === "delete") {
 		return {
 			endpoint: `${BFF_ROUTES.clients}/${id}`,
@@ -553,7 +567,7 @@ function getLifecycleActionRequestContext(
 	}
 
 	return {
-		endpoint: `${BFF_ROUTES.clients}/${id}?command=${action}`,
+		endpoint: `${BFF_ROUTES.clients}/${id}?command=${commandByAction[action] || action}`,
 		method: "POST",
 	};
 }
@@ -785,6 +799,8 @@ export default function ClientDetailPage({
 	);
 	const [selectedRejectionReasonId, setSelectedRejectionReasonId] =
 		useState<string>("");
+	const [selectedClosureReasonId, setSelectedClosureReasonId] =
+		useState<string>("");
 	const [selectedWithdrawalReasonId, setSelectedWithdrawalReasonId] =
 		useState<string>("");
 	const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(
@@ -835,11 +851,19 @@ export default function ClientDetailPage({
 	}, [clientQuery.data]);
 
 	const showPendingActions = lifecycleState === "pending";
+	const showActiveCloseAction = lifecycleState === "active";
 
 	const rejectionReasonQuery = useQuery({
 		queryKey: ["client-rejection-reasons", tenantId],
 		queryFn: () => fetchLifecycleReasonOptions(tenantId, "rejection"),
 		enabled: Boolean(tenantId && showPendingActions),
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const closureReasonQuery = useQuery({
+		queryKey: ["client-closure-reasons", tenantId],
+		queryFn: () => fetchLifecycleReasonOptions(tenantId, "closure"),
+		enabled: Boolean(tenantId && showActiveCloseAction),
 		staleTime: 5 * 60 * 1000,
 	});
 
@@ -870,12 +894,29 @@ export default function ClientDetailPage({
 		]);
 	}, [clientQuery.data]);
 
+	const templateClosureReasons = useMemo(() => {
+		if (!clientQuery.data) return [];
+
+		return getReasonOptionsFromTemplate(clientQuery.data, [
+			"closureReasons",
+			"clientClosureReasons",
+			"closeReasons",
+		]);
+	}, [clientQuery.data]);
+
 	const rejectionReasonOptions = useMemo(() => {
 		return uniqueReasonOptions([
 			...templateRejectionReasons,
 			...(rejectionReasonQuery.data || []),
 		]);
 	}, [templateRejectionReasons, rejectionReasonQuery.data]);
+
+	const closureReasonOptions = useMemo(() => {
+		return uniqueReasonOptions([
+			...templateClosureReasons,
+			...(closureReasonQuery.data || []),
+		]);
+	}, [templateClosureReasons, closureReasonQuery.data]);
 
 	const withdrawalReasonOptions = useMemo(() => {
 		return uniqueReasonOptions([
@@ -895,6 +936,12 @@ export default function ClientDetailPage({
 			setSelectedWithdrawalReasonId(String(withdrawalReasonOptions[0].id));
 		}
 	}, [withdrawalReasonOptions, selectedWithdrawalReasonId]);
+
+	useEffect(() => {
+		if (!selectedClosureReasonId && closureReasonOptions[0]?.id) {
+			setSelectedClosureReasonId(String(closureReasonOptions[0].id));
+		}
+	}, [closureReasonOptions, selectedClosureReasonId]);
 
 	const lifecycleActions = useMemo(() => {
 		return getClientActionDefinitions(lifecycleState);
@@ -917,8 +964,16 @@ export default function ClientDetailPage({
 			}
 
 			if (action === "close") {
+				const reasonId = Number(selectedClosureReasonId);
+				if (!Number.isFinite(reasonId) || reasonId <= 0) {
+					throw new Error(
+						"Closure reason is required before closing this client.",
+					);
+				}
+
 				return runClientCommand(tenantId, id, "close", {
 					closureDate: today,
+					closureReasonId: reasonId,
 					...dateConfig,
 				});
 			}
@@ -956,19 +1011,18 @@ export default function ClientDetailPage({
 			if (action === "reactivate") {
 				return runClientCommand(tenantId, id, "reactivate", {
 					reactivationDate: today,
-					reactivateDate: today,
 					...dateConfig,
 				});
 			}
 
 			if (action === "undoReject") {
-				return runClientCommand(tenantId, id, "undoReject", {
+				return runClientCommand(tenantId, id, "undoRejection", {
 					reopenedDate: today,
 					...dateConfig,
 				});
 			}
 
-			return runClientCommand(tenantId, id, "undoWithdraw", {
+			return runClientCommand(tenantId, id, "undoWithdrawal", {
 				reopenedDate: today,
 				...dateConfig,
 			});
@@ -1042,6 +1096,15 @@ export default function ClientDetailPage({
 			return;
 		}
 
+		if (action === "close" && closureReasonOptions.length === 0) {
+			setActionFeedback({
+				type: "error",
+				message:
+					"No closure reasons are configured. Add values in Code Registry first.",
+			});
+			return;
+		}
+
 		setConfirmAction(action);
 	};
 
@@ -1056,6 +1119,10 @@ export default function ClientDetailPage({
 	const selectedRejectionReasonName =
 		rejectionReasonOptions.find(
 			(option) => String(option.id) === selectedRejectionReasonId,
+		)?.name || "";
+	const selectedClosureReasonName =
+		closureReasonOptions.find(
+			(option) => String(option.id) === selectedClosureReasonId,
 		)?.name || "";
 	const selectedWithdrawalReasonName =
 		withdrawalReasonOptions.find(
@@ -1362,24 +1429,28 @@ export default function ClientDetailPage({
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								{showPendingActions && (
+								{(lifecycleActions.some((action) => action.id === "close") ||
+									lifecycleActions.some((action) => action.id === "reject") ||
+									lifecycleActions.some(
+										(action) => action.id === "withdraw",
+									)) && (
 									<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 										{lifecycleActions.some(
-											(action) => action.id === "reject",
+											(action) => action.id === "close",
 										) && (
 											<div className="space-y-2">
-												<p className="text-sm font-medium">Rejection Reason</p>
+												<p className="text-sm font-medium">Closure Reason</p>
 												<Select
-													value={selectedRejectionReasonId}
-													onValueChange={setSelectedRejectionReasonId}
+													value={selectedClosureReasonId}
+													onValueChange={setSelectedClosureReasonId}
 												>
 													<SelectTrigger>
-														<SelectValue placeholder="Select rejection reason" />
+														<SelectValue placeholder="Select closure reason" />
 													</SelectTrigger>
 													<SelectContent>
-														{rejectionReasonOptions.map((option) => (
+														{closureReasonOptions.map((option) => (
 															<SelectItem
-																key={`reject-reason-${option.id}`}
+																key={`closure-reason-${option.id}`}
 																value={String(option.id)}
 															>
 																{option.name}
@@ -1389,32 +1460,63 @@ export default function ClientDetailPage({
 												</Select>
 											</div>
 										)}
+										{showPendingActions &&
+											lifecycleActions.some(
+												(action) => action.id === "reject",
+											) && (
+												<div className="space-y-2">
+													<p className="text-sm font-medium">
+														Rejection Reason
+													</p>
+													<Select
+														value={selectedRejectionReasonId}
+														onValueChange={setSelectedRejectionReasonId}
+													>
+														<SelectTrigger>
+															<SelectValue placeholder="Select rejection reason" />
+														</SelectTrigger>
+														<SelectContent>
+															{rejectionReasonOptions.map((option) => (
+																<SelectItem
+																	key={`reject-reason-${option.id}`}
+																	value={String(option.id)}
+																>
+																	{option.name}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</div>
+											)}
 
-										{lifecycleActions.some(
-											(action) => action.id === "withdraw",
-										) && (
-											<div className="space-y-2">
-												<p className="text-sm font-medium">Withdrawal Reason</p>
-												<Select
-													value={selectedWithdrawalReasonId}
-													onValueChange={setSelectedWithdrawalReasonId}
-												>
-													<SelectTrigger>
-														<SelectValue placeholder="Select withdrawal reason" />
-													</SelectTrigger>
-													<SelectContent>
-														{withdrawalReasonOptions.map((option) => (
-															<SelectItem
-																key={`withdraw-reason-${option.id}`}
-																value={String(option.id)}
-															>
-																{option.name}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-											</div>
-										)}
+										{showPendingActions &&
+											lifecycleActions.some(
+												(action) => action.id === "withdraw",
+											) && (
+												<div className="space-y-2">
+													<p className="text-sm font-medium">
+														Withdrawal Reason
+													</p>
+													<Select
+														value={selectedWithdrawalReasonId}
+														onValueChange={setSelectedWithdrawalReasonId}
+													>
+														<SelectTrigger>
+															<SelectValue placeholder="Select withdrawal reason" />
+														</SelectTrigger>
+														<SelectContent>
+															{withdrawalReasonOptions.map((option) => (
+																<SelectItem
+																	key={`withdraw-reason-${option.id}`}
+																	value={String(option.id)}
+																>
+																	{option.name}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</div>
+											)}
 									</div>
 								)}
 
@@ -1423,6 +1525,10 @@ export default function ClientDetailPage({
 										{lifecycleActions.map((action) => {
 											const Icon = action.icon;
 											const tooltipCopy = getActionTooltipCopy(action.id);
+											const needsCloseReason =
+												action.id === "close" &&
+												(!selectedClosureReasonId ||
+													closureReasonOptions.length === 0);
 											const needsRejectReason =
 												action.id === "reject" &&
 												(!selectedRejectionReasonId ||
@@ -1433,6 +1539,7 @@ export default function ClientDetailPage({
 													withdrawalReasonOptions.length === 0);
 											const disabled =
 												lifecycleMutation.isPending ||
+												needsCloseReason ||
 												needsRejectReason ||
 												needsWithdrawReason;
 
@@ -1479,12 +1586,14 @@ export default function ClientDetailPage({
 									</TooltipProvider>
 								</div>
 
-								{showPendingActions &&
+								{(showPendingActions || showActiveCloseAction) &&
 									(rejectionReasonQuery.isError ||
+										closureReasonQuery.isError ||
 										withdrawalReasonQuery.isError) && (
 										<p className="text-xs text-destructive">
 											Some lifecycle reason lookups could not be loaded. Ensure
-											rejection and withdrawal reasons exist in Code Registry.
+											closure, rejection, and withdrawal reasons exist in Code
+											Registry.
 										</p>
 									)}
 							</CardContent>
@@ -2012,6 +2121,12 @@ export default function ClientDetailPage({
 						<AlertDialogDescription>
 							{confirmCopy?.description || "Are you sure you want to continue?"}
 						</AlertDialogDescription>
+						{confirmAction === "close" && selectedClosureReasonName && (
+							<p className="text-sm text-muted-foreground">
+								Reason:{" "}
+								<span className="font-medium">{selectedClosureReasonName}</span>
+							</p>
+						)}
 						{confirmAction === "reject" && selectedRejectionReasonName && (
 							<p className="text-sm text-muted-foreground">
 								Reason:{" "}

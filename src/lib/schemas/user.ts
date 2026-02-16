@@ -29,7 +29,6 @@ export const createUserSchema = z
 		repeatPassword: z.string().min(12, "Please confirm password"),
 		sendPasswordToEmail: z.boolean().optional(),
 		passwordNeverExpires: z.boolean().optional(),
-		isSelfServiceUser: z.boolean().optional(),
 	})
 	.refine((data) => data.password === data.repeatPassword, {
 		message: "Passwords don't match",
@@ -54,6 +53,5 @@ export function userFormToRequest(data: CreateUserFormData) {
 		repeatPassword: data.repeatPassword,
 		sendPasswordToEmail: data.sendPasswordToEmail ?? false,
 		passwordNeverExpires: data.passwordNeverExpires ?? false,
-		isSelfServiceUser: data.isSelfServiceUser ?? false,
 	};
 }

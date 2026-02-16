@@ -324,23 +324,6 @@ export function UserForm({
 						Password never expires
 					</Label>
 				</div>
-
-				<div className="flex items-center gap-2">
-					<Controller
-						control={control}
-						name="isSelfServiceUser"
-						render={({ field }) => (
-							<Checkbox
-								id="isSelfServiceUser"
-								checked={field.value ?? false}
-								onCheckedChange={(value) => field.onChange(Boolean(value))}
-							/>
-						)}
-					/>
-					<Label htmlFor="isSelfServiceUser" className="cursor-pointer">
-						Self-service user
-					</Label>
-				</div>
 			</div>
 
 			<div className="flex justify-end gap-3 pt-4">

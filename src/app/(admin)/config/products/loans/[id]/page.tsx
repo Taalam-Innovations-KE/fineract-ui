@@ -9,10 +9,12 @@ import {
 	Calendar,
 	CreditCard,
 	FileText,
+	History,
 	Percent,
 	Settings,
 	TrendingUp,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { use, useState } from "react";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
@@ -61,7 +63,13 @@ type TabValue =
 	| "interest"
 	| "fees"
 	| "accounting"
-	| "settings";
+	| "settings"
+	| "audit";
+
+type LoanProductAuditResponse = {
+	events: unknown[];
+	totalFilteredRecords?: number;
+};
 
 async function fetchLoanProduct(
 	tenantId: string,
@@ -91,6 +99,70 @@ async function fetchDetailedCharges(
 		return [];
 	}
 }
+
+async function fetchLoanProductAudit(
+	tenantId: string,
+	loanProductId: string,
+): Promise<LoanProductAuditResponse> {
+	const searchParams = new URLSearchParams({
+		entityName: "LOANPRODUCT",
+		resourceId: loanProductId,
+		orderBy: "id",
+		sortOrder: "DESC",
+		offset: "0",
+		limit: "200",
+		includeJson: "true",
+	});
+
+	const response = await fetch(
+		`${BFF_ROUTES.audits}?${searchParams.toString()}`,
+		{
+			headers: { "x-tenant-id": tenantId },
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch loan product audit trail");
+	}
+
+	const payload = await response.json();
+
+	if (Array.isArray(payload)) {
+		return {
+			events: payload,
+			totalFilteredRecords: payload.length,
+		};
+	}
+
+	if (payload && typeof payload === "object") {
+		const data = payload as {
+			pageItems?: unknown[];
+			events?: unknown[];
+			totalFilteredRecords?: number;
+		};
+		const events = Array.isArray(data.pageItems)
+			? data.pageItems
+			: Array.isArray(data.events)
+				? data.events
+				: [];
+
+		return {
+			events,
+			totalFilteredRecords:
+				typeof data.totalFilteredRecords === "number"
+					? data.totalFilteredRecords
+					: events.length,
+		};
+	}
+
+	return { events: [], totalFilteredRecords: 0 };
+}
+
+const AuditTrailViewer = dynamic(() =>
+	import("@/components/loans/audit-trail-viewer").then(
+		(mod) => mod.AuditTrailViewer,
+	),
+);
 
 function formatCurrency(amount: number | undefined, symbol = "KES") {
 	if (amount === undefined || amount === null) return "—";
@@ -818,6 +890,13 @@ export default function LoanProductDetailPage({
 		},
 	});
 
+	const auditTrailQuery = useQuery({
+		queryKey: ["loanProductAudit", tenantId, id],
+		queryFn: () => fetchLoanProductAudit(tenantId, id),
+		enabled: Boolean(tenantId && id && activeTab === "audit"),
+		refetchOnWindowFocus: false,
+	});
+
 	const updateMutation = useMutation({
 		mutationFn: (data: PostLoanProductsRequest) =>
 			loanProductsApi.update(tenantId, id, data),
@@ -858,6 +937,9 @@ export default function LoanProductDetailPage({
 	const currency = product.currency?.displaySymbol || "KES";
 	const fees = detailedCharges.filter((c) => !c.penalty);
 	const penalties = detailedCharges.filter((c) => c.penalty);
+	const auditEvents = auditTrailQuery.data?.events || [];
+	const auditEventsCount =
+		auditTrailQuery.data?.totalFilteredRecords ?? auditEvents.length;
 	const accountingMappings = product.accountingMappings;
 	const paymentTypeOptions =
 		(readUnknownProperty(product, "paymentTypeOptions") as
@@ -1135,6 +1217,7 @@ export default function LoanProductDetailPage({
 								<SelectItem value="fees">Fees</SelectItem>
 								<SelectItem value="accounting">Accounting</SelectItem>
 								<SelectItem value="settings">Settings</SelectItem>
+								<SelectItem value="audit">Audit</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
@@ -1172,6 +1255,13 @@ export default function LoanProductDetailPage({
 						<TabsTrigger value="settings">
 							<Settings className="w-4 h-4 mr-1.5" />
 							Settings
+						</TabsTrigger>
+						<TabsTrigger value="audit">
+							<History className="w-4 h-4 mr-1.5" />
+							Audit
+							<Badge variant="secondary" className="ml-1.5 text-xs">
+								{auditEventsCount}
+							</Badge>
 						</TabsTrigger>
 					</TabsList>
 
@@ -2142,6 +2232,20 @@ export default function LoanProductDetailPage({
 								</Card>
 							</div>
 						</TabsContent>
+
+						<TabsContent value="audit">
+							{activeTab === "audit" && (
+								<AuditTrailViewer
+									events={auditEvents}
+									isLoading={auditTrailQuery.isLoading}
+									error={
+										auditTrailQuery.error
+											? (auditTrailQuery.error as Error)
+											: null
+									}
+								/>
+							)}
+						</TabsContent>
 					</div>
 				</Tabs>
 			</div>
@@ -2199,7 +2303,7 @@ function LoadingSkeleton() {
 			{/* Tabs Skeleton */}
 			<div className="space-y-4">
 				<div className="flex gap-2 border-b pb-2">
-					{[1, 2, 3, 4, 5, 6].map((i) => (
+					{[1, 2, 3, 4, 5, 6, 7].map((i) => (
 						<Skeleton key={i} className="h-8 w-24" />
 					))}
 				</div>

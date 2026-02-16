@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { Resolver } from "react-hook-form";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
@@ -239,7 +240,7 @@ export default function PaymentTypesPage() {
 	);
 
 	const form = useForm<PaymentTypeFormData>({
-		resolver: zodResolver(paymentTypeSchema),
+		resolver: zodResolver(paymentTypeSchema) as Resolver<PaymentTypeFormData>,
 		defaultValues: {
 			name: "",
 			description: "",

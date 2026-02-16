@@ -10,10 +10,10 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 
-export default function AuthErrorPage({
+export default async function AuthErrorPage({
 	searchParams,
 }: {
-	searchParams: { error?: string };
+	searchParams: Promise<{ error?: string }>;
 }) {
 	const errorMessages: Record<string, string> = {
 		Configuration: "There is a problem with the server configuration.",
@@ -30,7 +30,8 @@ export default function AuthErrorPage({
 		Default: "An error occurred during authentication.",
 	};
 
-	const error = searchParams.error || "Default";
+	const resolvedSearchParams = await searchParams;
+	const error = resolvedSearchParams?.error || "Default";
 	const errorMessage = errorMessages[error] || errorMessages.Default;
 
 	return (

@@ -276,7 +276,6 @@ export function SavingsProductForm({
 		feesReceivableAccountId: undefined,
 		penaltiesReceivableAccountId: undefined,
 		interestPayableAccountId: undefined,
-		paymentChannelToFundSourceMappings: [],
 		...initialData,
 		charges: initialData?.charges ?? [],
 		paymentChannelToFundSourceMappings:

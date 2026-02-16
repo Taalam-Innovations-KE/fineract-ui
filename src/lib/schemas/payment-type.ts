@@ -1,25 +1,27 @@
 import { z } from "zod";
 
-const optionalPositionSchema = z.preprocess(
-	(value) => {
-		if (value === "" || value === null || value === undefined) {
-			return undefined;
-		}
+const optionalPositionSchema = z
+	.preprocess(
+		(value) => {
+			if (value === "" || value === null || value === undefined) {
+				return undefined;
+			}
 
-		if (typeof value === "string") {
-			return Number(value);
-		}
+			if (typeof value === "string") {
+				return Number(value);
+			}
 
-		return value;
-	},
-	z
-		.number({
-			invalid_type_error: "Position must be a valid number",
-		})
-		.int("Position must be a whole number")
-		.min(0, "Position must be 0 or greater")
-		.optional(),
-);
+			return value;
+		},
+		z
+			.number({
+				error: "Position must be a valid number",
+			})
+			.int("Position must be a whole number")
+			.min(0, "Position must be 0 or greater")
+			.optional(),
+	)
+	.optional();
 
 export const paymentTypeSchema = z.object({
 	name: z

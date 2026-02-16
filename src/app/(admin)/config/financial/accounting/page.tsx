@@ -1,5 +1,6 @@
 import {
 	ArrowRight,
+	Banknote,
 	BookOpen,
 	CalendarCheck2,
 	GitBranch,
@@ -45,6 +46,13 @@ const modules = [
 			"Open and manage branch accounting closure records to enforce posting cut-off dates.",
 		href: "/config/financial/accounting/closures",
 		icon: CalendarCheck2,
+	},
+	{
+		title: "Payment Types",
+		description:
+			"Manage transaction payment methods used across products and accounting fund-source mappings.",
+		href: "/config/financial/accounting/payment-types",
+		icon: Banknote,
 	},
 	{
 		title: "Provisioning Criteria",

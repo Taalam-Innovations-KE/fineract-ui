@@ -55,8 +55,8 @@ import type {
 	GetClientsResponse,
 	GetCodeValuesDataResponse,
 	OfficeData,
-	PostClientsResponse,
 	PostClientsRequest,
+	PostClientsResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import type { ClientFormData } from "@/lib/schemas/client";
@@ -311,9 +311,24 @@ function normalizeClientSubmissionError({
 	});
 }
 
-function toInputDate(value?: string): string {
+function toInputDate(value?: string | number[] | null): string {
 	if (!value) {
 		return "";
+	}
+
+	if (Array.isArray(value)) {
+		const [year, month, day] = value;
+		if (
+			typeof year !== "number" ||
+			typeof month !== "number" ||
+			typeof day !== "number"
+		) {
+			return "";
+		}
+
+		const normalizedMonth = String(month).padStart(2, "0");
+		const normalizedDay = String(day).padStart(2, "0");
+		return `${year}-${normalizedMonth}-${normalizedDay}`;
 	}
 
 	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -348,6 +363,19 @@ function findIdentifierValueByMatches(
 	});
 
 	return found?.documentKey || "";
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+	return typeof value === "number" ? value : undefined;
+}
+
+function resolveLookupId(
+	idValue: unknown,
+	option: { id?: number | null } | null | undefined,
+): number | undefined {
+	return (
+		normalizeOptionalNumber(idValue) ?? normalizeOptionalNumber(option?.id)
+	);
 }
 
 function getClientKindFromDetail(
@@ -434,12 +462,12 @@ async function updateClient(
 
 	const data = (await response.json()) as Record<string, unknown>;
 	if (!response.ok) {
-			throw toSubmitActionError(
-				{
-					...data,
-					status: response.status,
-					statusText: response.statusText,
-					message:
+		throw toSubmitActionError(
+			{
+				...data,
+				status: response.status,
+				statusText: response.statusText,
+				message:
 					typeof data.message === "string"
 						? data.message
 						: "Failed to update client",
@@ -658,7 +686,10 @@ export default function ClientsPage() {
 
 	const createMutation = useMutation({
 		mutationFn: async ({ payload, identifiers }: ClientSubmission) => {
-			const result = (await createClient(tenantId, payload)) as PostClientsResponse;
+			const result = (await createClient(
+				tenantId,
+				payload,
+			)) as PostClientsResponse;
 			const clientId = result.clientId ?? result.resourceId;
 
 			if (!clientId) {
@@ -1037,9 +1068,15 @@ export default function ClientsPage() {
 		const clientKindValue = getClientKindFromDetail(clientData);
 		const clientNonPersonDetails = (clientData.clientNonPersonDetails ||
 			{}) as Record<string, unknown>;
-		const mainBusinessLineId = (
-			clientNonPersonDetails.mainBusinessLine as { id?: number } | undefined
-		)?.id;
+		const mainBusinessLineId =
+			normalizeOptionalNumber(clientNonPersonDetails.mainBusinessLineId) ??
+			normalizeOptionalNumber(
+				(
+					clientNonPersonDetails.mainBusinessLine as
+						| { id?: number | null }
+						| undefined
+				)?.id,
+			);
 
 		reset({
 			clientKind: clientKindValue,
@@ -1047,11 +1084,20 @@ export default function ClientsPage() {
 			firstname: clientData.firstname || "",
 			middlename: clientData.middlename || "",
 			lastname: clientData.lastname || "",
-			officeId: clientData.officeId,
-			genderId: clientData.genderId,
-			clientTypeId: clientData.clientTypeId,
-			clientClassificationId: clientData.clientClassificationId,
-			legalFormId: clientData.legalFormId,
+			officeId: normalizeOptionalNumber(clientData.officeId),
+			genderId: resolveLookupId(clientData.genderId, clientData.gender),
+			clientTypeId: resolveLookupId(
+				clientData.clientTypeId,
+				clientData.clientType,
+			),
+			clientClassificationId: resolveLookupId(
+				clientData.clientClassificationId,
+				clientData.clientClassification,
+			),
+			legalFormId: resolveLookupId(
+				clientData.legalFormId,
+				clientData.legalForm,
+			),
 			businessTypeId: mainBusinessLineId,
 			mobileNo: clientData.mobileNo || "",
 			emailAddress: clientData.emailAddress || "",
@@ -1086,8 +1132,8 @@ export default function ClientsPage() {
 				identifierData,
 				DOCUMENT_TYPE_MATCHES.registration,
 			),
-			savingsProductId: clientData.savingsProductId,
-			staffId: clientData.staffId,
+			savingsProductId: normalizeOptionalNumber(clientData.savingsProductId),
+			staffId: normalizeOptionalNumber(clientData.staffId),
 		});
 	}, [
 		isDrawerOpen,

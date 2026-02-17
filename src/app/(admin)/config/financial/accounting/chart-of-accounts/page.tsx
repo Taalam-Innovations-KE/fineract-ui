@@ -10,7 +10,6 @@ import {
 	Eye,
 	FileUp,
 	Plus,
-	Receipt,
 	Trash2,
 	Workflow,
 } from "lucide-react";
@@ -53,8 +52,6 @@ import type {
 	GetGlAccountsResponse,
 	GetGlAccountsTemplateResponse,
 	GetGlClosureResponse,
-	GetJournalEntriesTransactionIdResponse,
-	JournalEntryTransactionItem,
 	PostGlAccountsRequest,
 	PutGlAccountsRequest,
 } from "@/lib/fineract/generated/types.gen";
@@ -82,8 +79,6 @@ type FormState = {
 };
 
 const EMPTY_ACCOUNTS: GetGlAccountsResponse[] = [];
-const EMPTY_JOURNAL_ITEMS: JournalEntryTransactionItem[] = [];
-const JOURNAL_OVERVIEW_PAGE_SIZE = 1;
 
 const DEFAULT_FORM: FormState = {
 	name: "",
@@ -161,35 +156,6 @@ async function fetchTemplate(tenantId: string): Promise<GlTemplateData> {
 	return response.json();
 }
 
-async function fetchJournalOverview(
-	tenantId: string,
-): Promise<GetJournalEntriesTransactionIdResponse> {
-	const params = new URLSearchParams({
-		limit: String(JOURNAL_OVERVIEW_PAGE_SIZE),
-		offset: "0",
-	});
-	const response = await fetch(`${BFF_ROUTES.journalEntries}?${params.toString()}`, {
-		headers: { "x-tenant-id": tenantId },
-	});
-
-	if (!response.ok) {
-		return {
-			pageItems: [],
-			totalFilteredRecords: 0,
-		};
-	}
-
-	const payload = (await response.json()) as unknown;
-	if (Array.isArray(payload)) {
-		return {
-			pageItems: payload as JournalEntryTransactionItem[],
-			totalFilteredRecords: payload.length,
-		};
-	}
-
-	return payload as GetJournalEntriesTransactionIdResponse;
-}
-
 async function fetchClosures(
 	tenantId: string,
 ): Promise<GetGlClosureResponse[]> {
@@ -202,10 +168,6 @@ async function fetchClosures(
 	}
 
 	return response.json();
-}
-
-function getEntryTypeLabel(entry: JournalEntryTransactionItem): string {
-	return entry.entryType?.value || entry.entryType?.code || "";
 }
 
 async function createAccount(tenantId: string, payload: PostGlAccountsRequest) {
@@ -408,12 +370,6 @@ export default function ChartOfAccountsPage() {
 		queryFn: () => fetchTemplate(tenantId),
 	});
 
-	const journalOverviewQuery = useQuery({
-		queryKey: ["journalentries-overview", tenantId],
-		queryFn: () => fetchJournalOverview(tenantId),
-		retry: false,
-	});
-
 	const closuresQuery = useQuery({
 		queryKey: ["gl-closures-overview", tenantId],
 		queryFn: () => fetchClosures(tenantId),
@@ -452,19 +408,12 @@ export default function ChartOfAccountsPage() {
 
 	const accounts = accountsQuery.data ?? EMPTY_ACCOUNTS;
 	const template = templateQuery.data;
-	const journalItems = journalOverviewQuery.data?.pageItems ?? EMPTY_JOURNAL_ITEMS;
-	const totalJournalRecords =
-		journalOverviewQuery.data?.totalFilteredRecords ?? journalItems.length;
 	const closures = closuresQuery.data ?? [];
 	const typeOptions = template?.accountTypeOptions || [];
 	const usageOptions = template?.usageOptions || [];
 
 	const activeAccounts = accounts.filter((account) => !account.disabled).length;
 	const disabledAccounts = accounts.length - activeAccounts;
-	const latestJournalEntry = journalItems[0];
-	const latestJournalEntryType = latestJournalEntry
-		? getEntryTypeLabel(latestJournalEntry) || "N/A"
-		: "N/A";
 	const latestClosure = [...closures].sort((left, right) => {
 		const leftDate = new Date(left.closingDate || "").getTime();
 		const rightDate = new Date(right.closingDate || "").getTime();
@@ -963,16 +912,16 @@ export default function ChartOfAccountsPage() {
 
 					<Card>
 						<CardHeader>
-							<CardTitle>Ledger Activity Dashboard</CardTitle>
+							<CardTitle>Accounting Snapshot</CardTitle>
 							<CardDescription>
-								High-level journal and closure indicators from raw accounting
-								APIs.
+								High-confidence controls and status indicators from COA and
+								closure endpoints.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							{journalOverviewQuery.isLoading || closuresQuery.isLoading ? (
+							{closuresQuery.isLoading ? (
 								<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-									{Array.from({ length: 6 }).map((_, index) => (
+									{Array.from({ length: 3 }).map((_, index) => (
 										<div
 											key={`ledger-dashboard-skeleton-${index}`}
 											className="rounded-sm border border-border/60 px-3 py-3"
@@ -985,40 +934,6 @@ export default function ChartOfAccountsPage() {
 								</div>
 							) : (
 								<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="flex items-center gap-2 text-sm text-muted-foreground">
-											<Receipt className="h-4 w-4 text-primary" />
-											Total Journal Lines
-										</div>
-										<div className="text-2xl font-bold mt-1">
-											{totalJournalRecords}
-										</div>
-										<div className="text-xs text-muted-foreground mt-1">
-											Derived from `totalFilteredRecords`
-										</div>
-									</div>
-									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="text-sm text-muted-foreground">
-											Latest Journal Posting
-										</div>
-										<div className="text-lg font-bold mt-1">
-											{latestJournalEntry?.transactionDate || "N/A"}
-										</div>
-										<div className="text-xs text-muted-foreground mt-1">
-											Transaction: {latestJournalEntry?.transactionId || "N/A"}
-										</div>
-									</div>
-									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="text-sm text-muted-foreground">
-											Latest Journal Entry Type
-										</div>
-										<div className="text-lg font-bold mt-1">
-											{latestJournalEntryType}
-										</div>
-										<div className="text-xs text-muted-foreground mt-1">
-											Fetched with `limit=1` for dashboard efficiency
-										</div>
-									</div>
 									<div className="rounded-sm border border-border/60 px-3 py-3">
 										<div className="flex items-center gap-2 text-sm text-muted-foreground">
 											<CalendarCheck2 className="h-4 w-4 text-primary" />
@@ -1048,10 +963,10 @@ export default function ChartOfAccountsPage() {
 											Source APIs
 										</div>
 										<div className="text-sm font-medium mt-1">
-											`/glaccounts`, `/journalentries`, `/glclosures`
+											`/glaccounts`, `/glclosures`
 										</div>
 										<div className="text-xs text-muted-foreground mt-1">
-											No report/runreports dependency
+											Transaction analytics are available in per-ledger view.
 										</div>
 									</div>
 								</div>

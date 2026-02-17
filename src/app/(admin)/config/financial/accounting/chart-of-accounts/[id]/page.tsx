@@ -151,8 +151,6 @@ async function fetchLedgerLines(
 		glAccountId: String(glAccountId),
 		limit: String(PAGE_SIZE),
 		offset: String(pageIndex * PAGE_SIZE),
-		orderBy: "transactionDate",
-		sortOrder: "DESC",
 		runningBalance: "true",
 		transactionDetails: "true",
 	});
@@ -222,7 +220,7 @@ async function fetchLedgerLines(
 async function fetchJournalLineById(
 	tenantId: string,
 	journalEntryId: number,
-): Promise<JournalEntryData> {
+): Promise<JournalEntryData | null> {
 	const response = await fetch(BFF_ROUTES.journalEntryById(journalEntryId), {
 		headers: {
 			"x-tenant-id": tenantId,
@@ -230,12 +228,7 @@ async function fetchJournalLineById(
 	});
 
 	if (!response.ok) {
-		throw new Error(
-			await getResponseErrorMessage(
-				response,
-				"Failed to fetch transaction details",
-			),
-		);
+		return null;
 	}
 
 	return response.json();
@@ -490,18 +483,21 @@ export default function LedgerDetailsPage({
 		queryKey: ["glaccount-ledger-view", effectiveTenantId, ledgerId],
 		queryFn: () => fetchGlAccountById(effectiveTenantId, ledgerId),
 		enabled: Boolean(effectiveTenantId && isValidLedgerId),
+		retry: false,
 	});
 
 	const linesQuery = useQuery({
 		queryKey: ["glaccount-ledger-lines", effectiveTenantId, ledgerId, filters, pageIndex],
 		queryFn: () => fetchLedgerLines(effectiveTenantId, ledgerId, filters, pageIndex),
 		enabled: Boolean(effectiveTenantId && isValidLedgerId),
+		retry: false,
 	});
 
 	const closuresQuery = useQuery({
 		queryKey: ["glaccount-ledger-closures", effectiveTenantId],
 		queryFn: () => fetchClosures(effectiveTenantId),
 		enabled: Boolean(effectiveTenantId),
+		retry: false,
 	});
 
 	const lines = linesQuery.data?.pageItems || [];
@@ -531,6 +527,7 @@ export default function LedgerDetailsPage({
 		queryKey: ["glaccount-ledger-line", effectiveTenantId, selectedLineId],
 		queryFn: () => fetchJournalLineById(effectiveTenantId, selectedLineId || 0),
 		enabled: Boolean(effectiveTenantId && selectedLineId),
+		retry: false,
 	});
 
 	const selectedLineDetails = getDetailPairs(

@@ -169,15 +169,16 @@ async function fetchJournalOverview(
 	const params = new URLSearchParams({
 		limit: String(JOURNAL_OVERVIEW_PAGE_SIZE),
 		offset: "0",
-		orderBy: "submittedOnDate",
-		sortOrder: "DESC",
 	});
 	const response = await fetch(`${BFF_ROUTES.journalEntries}?${params.toString()}`, {
 		headers: { "x-tenant-id": tenantId },
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch journal overview");
+		return {
+			pageItems: [],
+			totalFilteredRecords: 0,
+		};
 	}
 
 	const payload = (await response.json()) as unknown;
@@ -199,7 +200,7 @@ async function fetchClosures(
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch accounting closures");
+		return [];
 	}
 
 	return response.json();
@@ -431,11 +432,13 @@ export default function ChartOfAccountsPage() {
 	const journalOverviewQuery = useQuery({
 		queryKey: ["journalentries-overview", tenantId],
 		queryFn: () => fetchJournalOverview(tenantId),
+		retry: false,
 	});
 
 	const closuresQuery = useQuery({
 		queryKey: ["gl-closures-overview", tenantId],
 		queryFn: () => fetchClosures(tenantId),
+		retry: false,
 	});
 
 	const createMutation = useMutation({

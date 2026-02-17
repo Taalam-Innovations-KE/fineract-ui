@@ -61,8 +61,7 @@ function describeTagMappings(tags?: AccountingTagRuleData[]) {
 	return tags.map((tagRule) => {
 		const tagLabel =
 			tagRule.tag?.name ||
-			tagRule.tag?.value ||
-			tagRule.tag?.code ||
+			tagRule.tag?.description ||
 			`Tag #${tagRule.tag?.id}`;
 		const transactionType =
 			tagRule.transactionType?.value ||

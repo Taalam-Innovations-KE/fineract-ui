@@ -2,7 +2,6 @@
 
 import { ChevronDown, ExternalLink, Info, Search } from "lucide-react";
 import { useState } from "react";
-import { AuditViewToggle } from "@/components/ui/audit-view-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +40,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ViewModeToggle } from "@/components/ui/view-mode-toggle";
 import type {
 	GetLoansLoanIdResponse,
 	GetLoansLoanIdTransactions,
@@ -263,7 +263,7 @@ export function LoanTransactionsTab({
 					Showing {filteredTransactions.length} of {transactions.length}{" "}
 					transactions
 				</p>
-				<AuditViewToggle
+				<ViewModeToggle
 					view={view}
 					onViewChange={setView}
 					options={TRANSACTION_VIEW_OPTIONS}

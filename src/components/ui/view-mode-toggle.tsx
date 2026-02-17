@@ -2,24 +2,24 @@
 
 import { Button } from "@/components/ui/button";
 
-interface AuditViewToggleOption<T extends string> {
+interface ViewModeToggleOption<T extends string> {
 	value: T;
 	label: string;
 }
 
-interface AuditViewToggleProps<T extends string> {
+interface ViewModeToggleProps<T extends string> {
 	view: T;
 	onViewChange: (view: T) => void;
-	options: readonly [AuditViewToggleOption<T>, AuditViewToggleOption<T>];
+	options: readonly [ViewModeToggleOption<T>, ViewModeToggleOption<T>];
 	className?: string;
 }
 
-export function AuditViewToggle<T extends string>({
+export function ViewModeToggle<T extends string>({
 	view,
 	onViewChange,
 	options,
 	className,
-}: AuditViewToggleProps<T>) {
+}: ViewModeToggleProps<T>) {
 	const [firstOption, secondOption] = options;
 
 	return (

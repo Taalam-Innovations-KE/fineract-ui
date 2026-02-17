@@ -3,7 +3,6 @@
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LoanAuditTimeline } from "@/components/loans/loan-audit-timeline";
-import { AuditViewToggle } from "@/components/ui/audit-view-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +29,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { ViewModeToggle } from "@/components/ui/view-mode-toggle";
 import {
 	type AuditEvent,
 	formatAuditTimestamp,
@@ -215,7 +215,7 @@ export function AuditTrailViewer({
 							events
 						</CardDescription>
 					</div>
-					<AuditViewToggle
+					<ViewModeToggle
 						view={view}
 						onViewChange={setView}
 						options={AUDIT_VIEW_OPTIONS}

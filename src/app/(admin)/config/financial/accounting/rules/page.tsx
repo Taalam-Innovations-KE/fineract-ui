@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	AccountingRuleData,
@@ -60,6 +61,52 @@ const DEFAULT_FORM: RuleFormState = {
 	accountToCredit: "",
 };
 
+function hasTagMappings(rule: AccountingRuleData) {
+	return (
+		(rule.debitTags?.length || 0) > 0 || (rule.creditTags?.length || 0) > 0
+	);
+}
+
+function hasMultipleAccountMappings(rule: AccountingRuleData) {
+	return (
+		(rule.debitAccounts?.length || 0) > 1 ||
+		(rule.creditAccounts?.length || 0) > 1
+	);
+}
+
+function isSimpleAccountRule(rule: AccountingRuleData) {
+	return (
+		!hasTagMappings(rule) &&
+		!rule.allowMultipleDebitEntries &&
+		!rule.allowMultipleCreditEntries &&
+		!hasMultipleAccountMappings(rule)
+	);
+}
+
+function getEditRestrictionReason(rule: AccountingRuleData): string | null {
+	if (rule.systemDefined) {
+		return "System-defined rules are read-only.";
+	}
+
+	if (hasTagMappings(rule)) {
+		return "Tag-based rules are read-only in this editor.";
+	}
+
+	if (rule.allowMultipleDebitEntries || rule.allowMultipleCreditEntries) {
+		return "Multi-entry rules are read-only in this editor.";
+	}
+
+	if (hasMultipleAccountMappings(rule)) {
+		return "Rules with multiple mapped accounts are read-only in this editor.";
+	}
+
+	if (!rule.debitAccounts?.[0]?.id || !rule.creditAccounts?.[0]?.id) {
+		return "Rule is missing debit/credit mappings required for this editor.";
+	}
+
+	return null;
+}
+
 function RulesTableSkeleton() {
 	return (
 		<div className="space-y-2">
@@ -67,7 +114,7 @@ function RulesTableSkeleton() {
 				<table className="w-full text-left text-sm">
 					<thead className="border-b border-border/60 bg-muted/40">
 						<tr>
-							{Array.from({ length: 5 }).map((_, index) => (
+							{Array.from({ length: 6 }).map((_, index) => (
 								<th key={`rules-header-${index}`} className="px-3 py-2">
 									<Skeleton className="h-4 w-20" />
 								</th>
@@ -77,7 +124,7 @@ function RulesTableSkeleton() {
 					<tbody className="divide-y divide-border/60">
 						{Array.from({ length: 6 }).map((_, rowIndex) => (
 							<tr key={`rules-row-${rowIndex}`}>
-								{Array.from({ length: 5 }).map((_, cellIndex) => (
+								{Array.from({ length: 6 }).map((_, cellIndex) => (
 									<td
 										key={`rules-cell-${rowIndex}-${cellIndex}`}
 										className="px-3 py-2"
@@ -286,18 +333,28 @@ export default function AccountingRulesPage() {
 		setEditingRule(null);
 		setFormError(null);
 		setSubmitError(null);
+		const defaultDebitAccount = accountOptions[0]?.id
+			? String(accountOptions[0].id)
+			: "";
+		const defaultCreditAccount = accountOptions[1]?.id
+			? String(accountOptions[1].id)
+			: defaultDebitAccount;
 		setFormState({
 			...DEFAULT_FORM,
 			officeId: officeOptions[0]?.id ? String(officeOptions[0].id) : "",
-			accountToDebit: accountOptions[0]?.id ? String(accountOptions[0].id) : "",
-			accountToCredit: accountOptions[0]?.id
-				? String(accountOptions[0].id)
-				: "",
+			accountToDebit: defaultDebitAccount,
+			accountToCredit: defaultCreditAccount,
 		});
 		setIsSheetOpen(true);
 	};
 
 	const openEditSheet = (rule: AccountingRuleData) => {
+		const restriction = getEditRestrictionReason(rule);
+		if (restriction) {
+			toast.error(restriction);
+			return;
+		}
+
 		setEditingRule(rule);
 		setFormError(null);
 		setSubmitError(null);
@@ -317,8 +374,19 @@ export default function AccountingRulesPage() {
 
 	const handleSave = () => {
 		setSubmitError(null);
-		if (!formState.name.trim()) {
+		const trimmedName = formState.name.trim();
+		const trimmedDescription = formState.description.trim();
+
+		if (!trimmedName) {
 			setFormError("Rule name is required");
+			return;
+		}
+		if (trimmedName.length > 100) {
+			setFormError("Rule name cannot exceed 100 characters");
+			return;
+		}
+		if (trimmedDescription.length > 500) {
+			setFormError("Description cannot exceed 500 characters");
 			return;
 		}
 		if (!formState.officeId) {
@@ -330,15 +398,30 @@ export default function AccountingRulesPage() {
 			return;
 		}
 
+		const officeId = Number(formState.officeId);
+		const accountToDebit = Number(formState.accountToDebit);
+		const accountToCredit = Number(formState.accountToCredit);
+		if (
+			!Number.isFinite(officeId) ||
+			!Number.isFinite(accountToDebit) ||
+			!Number.isFinite(accountToCredit) ||
+			officeId <= 0 ||
+			accountToDebit <= 0 ||
+			accountToCredit <= 0
+		) {
+			setFormError("Office and account mappings must be valid identifiers");
+			return;
+		}
+
 		setFormError(null);
 		const payload: AccountRuleRequest = {
-			name: formState.name.trim(),
-			officeId: Number(formState.officeId),
-			accountToDebit: Number(formState.accountToDebit),
-			accountToCredit: Number(formState.accountToCredit),
+			name: trimmedName,
+			officeId,
+			accountToDebit,
+			accountToCredit,
 		};
-		if (formState.description.trim()) {
-			payload.description = formState.description.trim();
+		if (trimmedDescription) {
+			payload.description = trimmedDescription;
 		}
 
 		if (editingRule) {
@@ -350,6 +433,10 @@ export default function AccountingRulesPage() {
 
 	const handleDelete = (rule: AccountingRuleData) => {
 		setSubmitError(null);
+		if (rule.systemDefined) {
+			toast.error("System-defined rules cannot be deleted");
+			return;
+		}
 		if (!rule.id) return;
 		const confirmed = window.confirm(
 			`Delete accounting rule \"${rule.name}\"?`,
@@ -390,6 +477,14 @@ export default function AccountingRulesPage() {
 			),
 		},
 		{
+			header: "Mapping",
+			cell: (rule: AccountingRuleData) => (
+				<Badge variant={isSimpleAccountRule(rule) ? "outline" : "secondary"}>
+					{isSimpleAccountRule(rule) ? "Simple" : "Advanced"}
+				</Badge>
+			),
+		},
+		{
 			header: "Type",
 			cell: (rule: AccountingRuleData) => (
 				<Badge variant={rule.systemDefined ? "secondary" : "outline"}>
@@ -401,25 +496,48 @@ export default function AccountingRulesPage() {
 			header: "Actions",
 			headerClassName: "text-right",
 			className: "text-right",
-			cell: (rule: AccountingRuleData) => (
-				<div className="flex items-center justify-end gap-2">
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => openEditSheet(rule)}
-					>
-						Edit
-					</Button>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => handleDelete(rule)}
-						disabled={deleteMutation.isPending}
-					>
-						<Trash2 className="h-3.5 w-3.5" />
-					</Button>
-				</div>
-			),
+			cell: (rule: AccountingRuleData) => {
+				const editRestriction = getEditRestrictionReason(rule);
+				return (
+					<div className="flex items-center justify-end gap-2">
+						{rule.id ? (
+							<Button size="sm" variant="outline" asChild>
+								<Link href={`/config/financial/accounting/rules/${rule.id}`}>
+									<Eye className="h-3.5 w-3.5 mr-1" />
+									View
+								</Link>
+							</Button>
+						) : (
+							<Button size="sm" variant="outline" disabled>
+								<Eye className="h-3.5 w-3.5 mr-1" />
+								View
+							</Button>
+						)}
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => openEditSheet(rule)}
+							disabled={Boolean(editRestriction)}
+							title={editRestriction || undefined}
+						>
+							Edit
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => handleDelete(rule)}
+							disabled={deleteMutation.isPending || Boolean(rule.systemDefined)}
+							title={
+								rule.systemDefined
+									? "System-defined rules cannot be deleted"
+									: undefined
+							}
+						>
+							<Trash2 className="h-3.5 w-3.5" />
+						</Button>
+					</div>
+				);
+			},
 		},
 	];
 
@@ -508,11 +626,22 @@ export default function AccountingRulesPage() {
 								<AlertDescription>{formError}</AlertDescription>
 							</Alert>
 						)}
+						<Alert>
+							<AlertTitle>Submit payload</AlertTitle>
+							<AlertDescription>
+								This editor submits <code>name</code>, <code>officeId</code>,{" "}
+								<code>accountToDebit</code>, <code>accountToCredit</code>, and
+								optional <code>description</code>. Template fields such as{" "}
+								<code>allowedOffices</code> and <code>allowedAccounts</code> are
+								read-only metadata.
+							</AlertDescription>
+						</Alert>
 
 						<div className="space-y-2">
 							<Label htmlFor="rule-name">Rule Name</Label>
 							<Input
 								id="rule-name"
+								maxLength={100}
 								value={formState.name}
 								onChange={(event) =>
 									setFormState((prev) => ({
@@ -521,12 +650,16 @@ export default function AccountingRulesPage() {
 									}))
 								}
 							/>
+							<p className="text-xs text-muted-foreground">
+								{formState.name.trim().length}/100 characters
+							</p>
 						</div>
 
 						<div className="space-y-2">
 							<Label htmlFor="rule-description">Description</Label>
-							<Input
+							<Textarea
 								id="rule-description"
+								maxLength={500}
 								value={formState.description}
 								onChange={(event) =>
 									setFormState((prev) => ({
@@ -535,6 +668,9 @@ export default function AccountingRulesPage() {
 									}))
 								}
 							/>
+							<p className="text-xs text-muted-foreground">
+								{formState.description.trim().length}/500 characters
+							</p>
 						</div>
 
 						<div className="grid gap-4 md:grid-cols-2">

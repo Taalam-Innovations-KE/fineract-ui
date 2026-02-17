@@ -9,10 +9,8 @@ import {
 	Download,
 	Eye,
 	FileUp,
-	Landmark,
 	Plus,
 	Receipt,
-	ShieldCheck,
 	Trash2,
 	Workflow,
 } from "lucide-react";
@@ -85,7 +83,7 @@ type FormState = {
 
 const EMPTY_ACCOUNTS: GetGlAccountsResponse[] = [];
 const EMPTY_JOURNAL_ITEMS: JournalEntryTransactionItem[] = [];
-const JOURNAL_OVERVIEW_PAGE_SIZE = 200;
+const JOURNAL_OVERVIEW_PAGE_SIZE = 1;
 
 const DEFAULT_FORM: FormState = {
 	name: "",
@@ -206,27 +204,8 @@ async function fetchClosures(
 	return response.json();
 }
 
-function formatAmount(amount?: number): string {
-	if (amount === undefined || amount === null) {
-		return "N/A";
-	}
-
-	return amount.toLocaleString(undefined, {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
-	});
-}
-
 function getEntryTypeLabel(entry: JournalEntryTransactionItem): string {
 	return entry.entryType?.value || entry.entryType?.code || "";
-}
-
-function isDebitEntry(entry: JournalEntryTransactionItem): boolean {
-	return getEntryTypeLabel(entry).toLowerCase().includes("debit");
-}
-
-function isCreditEntry(entry: JournalEntryTransactionItem): boolean {
-	return getEntryTypeLabel(entry).toLowerCase().includes("credit");
 }
 
 async function createAccount(tenantId: string, payload: PostGlAccountsRequest) {
@@ -482,20 +461,10 @@ export default function ChartOfAccountsPage() {
 
 	const activeAccounts = accounts.filter((account) => !account.disabled).length;
 	const disabledAccounts = accounts.length - activeAccounts;
-	const manualEntriesCount = journalItems.filter((entry) => entry.manualEntry).length;
-	const reversedEntriesCount = journalItems.filter((entry) => entry.reversed).length;
-	const debitTotal = journalItems.reduce((total, entry) => {
-		if (!isDebitEntry(entry)) {
-			return total;
-		}
-		return total + (entry.amount || 0);
-	}, 0);
-	const creditTotal = journalItems.reduce((total, entry) => {
-		if (!isCreditEntry(entry)) {
-			return total;
-		}
-		return total + (entry.amount || 0);
-	}, 0);
+	const latestJournalEntry = journalItems[0];
+	const latestJournalEntryType = latestJournalEntry
+		? getEntryTypeLabel(latestJournalEntry) || "N/A"
+		: "N/A";
 	const latestClosure = [...closures].sort((left, right) => {
 		const leftDate = new Date(left.closingDate || "").getTime();
 		const rightDate = new Date(right.closingDate || "").getTime();
@@ -1025,31 +994,29 @@ export default function ChartOfAccountsPage() {
 											{totalJournalRecords}
 										</div>
 										<div className="text-xs text-muted-foreground mt-1">
-											Sample size: {journalItems.length} most recent entries
+											Derived from `totalFilteredRecords`
 										</div>
 									</div>
 									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="flex items-center gap-2 text-sm text-muted-foreground">
-											<Landmark className="h-4 w-4 text-primary" />
-											Debits / Credits
+										<div className="text-sm text-muted-foreground">
+											Latest Journal Posting
 										</div>
 										<div className="text-lg font-bold mt-1">
-											{formatAmount(debitTotal)} / {formatAmount(creditTotal)}
+											{latestJournalEntry?.transactionDate || "N/A"}
 										</div>
 										<div className="text-xs text-muted-foreground mt-1">
-											Calculated from sampled entries
+											Transaction: {latestJournalEntry?.transactionId || "N/A"}
 										</div>
 									</div>
 									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="flex items-center gap-2 text-sm text-muted-foreground">
-											<ShieldCheck className="h-4 w-4 text-primary" />
-											Manual / Reversed
+										<div className="text-sm text-muted-foreground">
+											Latest Journal Entry Type
 										</div>
 										<div className="text-lg font-bold mt-1">
-											{manualEntriesCount} / {reversedEntriesCount}
+											{latestJournalEntryType}
 										</div>
 										<div className="text-xs text-muted-foreground mt-1">
-											Manual and reversed transaction counts
+											Fetched with `limit=1` for dashboard efficiency
 										</div>
 									</div>
 									<div className="rounded-sm border border-border/60 px-3 py-3">

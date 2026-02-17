@@ -121,7 +121,7 @@ async function getResponseErrorMessage(
 async function fetchGlAccountById(
 	tenantId: string,
 	glAccountId: number,
-): Promise<GetGlAccountsResponse> {
+): Promise<GetGlAccountsResponse | null> {
 	const params = new URLSearchParams({ fetchRunningBalance: "true" });
 	const response = await fetch(
 		`${BFF_ROUTES.glAccountById(glAccountId)}?${params.toString()}`,
@@ -133,6 +133,9 @@ async function fetchGlAccountById(
 	);
 
 	if (!response.ok) {
+		if (response.status === 404) {
+			return null;
+		}
 		throw new Error(
 			await getResponseErrorMessage(response, "Failed to fetch GL account"),
 		);
@@ -485,11 +488,12 @@ export default function LedgerDetailsPage({
 		enabled: Boolean(effectiveTenantId && isValidLedgerId),
 		retry: false,
 	});
+	const account = accountQuery.data;
 
 	const linesQuery = useQuery({
 		queryKey: ["glaccount-ledger-lines", effectiveTenantId, ledgerId, filters, pageIndex],
 		queryFn: () => fetchLedgerLines(effectiveTenantId, ledgerId, filters, pageIndex),
-		enabled: Boolean(effectiveTenantId && isValidLedgerId),
+		enabled: Boolean(effectiveTenantId && isValidLedgerId && account?.id),
 		retry: false,
 	});
 
@@ -655,8 +659,7 @@ export default function LedgerDetailsPage({
 		[],
 	);
 
-	const hasError =
-		accountQuery.error || linesQuery.error || closuresQuery.error || selectedLineQuery.error;
+	const hasError = linesQuery.error || closuresQuery.error || selectedLineQuery.error;
 
 	const headerActions = (
 		<Button variant="outline" asChild>
@@ -696,7 +699,6 @@ export default function LedgerDetailsPage({
 		);
 	}
 
-	const account = accountQuery.data;
 	if (!account) {
 		return (
 			<PageShell
@@ -704,10 +706,11 @@ export default function LedgerDetailsPage({
 				subtitle="Account not found"
 				actions={headerActions}
 			>
-				<Alert variant="destructive">
-					<AlertTitle>Unable to load ledger</AlertTitle>
+				<Alert>
+					<AlertTitle>Ledger Not Found</AlertTitle>
 					<AlertDescription>
-						{getErrorMessage(accountQuery.error, "GL account details were not found.")}
+						General ledger account with identifier {ledgerId} does not exist for
+						the current tenant.
 					</AlertDescription>
 				</Alert>
 			</PageShell>

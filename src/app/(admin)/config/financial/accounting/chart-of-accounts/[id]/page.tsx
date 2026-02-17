@@ -144,6 +144,89 @@ async function fetchGlAccountById(
 	return response.json();
 }
 
+async function fetchGlAccountsIndex(
+	tenantId: string,
+): Promise<GetGlAccountsResponse[]> {
+	const params = new URLSearchParams({ fetchRunningBalance: "true" });
+	const response = await fetch(`${BFF_ROUTES.glaccounts}?${params.toString()}`, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(
+			await getResponseErrorMessage(response, "Failed to fetch GL accounts index"),
+		);
+	}
+
+	return response.json();
+}
+
+async function searchGlAccounts(
+	tenantId: string,
+	searchParam: string,
+): Promise<GetGlAccountsResponse[]> {
+	const params = new URLSearchParams({
+		searchParam,
+		fetchRunningBalance: "true",
+	});
+	const response = await fetch(`${BFF_ROUTES.glaccounts}?${params.toString()}`, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		return [];
+	}
+
+	return response.json();
+}
+
+function pickBestAccountMatch(
+	accounts: GetGlAccountsResponse[],
+	identifier: string,
+): GetGlAccountsResponse | null {
+	if (accounts.length === 0) {
+		return null;
+	}
+
+	const normalized = identifier.trim().toLowerCase();
+	const exact = accounts.find((account) => {
+		return (
+			String(account.id || "") === identifier ||
+			(account.glCode || "").toLowerCase() === normalized ||
+			(account.name || "").toLowerCase() === normalized
+		);
+	});
+
+	return exact || accounts[0] || null;
+}
+
+async function resolveGlAccountId(
+	tenantId: string,
+	identifier: string,
+): Promise<number | null> {
+	const normalized = identifier.trim();
+	if (!normalized) {
+		return null;
+	}
+
+	const index = await fetchGlAccountsIndex(tenantId);
+	const numericIdentifier = Number(normalized);
+	if (Number.isFinite(numericIdentifier) && numericIdentifier > 0) {
+		const existsById = index.some((account) => account.id === numericIdentifier);
+		if (existsById) {
+			return numericIdentifier;
+		}
+	}
+
+	const searched = await searchGlAccounts(tenantId, normalized);
+	const matched = pickBestAccountMatch(searched, normalized);
+	return matched?.id ?? null;
+}
+
 async function fetchLedgerLines(
 	tenantId: string,
 	glAccountId: number,
@@ -468,8 +551,8 @@ export default function LedgerDetailsPage({
 	params: Promise<{ id: string }>;
 }) {
 	const { id } = use(params);
-	const ledgerId = Number(id);
-	const isValidLedgerId = Number.isFinite(ledgerId) && ledgerId > 0;
+	const requestedIdentifier = id.trim();
+	const hasIdentifier = requestedIdentifier.length > 0;
 
 	const { tenantId } = useTenantStore();
 	const effectiveTenantId = useMemo(() => resolveTenantId(tenantId), [tenantId]);
@@ -482,18 +565,33 @@ export default function LedgerDetailsPage({
 		setPageIndex(0);
 	}, [filters]);
 
+	const resolvedAccountIdQuery = useQuery({
+		queryKey: ["glaccount-ledger-resolve", effectiveTenantId, requestedIdentifier],
+		queryFn: () => resolveGlAccountId(effectiveTenantId, requestedIdentifier),
+		enabled: Boolean(effectiveTenantId && hasIdentifier),
+		retry: false,
+	});
+	const resolvedLedgerId = resolvedAccountIdQuery.data ?? null;
+
 	const accountQuery = useQuery({
-		queryKey: ["glaccount-ledger-view", effectiveTenantId, ledgerId],
-		queryFn: () => fetchGlAccountById(effectiveTenantId, ledgerId),
-		enabled: Boolean(effectiveTenantId && isValidLedgerId),
+		queryKey: ["glaccount-ledger-view", effectiveTenantId, resolvedLedgerId],
+		queryFn: () => fetchGlAccountById(effectiveTenantId, resolvedLedgerId || 0),
+		enabled: Boolean(effectiveTenantId && resolvedLedgerId),
 		retry: false,
 	});
 	const account = accountQuery.data;
 
 	const linesQuery = useQuery({
-		queryKey: ["glaccount-ledger-lines", effectiveTenantId, ledgerId, filters, pageIndex],
-		queryFn: () => fetchLedgerLines(effectiveTenantId, ledgerId, filters, pageIndex),
-		enabled: Boolean(effectiveTenantId && isValidLedgerId && account?.id),
+		queryKey: [
+			"glaccount-ledger-lines",
+			effectiveTenantId,
+			resolvedLedgerId,
+			filters,
+			pageIndex,
+		],
+		queryFn: () =>
+			fetchLedgerLines(effectiveTenantId, resolvedLedgerId || 0, filters, pageIndex),
+		enabled: Boolean(effectiveTenantId && resolvedLedgerId && account?.id),
 		retry: false,
 	});
 
@@ -659,7 +757,12 @@ export default function LedgerDetailsPage({
 		[],
 	);
 
-	const hasError = linesQuery.error || closuresQuery.error || selectedLineQuery.error;
+	const hasError =
+		resolvedAccountIdQuery.error ||
+		accountQuery.error ||
+		linesQuery.error ||
+		closuresQuery.error ||
+		selectedLineQuery.error;
 
 	const headerActions = (
 		<Button variant="outline" asChild>
@@ -670,7 +773,7 @@ export default function LedgerDetailsPage({
 		</Button>
 	);
 
-	if (!isValidLedgerId) {
+	if (!hasIdentifier) {
 		return (
 			<PageShell
 				title="Ledger View"
@@ -687,7 +790,11 @@ export default function LedgerDetailsPage({
 		);
 	}
 
-	if (accountQuery.isLoading || linesQuery.isLoading) {
+	if (
+		resolvedAccountIdQuery.isLoading ||
+		accountQuery.isLoading ||
+		linesQuery.isLoading
+	) {
 		return (
 			<PageShell
 				title="Ledger View"
@@ -699,7 +806,7 @@ export default function LedgerDetailsPage({
 		);
 	}
 
-	if (!account) {
+	if (!resolvedLedgerId || !account) {
 		return (
 			<PageShell
 				title="Ledger View"
@@ -709,8 +816,8 @@ export default function LedgerDetailsPage({
 				<Alert>
 					<AlertTitle>Ledger Not Found</AlertTitle>
 					<AlertDescription>
-						General ledger account with identifier {ledgerId} does not exist for
-						the current tenant.
+						General ledger account with identifier "{requestedIdentifier}" does
+						not exist for the current tenant.
 					</AlertDescription>
 				</Alert>
 			</PageShell>
@@ -728,7 +835,7 @@ export default function LedgerDetailsPage({
 					<Badge variant="outline">{account.type?.value || "N/A"}</Badge>
 				</div>
 			}
-			subtitle={`Account #${account.id || "N/A"} • GL Code ${account.glCode || "N/A"}`}
+			subtitle={`Account #${account.id || resolvedLedgerId} • GL Code ${account.glCode || "N/A"}`}
 			actions={headerActions}
 		>
 			<div className="space-y-6">

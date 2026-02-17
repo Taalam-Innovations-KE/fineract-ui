@@ -2,6 +2,7 @@
 
 import { ChevronDown, ExternalLink, Info, Search } from "lucide-react";
 import { useState } from "react";
+import { AuditViewToggle } from "@/components/ui/audit-view-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +58,13 @@ type TransactionFilter =
 	| "disbursement"
 	| "writeoff"
 	| "waiver";
+type TransactionView = "list" | "statement";
+type StatementAmountDirection = "debit" | "credit";
+
+const TRANSACTION_VIEW_OPTIONS = [
+	{ value: "list", label: "List" },
+	{ value: "statement", label: "Statement" },
+] as const;
 
 interface LoanTransactionsTabProps {
 	transactions: GetLoansLoanIdTransactions[] | undefined;
@@ -90,6 +98,42 @@ function formatAmount(amount: number | undefined): string {
 	});
 }
 
+function getTransactionTimestamp(
+	transaction: GetLoansLoanIdTransactions,
+): number {
+	const dateInput = transaction.date ?? transaction.transactionDate;
+	if (!dateInput) return 0;
+	return new Date(dateInput).getTime();
+}
+
+function getStatementAmountDirection(
+	transaction: GetLoansLoanIdTransactions,
+): StatementAmountDirection {
+	const code = transaction.type?.code?.toLowerCase() || "";
+
+	if (
+		code.includes("repayment") ||
+		code.includes("charge") ||
+		code.includes("accrual")
+	) {
+		return "debit";
+	}
+
+	if (
+		code.includes("disbursement") ||
+		code.includes("waiver") ||
+		code.includes("waive") ||
+		code.includes("writeoff") ||
+		code.includes("write_off") ||
+		code.includes("refund")
+	) {
+		return "credit";
+	}
+
+	// Unknown transactions default to debit for conservative statement treatment.
+	return "debit";
+}
+
 function matchesFilter(
 	transaction: GetLoansLoanIdTransactions,
 	filter: TransactionFilter,
@@ -117,6 +161,7 @@ export function LoanTransactionsTab({
 	isLoading,
 	loan,
 }: LoanTransactionsTabProps) {
+	const [view, setView] = useState<TransactionView>("list");
 	const [filter, setFilter] = useState<TransactionFilter>("all");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedTransaction, setSelectedTransaction] =
@@ -152,6 +197,17 @@ export function LoanTransactionsTab({
 		}
 		return true;
 	});
+	const statementTransactions = [...filteredTransactions].sort((a, b) => {
+		const timestampDiff =
+			getTransactionTimestamp(a) - getTransactionTimestamp(b);
+		if (timestampDiff !== 0) return timestampDiff;
+		return (a.id ?? 0) - (b.id ?? 0);
+	});
+	const showStatementBalance = statementTransactions.some(
+		(tx) =>
+			tx.outstandingLoanBalance !== undefined &&
+			tx.outstandingLoanBalance !== null,
+	);
 
 	const filterOptions: { value: TransactionFilter; label: string }[] = [
 		{ value: "all", label: "All Types" },
@@ -202,102 +258,231 @@ export function LoanTransactionsTab({
 				</DropdownMenu>
 			</div>
 
-			{/* Results Count */}
-			<p className="text-sm text-muted-foreground">
-				Showing {filteredTransactions.length} of {transactions.length}{" "}
-				transactions
-			</p>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<p className="text-sm text-muted-foreground">
+					Showing {filteredTransactions.length} of {transactions.length}{" "}
+					transactions
+				</p>
+				<AuditViewToggle
+					view={view}
+					onViewChange={setView}
+					options={TRANSACTION_VIEW_OPTIONS}
+				/>
+			</div>
 
-			{/* Transactions Table */}
-			<Card className="overflow-hidden">
-				<Table>
-					<TableHeader>
-						<TableRow className="bg-muted/50">
-							<TableHead>Date</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead className="text-right">Amount</TableHead>
-							<TableHead className="text-right">Principal</TableHead>
-							<TableHead className="text-right">Interest</TableHead>
-							<TableHead className="text-right">Fees</TableHead>
-							<TableHead className="text-right">Penalties</TableHead>
-							<TableHead>Payment Ref</TableHead>
-							<TableHead className="text-right">Balance</TableHead>
-							<TableHead className="w-10"></TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{filteredTransactions.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={10} className="text-center py-8">
-									<p className="text-muted-foreground">
-										No transactions match your search.
-									</p>
-								</TableCell>
+			{view === "list" ? (
+				<Card className="overflow-hidden">
+					<Table>
+						<TableHeader>
+							<TableRow className="bg-muted/50">
+								<TableHead>Date</TableHead>
+								<TableHead>Type</TableHead>
+								<TableHead className="text-right">Amount</TableHead>
+								<TableHead className="text-right">Principal</TableHead>
+								<TableHead className="text-right">Interest</TableHead>
+								<TableHead className="text-right">Fees</TableHead>
+								<TableHead className="text-right">Penalties</TableHead>
+								<TableHead>Payment Ref</TableHead>
+								<TableHead className="text-right">Balance</TableHead>
+								<TableHead className="w-10"></TableHead>
 							</TableRow>
-						) : (
-							filteredTransactions.map((tx) => {
-								const typeDisplay = getTransactionTypeDisplay(
-									tx.type,
-									hasNetOffContext,
-								);
-								const isReversed = tx.manuallyReversed;
+						</TableHeader>
+						<TableBody>
+							{filteredTransactions.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={10} className="py-8 text-center">
+										<p className="text-muted-foreground">
+											No transactions match your search.
+										</p>
+									</TableCell>
+								</TableRow>
+							) : (
+								filteredTransactions.map((tx) => {
+									const typeDisplay = getTransactionTypeDisplay(
+										tx.type,
+										hasNetOffContext,
+									);
+									const isReversed = tx.manuallyReversed;
 
-								return (
-									<TableRow
-										key={tx.id}
-										className={cn(
-											"cursor-pointer hover:bg-muted/50",
-											isReversed && "opacity-60 line-through",
-										)}
-										onClick={() => setSelectedTransaction(tx)}
-									>
-										<TableCell>{formatDate(tx.date)}</TableCell>
-										<TableCell>
-											<Badge variant={typeDisplay.variant} className="text-xs">
-												{typeDisplay.label}
-											</Badge>
-											{isReversed && (
-												<Badge
-													variant="outline"
-													className="ml-1 text-xs text-red-600"
-												>
-													Reversed
-												</Badge>
+									return (
+										<TableRow
+											key={tx.id}
+											className={cn(
+												"cursor-pointer hover:bg-muted/50",
+												isReversed && "opacity-60 line-through",
 											)}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm font-medium">
-											{formatAmount(tx.amount)}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm">
-											{formatAmount(tx.principalPortion)}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm">
-											{formatAmount(tx.interestPortion)}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm">
-											{formatAmount(tx.feeChargesPortion)}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm">
-											{formatAmount(tx.penaltyChargesPortion)}
-										</TableCell>
-										<TableCell className="text-sm text-muted-foreground">
-											{tx.paymentDetailData?.receiptNumber ||
-												tx.externalId ||
-												"—"}
-										</TableCell>
-										<TableCell className="text-right font-mono text-sm">
-											{formatAmount(tx.outstandingLoanBalance)}
-										</TableCell>
-										<TableCell>
-											<ExternalLink className="h-4 w-4 text-muted-foreground" />
-										</TableCell>
-									</TableRow>
-								);
-							})
-						)}
-					</TableBody>
-				</Table>
-			</Card>
+											onClick={() => setSelectedTransaction(tx)}
+										>
+											<TableCell>{formatDate(tx.date)}</TableCell>
+											<TableCell>
+												<Badge
+													variant={typeDisplay.variant}
+													className="text-xs"
+												>
+													{typeDisplay.label}
+												</Badge>
+												{isReversed && (
+													<Badge
+														variant="outline"
+														className="ml-1 text-xs text-red-600"
+													>
+														Reversed
+													</Badge>
+												)}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm font-medium">
+												{formatAmount(tx.amount)}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm">
+												{formatAmount(tx.principalPortion)}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm">
+												{formatAmount(tx.interestPortion)}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm">
+												{formatAmount(tx.feeChargesPortion)}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm">
+												{formatAmount(tx.penaltyChargesPortion)}
+											</TableCell>
+											<TableCell className="text-sm text-muted-foreground">
+												{tx.paymentDetailData?.receiptNumber ||
+													tx.externalId ||
+													"—"}
+											</TableCell>
+											<TableCell className="text-right font-mono text-sm">
+												{formatAmount(tx.outstandingLoanBalance)}
+											</TableCell>
+											<TableCell>
+												<ExternalLink className="h-4 w-4 text-muted-foreground" />
+											</TableCell>
+										</TableRow>
+									);
+								})
+							)}
+						</TableBody>
+					</Table>
+				</Card>
+			) : (
+				<Card className="overflow-hidden border border-border/60">
+					{hasNetOffContext && (
+						<div className="border-b border-border/60 bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+							Netted-off fee deductions are listed as debit statement entries.
+						</div>
+					)}
+					<Table>
+						<TableHeader>
+							<TableRow className="bg-muted/50">
+								<TableHead>Date</TableHead>
+								<TableHead>Particulars</TableHead>
+								<TableHead className="text-right">Debit</TableHead>
+								<TableHead className="text-right">Credit</TableHead>
+								{showStatementBalance && (
+									<TableHead className="text-right">Balance</TableHead>
+								)}
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{statementTransactions.length === 0 ? (
+								<TableRow>
+									<TableCell
+										colSpan={showStatementBalance ? 5 : 4}
+										className="py-8 text-center"
+									>
+										<p className="text-muted-foreground">
+											No transactions match your search.
+										</p>
+									</TableCell>
+								</TableRow>
+							) : (
+								statementTransactions.map((tx) => {
+									const typeDisplay = getTransactionTypeDisplay(
+										tx.type,
+										hasNetOffContext,
+									);
+									const direction = getStatementAmountDirection(tx);
+									const amount = Math.abs(tx.amount ?? 0);
+									const isReversed = tx.manuallyReversed;
+									const paymentRef =
+										tx.paymentDetailData?.receiptNumber || tx.externalId;
+
+									return (
+										<TableRow
+											key={tx.id}
+											className={cn(
+												"cursor-pointer hover:bg-muted/50",
+												isReversed && "opacity-60 line-through",
+											)}
+											onClick={() => setSelectedTransaction(tx)}
+										>
+											<TableCell className="whitespace-nowrap">
+												{formatDate(tx.date)}
+											</TableCell>
+											<TableCell>
+												<div className="space-y-1">
+													<div className="flex flex-wrap items-center gap-1.5">
+														<span className="text-sm font-medium">
+															{typeDisplay.label}
+														</span>
+														{typeDisplay.isNetOff && (
+															<Badge
+																variant="outline"
+																className="text-[10px] text-orange-700"
+															>
+																Netted-off Fee
+															</Badge>
+														)}
+														{isReversed && (
+															<Badge
+																variant="outline"
+																className="text-[10px] text-red-600"
+															>
+																Reversed
+															</Badge>
+														)}
+													</div>
+													<p className="text-xs text-muted-foreground">
+														{paymentRef ? `Ref: ${paymentRef}` : "—"}
+													</p>
+												</div>
+											</TableCell>
+											<TableCell
+												className={cn(
+													"text-right font-mono text-sm",
+													direction === "debit" && "font-medium text-rose-700",
+												)}
+											>
+												{direction === "debit"
+													? `${currency} ${formatAmount(amount)}`
+													: "—"}
+											</TableCell>
+											<TableCell
+												className={cn(
+													"text-right font-mono text-sm",
+													direction === "credit" &&
+														"font-medium text-emerald-700",
+												)}
+											>
+												{direction === "credit"
+													? `${currency} ${formatAmount(amount)}`
+													: "—"}
+											</TableCell>
+											{showStatementBalance && (
+												<TableCell className="text-right font-mono text-sm">
+													{tx.outstandingLoanBalance !== undefined &&
+													tx.outstandingLoanBalance !== null
+														? `${currency} ${formatAmount(tx.outstandingLoanBalance)}`
+														: "—"}
+												</TableCell>
+											)}
+										</TableRow>
+									);
+								})
+							)}
+						</TableBody>
+					</Table>
+				</Card>
+			)}
 
 			{/* Transaction Detail Dialog */}
 			<Dialog

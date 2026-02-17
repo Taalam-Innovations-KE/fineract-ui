@@ -39,6 +39,10 @@ import {
 
 type ViewType = "timeline" | "table";
 type StatusFilter = "all" | AuditEvent["status"];
+const AUDIT_VIEW_OPTIONS = [
+	{ value: "timeline", label: "Timeline" },
+	{ value: "table", label: "Table" },
+] as const;
 
 interface AuditTrailViewerProps {
 	events: unknown[];
@@ -211,7 +215,11 @@ export function AuditTrailViewer({
 							events
 						</CardDescription>
 					</div>
-					<AuditViewToggle view={view} onViewChange={setView} />
+					<AuditViewToggle
+						view={view}
+						onViewChange={setView}
+						options={AUDIT_VIEW_OPTIONS}
+					/>
 				</div>
 
 				<div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
@@ -241,7 +249,7 @@ export function AuditTrailViewer({
 						<Input
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
-							className="pl-9"
+							className="pl-8"
 							placeholder="Search action, actor, entity, resource..."
 						/>
 					</div>

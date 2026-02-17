@@ -3,11 +3,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
+	CalendarCheck2,
 	ChevronDown,
 	ChevronRight,
 	Download,
+	Eye,
 	FileUp,
+	Landmark,
 	Plus,
+	Receipt,
+	ShieldCheck,
 	Trash2,
 	Workflow,
 } from "lucide-react";
@@ -49,6 +54,9 @@ import type {
 	EnumOptionData,
 	GetGlAccountsResponse,
 	GetGlAccountsTemplateResponse,
+	GetGlClosureResponse,
+	GetJournalEntriesTransactionIdResponse,
+	JournalEntryTransactionItem,
 	PostGlAccountsRequest,
 	PutGlAccountsRequest,
 } from "@/lib/fineract/generated/types.gen";
@@ -76,6 +84,8 @@ type FormState = {
 };
 
 const EMPTY_ACCOUNTS: GetGlAccountsResponse[] = [];
+const EMPTY_JOURNAL_ITEMS: JournalEntryTransactionItem[] = [];
+const JOURNAL_OVERVIEW_PAGE_SIZE = 200;
 
 const DEFAULT_FORM: FormState = {
 	name: "",
@@ -151,6 +161,71 @@ async function fetchTemplate(tenantId: string): Promise<GlTemplateData> {
 	}
 
 	return response.json();
+}
+
+async function fetchJournalOverview(
+	tenantId: string,
+): Promise<GetJournalEntriesTransactionIdResponse> {
+	const params = new URLSearchParams({
+		limit: String(JOURNAL_OVERVIEW_PAGE_SIZE),
+		offset: "0",
+		orderBy: "submittedOnDate",
+		sortOrder: "DESC",
+	});
+	const response = await fetch(`${BFF_ROUTES.journalEntries}?${params.toString()}`, {
+		headers: { "x-tenant-id": tenantId },
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch journal overview");
+	}
+
+	const payload = (await response.json()) as unknown;
+	if (Array.isArray(payload)) {
+		return {
+			pageItems: payload as JournalEntryTransactionItem[],
+			totalFilteredRecords: payload.length,
+		};
+	}
+
+	return payload as GetJournalEntriesTransactionIdResponse;
+}
+
+async function fetchClosures(
+	tenantId: string,
+): Promise<GetGlClosureResponse[]> {
+	const response = await fetch(BFF_ROUTES.glClosures, {
+		headers: { "x-tenant-id": tenantId },
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch accounting closures");
+	}
+
+	return response.json();
+}
+
+function formatAmount(amount?: number): string {
+	if (amount === undefined || amount === null) {
+		return "N/A";
+	}
+
+	return amount.toLocaleString(undefined, {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+}
+
+function getEntryTypeLabel(entry: JournalEntryTransactionItem): string {
+	return entry.entryType?.value || entry.entryType?.code || "";
+}
+
+function isDebitEntry(entry: JournalEntryTransactionItem): boolean {
+	return getEntryTypeLabel(entry).toLowerCase().includes("debit");
+}
+
+function isCreditEntry(entry: JournalEntryTransactionItem): boolean {
+	return getEntryTypeLabel(entry).toLowerCase().includes("credit");
 }
 
 async function createAccount(tenantId: string, payload: PostGlAccountsRequest) {
@@ -353,6 +428,16 @@ export default function ChartOfAccountsPage() {
 		queryFn: () => fetchTemplate(tenantId),
 	});
 
+	const journalOverviewQuery = useQuery({
+		queryKey: ["journalentries-overview", tenantId],
+		queryFn: () => fetchJournalOverview(tenantId),
+	});
+
+	const closuresQuery = useQuery({
+		queryKey: ["gl-closures-overview", tenantId],
+		queryFn: () => fetchClosures(tenantId),
+	});
+
 	const createMutation = useMutation({
 		mutationFn: (payload: PostGlAccountsRequest) =>
 			createAccount(tenantId, payload),
@@ -385,8 +470,34 @@ export default function ChartOfAccountsPage() {
 
 	const accounts = accountsQuery.data ?? EMPTY_ACCOUNTS;
 	const template = templateQuery.data;
+	const journalItems = journalOverviewQuery.data?.pageItems ?? EMPTY_JOURNAL_ITEMS;
+	const totalJournalRecords =
+		journalOverviewQuery.data?.totalFilteredRecords ?? journalItems.length;
+	const closures = closuresQuery.data ?? [];
 	const typeOptions = template?.accountTypeOptions || [];
 	const usageOptions = template?.usageOptions || [];
+
+	const activeAccounts = accounts.filter((account) => !account.disabled).length;
+	const disabledAccounts = accounts.length - activeAccounts;
+	const manualEntriesCount = journalItems.filter((entry) => entry.manualEntry).length;
+	const reversedEntriesCount = journalItems.filter((entry) => entry.reversed).length;
+	const debitTotal = journalItems.reduce((total, entry) => {
+		if (!isDebitEntry(entry)) {
+			return total;
+		}
+		return total + (entry.amount || 0);
+	}, 0);
+	const creditTotal = journalItems.reduce((total, entry) => {
+		if (!isCreditEntry(entry)) {
+			return total;
+		}
+		return total + (entry.amount || 0);
+	}, 0);
+	const latestClosure = [...closures].sort((left, right) => {
+		const leftDate = new Date(left.closingDate || "").getTime();
+		const rightDate = new Date(right.closingDate || "").getTime();
+		return rightDate - leftDate;
+	})[0];
 
 	const parentNameMap = useMemo(() => {
 		const map = new Map<number, string>();
@@ -683,6 +794,16 @@ export default function ChartOfAccountsPage() {
 			className: "text-right",
 			cell: (account: GetGlAccountsResponse) => (
 				<div className="flex items-center justify-end gap-2">
+					{account.id ? (
+						<Button size="sm" variant="outline" asChild>
+							<Link
+								href={`/config/financial/accounting/chart-of-accounts/${account.id}`}
+							>
+								<Eye className="h-3.5 w-3.5 mr-1" />
+								View Ledger
+							</Link>
+						</Button>
+					) : null}
 					<Button
 						size="sm"
 						variant="outline"
@@ -762,6 +883,16 @@ export default function ChartOfAccountsPage() {
 						</Badge>
 						<Badge variant="outline">{node.type?.value}</Badge>
 						<Badge variant="secondary">{node.usage?.value}</Badge>
+						{node.id ? (
+							<Button size="sm" variant="outline" asChild>
+								<Link
+									href={`/config/financial/accounting/chart-of-accounts/${node.id}`}
+								>
+									<Eye className="h-3.5 w-3.5 mr-1" />
+									View Ledger
+								</Link>
+							</Button>
+						) : null}
 						<Button
 							size="sm"
 							variant="outline"
@@ -823,13 +954,29 @@ export default function ChartOfAccountsPage() {
 				}
 			>
 				<div className="space-y-4">
-					<div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
 						<Card>
 							<CardContent className="pt-6">
 								<div className="text-sm text-muted-foreground">
 									Total Accounts
 								</div>
 								<div className="text-2xl font-bold">{accounts.length}</div>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<div className="text-sm text-muted-foreground">
+									Active Accounts
+								</div>
+								<div className="text-2xl font-bold">{activeAccounts}</div>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<div className="text-sm text-muted-foreground">
+									Disabled Accounts
+								</div>
+								<div className="text-2xl font-bold">{disabledAccounts}</div>
 							</CardContent>
 						</Card>
 						{Object.entries(stats).map(([type, count]) => (
@@ -841,6 +988,106 @@ export default function ChartOfAccountsPage() {
 							</Card>
 						))}
 					</div>
+
+					<Card>
+						<CardHeader>
+							<CardTitle>Ledger Activity Dashboard</CardTitle>
+							<CardDescription>
+								High-level journal and closure indicators from raw accounting
+								APIs.
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							{journalOverviewQuery.isLoading || closuresQuery.isLoading ? (
+								<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+									{Array.from({ length: 6 }).map((_, index) => (
+										<div
+											key={`ledger-dashboard-skeleton-${index}`}
+											className="rounded-sm border border-border/60 px-3 py-3"
+										>
+											<Skeleton className="h-4 w-24" />
+											<Skeleton className="h-7 w-28 mt-2" />
+											<Skeleton className="h-3 w-40 mt-2" />
+										</div>
+									))}
+								</div>
+							) : (
+								<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<Receipt className="h-4 w-4 text-primary" />
+											Total Journal Lines
+										</div>
+										<div className="text-2xl font-bold mt-1">
+											{totalJournalRecords}
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											Sample size: {journalItems.length} most recent entries
+										</div>
+									</div>
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<Landmark className="h-4 w-4 text-primary" />
+											Debits / Credits
+										</div>
+										<div className="text-lg font-bold mt-1">
+											{formatAmount(debitTotal)} / {formatAmount(creditTotal)}
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											Calculated from sampled entries
+										</div>
+									</div>
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<ShieldCheck className="h-4 w-4 text-primary" />
+											Manual / Reversed
+										</div>
+										<div className="text-lg font-bold mt-1">
+											{manualEntriesCount} / {reversedEntriesCount}
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											Manual and reversed transaction counts
+										</div>
+									</div>
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<CalendarCheck2 className="h-4 w-4 text-primary" />
+											Accounting Closures
+										</div>
+										<div className="text-2xl font-bold mt-1">
+											{closures.length}
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											Latest: {latestClosure?.closingDate || "N/A"}
+										</div>
+									</div>
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="flex items-center gap-2 text-sm text-muted-foreground">
+											<Workflow className="h-4 w-4 text-primary" />
+											Ledger Drill-down
+										</div>
+										<div className="text-lg font-bold mt-1">
+											Per-account View Ready
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											Use the new View action on each ledger row
+										</div>
+									</div>
+									<div className="rounded-sm border border-border/60 px-3 py-3">
+										<div className="text-sm text-muted-foreground">
+											Source APIs
+										</div>
+										<div className="text-sm font-medium mt-1">
+											`/glaccounts`, `/journalentries`, `/glclosures`
+										</div>
+										<div className="text-xs text-muted-foreground mt-1">
+											No report/runreports dependency
+										</div>
+									</div>
+								</div>
+							)}
+						</CardContent>
+					</Card>
 
 					<Card>
 						<CardHeader>

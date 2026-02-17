@@ -68,6 +68,8 @@ export const FINERACT_ENDPOINTS = {
 
 	// Accounting - Journal Entries
 	journalEntries: "/v1/journalentries",
+	journalEntryById: (journalEntryId: number | string) =>
+		`/v1/journalentries/${journalEntryId}`,
 	glaccounts: "/v1/glaccounts",
 	glAccountsTemplate: "/v1/glaccounts/template",
 	glAccountsDownloadTemplate: "/v1/glaccounts/downloadtemplate",
@@ -185,6 +187,8 @@ export const BFF_ROUTES = {
 
 	// Accounting - Journal Entries
 	journalEntries: "/api/fineract/journalentries",
+	journalEntryById: (journalEntryId: number | string) =>
+		`/api/fineract/journalentries/${journalEntryId}`,
 	glaccounts: "/api/fineract/glaccounts",
 	glAccountsTemplate: "/api/fineract/glaccounts/template",
 	glAccountsDownloadTemplate: "/api/fineract/glaccounts/downloadtemplate",

@@ -122,33 +122,45 @@ async function fetchGlAccountById(
 	tenantId: string,
 	glAccountId: number,
 ): Promise<GetGlAccountsResponse | null> {
-	const params = new URLSearchParams({ fetchRunningBalance: "true" });
-	const response = await fetch(
-		`${BFF_ROUTES.glAccountById(glAccountId)}?${params.toString()}`,
+	const headers = {
+		"x-tenant-id": tenantId,
+	};
+
+	// First try with running balance for richer detail.
+	const withBalanceParams = new URLSearchParams({ fetchRunningBalance: "true" });
+	const withBalanceResponse = await fetch(
+		`${BFF_ROUTES.glAccountById(glAccountId)}?${withBalanceParams.toString()}`,
 		{
-			headers: {
-				"x-tenant-id": tenantId,
-			},
+			headers,
 		},
 	);
 
-	if (!response.ok) {
-		if (response.status === 404) {
-			return null;
-		}
-		throw new Error(
-			await getResponseErrorMessage(response, "Failed to fetch GL account"),
-		);
+	if (withBalanceResponse.ok) {
+		return withBalanceResponse.json();
 	}
 
-	return response.json();
+	// Fall back to plain account fetch to match list-page behavior.
+	const fallbackResponse = await fetch(BFF_ROUTES.glAccountById(glAccountId), {
+		headers,
+	});
+	if (fallbackResponse.ok) {
+		return fallbackResponse.json();
+	}
+
+	if (fallbackResponse.status === 404) {
+		return null;
+	}
+
+	throw new Error(
+		await getResponseErrorMessage(fallbackResponse, "Failed to fetch GL account"),
+	);
 }
 
 async function fetchGlAccountsIndex(
 	tenantId: string,
 ): Promise<GetGlAccountsResponse[]> {
-	const params = new URLSearchParams({ fetchRunningBalance: "true" });
-	const response = await fetch(`${BFF_ROUTES.glaccounts}?${params.toString()}`, {
+	// Use same list behavior as parent COA page.
+	const response = await fetch(BFF_ROUTES.glaccounts, {
 		headers: {
 			"x-tenant-id": tenantId,
 		},
@@ -167,10 +179,7 @@ async function searchGlAccounts(
 	tenantId: string,
 	searchParam: string,
 ): Promise<GetGlAccountsResponse[]> {
-	const params = new URLSearchParams({
-		searchParam,
-		fetchRunningBalance: "true",
-	});
+	const params = new URLSearchParams({ searchParam });
 	const response = await fetch(`${BFF_ROUTES.glaccounts}?${params.toString()}`, {
 		headers: {
 			"x-tenant-id": tenantId,
@@ -790,6 +799,26 @@ export default function LedgerDetailsPage({
 		);
 	}
 
+	if (resolvedAccountIdQuery.error) {
+		return (
+			<PageShell
+				title="Ledger View"
+				subtitle="Unable to resolve account identifier"
+				actions={headerActions}
+			>
+				<Alert variant="destructive">
+					<AlertTitle>Resolution Error</AlertTitle>
+					<AlertDescription>
+						{getErrorMessage(
+							resolvedAccountIdQuery.error,
+							"Could not resolve this ledger identifier for the current tenant.",
+						)}
+					</AlertDescription>
+				</Alert>
+			</PageShell>
+		);
+	}
+
 	if (
 		resolvedAccountIdQuery.isLoading ||
 		accountQuery.isLoading ||
@@ -806,7 +835,7 @@ export default function LedgerDetailsPage({
 		);
 	}
 
-	if (!resolvedLedgerId || !account) {
+	if (resolvedLedgerId === null || !account) {
 		return (
 			<PageShell
 				title="Ledger View"

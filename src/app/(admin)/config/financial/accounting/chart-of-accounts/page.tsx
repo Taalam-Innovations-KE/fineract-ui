@@ -958,17 +958,6 @@ export default function ChartOfAccountsPage() {
 											Use the new View action on each ledger row
 										</div>
 									</div>
-									<div className="rounded-sm border border-border/60 px-3 py-3">
-										<div className="text-sm text-muted-foreground">
-											Source APIs
-										</div>
-										<div className="text-sm font-medium mt-1">
-											`/glaccounts`, `/glclosures`
-										</div>
-										<div className="text-xs text-muted-foreground mt-1">
-											Transaction analytics are available in per-ledger view.
-										</div>
-									</div>
 								</div>
 							)}
 						</CardContent>

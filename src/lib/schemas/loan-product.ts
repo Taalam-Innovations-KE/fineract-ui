@@ -107,6 +107,7 @@ export const loanProductIdentitySchema = z.object({
 	digitsAfterDecimal: z.number().min(0).max(6),
 	includeInBorrowerCycle: z.boolean().optional(),
 	useBorrowerCycle: z.boolean().optional(),
+	canUseForTopup: z.boolean().optional(),
 });
 
 // Step 2: Loan Amount Rules

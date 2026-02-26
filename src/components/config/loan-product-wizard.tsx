@@ -69,6 +69,7 @@ const STEP_FIELDS: Record<number, (keyof CreateLoanProductFormData)[]> = {
 		"digitsAfterDecimal",
 		"includeInBorrowerCycle",
 		"useBorrowerCycle",
+		"canUseForTopup",
 	],
 	2: ["minPrincipal", "principal", "maxPrincipal", "inMultiplesOf"],
 	3: [
@@ -259,6 +260,7 @@ export function LoanProductWizard({
 		inMultiplesOf: 1,
 		includeInBorrowerCycle: false,
 		useBorrowerCycle: false,
+		canUseForTopup: false,
 		multiDisburseLoan: false,
 		disallowExpectedDisbursements: false,
 		allowFullTermForTranche: false,
@@ -1062,6 +1064,10 @@ export function LoanProductWizard({
 
 		if (getValues("useBorrowerCycle") === undefined) {
 			setValue("useBorrowerCycle", Boolean(template.useBorrowerCycle));
+		}
+
+		if (getValues("canUseForTopup") === undefined) {
+			setValue("canUseForTopup", Boolean(templateAdvanced.canUseForTopup));
 		}
 
 		// Set default numeric values

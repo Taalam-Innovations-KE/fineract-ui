@@ -12,6 +12,10 @@ export {
 	LoanGuarantorsTabSkeleton,
 } from "./loan-guarantors-tab";
 export { LoanOverviewTab, LoanOverviewTabSkeleton } from "./loan-overview-tab";
+export {
+	LoanRestructureTab,
+	LoanRestructureTabSkeleton,
+} from "./loan-restructure-tab";
 export { LoanScheduleTab, LoanScheduleTabSkeleton } from "./loan-schedule-tab";
 export {
 	LoanTransactionsTab,

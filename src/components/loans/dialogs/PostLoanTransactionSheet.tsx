@@ -135,8 +135,9 @@ const COMMAND_OPTIONS: Array<CommandOption> = [
 	},
 	{
 		value: "close-rescheduled",
-		label: "Close Rescheduled",
-		description: "Close the loan as rescheduled.",
+		label: "Close Rescheduled (Legacy)",
+		description:
+			"Legacy flow: close the loan as rescheduled. Prefer restructure requests for new cases.",
 		submitLabel: "Close as Rescheduled",
 		amountLabel: "Amount",
 		hideAmountField: true,

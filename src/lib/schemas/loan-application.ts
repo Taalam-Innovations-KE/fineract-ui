@@ -72,6 +72,16 @@ export const loanAdvancedSchema = z.object({
 			}),
 		)
 		.optional(),
+	isTopup: z.boolean().optional(),
+	loanIdToClose: z.number().int().positive().optional(),
+}).superRefine((data, ctx) => {
+	if (data.isTopup && !data.loanIdToClose) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ["loanIdToClose"],
+			message: "Select the active loan to close for top-up",
+		});
+	}
 });
 
 /**
@@ -115,6 +125,8 @@ export const LOAN_STEP_FIELDS: Record<number, string[]> = {
 		"isMultiTrancheEnabled",
 		"maxOutstandingLoanBalance",
 		"disbursementData",
+		"isTopup",
+		"loanIdToClose",
 	],
 	5: [
 		"submittedOnDate",

@@ -73,9 +73,9 @@ export const loanRescheduleDecisionSchema = z.object({
 	locale: z.string().default("en"),
 });
 
-export type LoanRescheduleRequestInput = z.infer<
+export type LoanRescheduleRequestInput = z.input<
 	typeof loanRescheduleRequestSchema
 >;
-export type LoanRescheduleDecisionInput = z.infer<
+export type LoanRescheduleDecisionInput = z.input<
 	typeof loanRescheduleDecisionSchema
 >;

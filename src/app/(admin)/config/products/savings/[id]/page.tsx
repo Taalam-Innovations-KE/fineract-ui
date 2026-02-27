@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	AlertTriangle,
 	ArrowLeft,
 	BadgeDollarSign,
 	Calculator,
@@ -12,12 +11,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useState } from "react";
+import { use, useActionState, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SavingsProductForm } from "@/components/config/savings-product-form";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { ActionSubmitButton } from "@/components/forms/action-submit-button";
 import {
 	AlertDialog,
-	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
@@ -37,12 +37,19 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type { GetSavingsProductsProductIdResponse } from "@/lib/fineract/generated/types.gen";
 import {
 	mapSavingsProductToFormData,
 	type SavingsProductRequestPayload,
 	savingsProductsApi,
 } from "@/lib/fineract/savings-products";
+import {
+	failedSubmitActionState,
+	INITIAL_SUBMIT_ACTION_STATE,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 type PageProps = {
@@ -199,6 +206,9 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 	const router = useRouter();
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
+		null,
+	);
 
 	const {
 		data: product,
@@ -223,16 +233,30 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 		},
 	});
 
-	const deleteMutation = useMutation({
-		mutationFn: () => savingsProductsApi.delete(tenantId, id),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: ["savingsProducts", tenantId],
-			});
-			setIsDeleteDialogOpen(false);
-			router.push("/config/products/savings");
+	const [, submitDeleteProduct, isDeletePending] = useActionState(
+		async (_previousState: unknown, _formData: FormData) => {
+			try {
+				await savingsProductsApi.delete(tenantId, id);
+				await queryClient.invalidateQueries({
+					queryKey: ["savingsProducts", tenantId],
+				});
+				setSubmitError(null);
+				setIsDeleteDialogOpen(false);
+				router.push("/config/products/savings");
+				return successSubmitActionState();
+			} catch (error) {
+				const deleteError = failedSubmitActionState(error, {
+					action: "deleteSavingsProduct",
+					endpoint: `${BFF_ROUTES.savingsProducts}/${id}`,
+					method: "DELETE",
+					tenantId,
+				});
+				setSubmitError(deleteError.error);
+				return deleteError;
+			}
 		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
 
 	const mappingRows = useMemo(
 		() => (product ? getMappingRows(product) : []),
@@ -310,24 +334,30 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 									removed.
 								</AlertDialogDescription>
 							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={(event) => {
-										event.preventDefault();
-										deleteMutation.mutate();
-									}}
-									disabled={deleteMutation.isPending}
-								>
-									{deleteMutation.isPending ? "Deleting..." : "Delete"}
-								</AlertDialogAction>
-							</AlertDialogFooter>
+							<form action={submitDeleteProduct}>
+								<AlertDialogFooter>
+									<AlertDialogCancel disabled={isDeletePending}>
+										Cancel
+									</AlertDialogCancel>
+									<ActionSubmitButton
+										variant="destructive"
+										pendingLabel="Deleting..."
+										disabled={isDeletePending}
+									>
+										Delete
+									</ActionSubmitButton>
+								</AlertDialogFooter>
+							</form>
 						</AlertDialogContent>
 					</AlertDialog>
 				</div>
 			}
 		>
 			<div className="space-y-6">
+				<SubmitErrorAlert
+					error={submitError}
+					title="Failed to delete savings product"
+				/>
 				<div className="grid gap-4 md:grid-cols-3">
 					<Card>
 						<CardContent className="pt-6">
@@ -516,16 +546,6 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 						</div>
 					</CardContent>
 				</Card>
-
-				{deleteMutation.isError ? (
-					<div className="rounded-sm border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-						<div className="flex items-center gap-2">
-							<AlertTriangle className="h-4 w-4" />
-							Failed to delete savings product. Resolve linked dependencies and
-							try again.
-						</div>
-					</div>
-				) : null}
 			</div>
 
 			<Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	ArrowUpRight,
@@ -19,7 +19,14 @@ import {
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, use, useEffect, useMemo, useState } from "react";
+import {
+	Activity,
+	use,
+	useActionState,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -72,6 +79,11 @@ import type {
 	GetCodesResponse,
 	GetCodeValuesDataResponse,
 } from "@/lib/fineract/generated/types.gen";
+import {
+	INITIAL_SUBMIT_ACTION_STATE,
+	type SubmitActionState,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
 import type {
 	SubmitActionError,
 	SubmitMethod,
@@ -948,132 +960,131 @@ export default function ClientDetailPage({
 		return getClientActionDefinitions(lifecycleState);
 	}, [lifecycleState]);
 
-	const lifecycleMutation = useMutation({
-		mutationFn: async (action: ClientActionKey) => {
+	const [, submitLifecycleAction, isLifecyclePending] = useActionState(
+		async (
+			_previousState: SubmitActionState,
+			action: ClientActionKey,
+		): Promise<SubmitActionState> => {
 			const today = formatDateForFineract(new Date());
 			const dateConfig = getFineractDateConfig();
 
-			if (action === "delete") {
-				return deleteClient(tenantId, id);
-			}
+			try {
+				if (action === "delete") {
+					await deleteClient(tenantId, id);
+				} else if (action === "activate") {
+					await runClientCommand(tenantId, id, "activate", {
+						activationDate: today,
+						...dateConfig,
+					});
+				} else if (action === "close") {
+					const reasonId = Number(selectedClosureReasonId);
+					if (!Number.isFinite(reasonId) || reasonId <= 0) {
+						throw new Error(
+							"Closure reason is required before closing this client.",
+						);
+					}
 
-			if (action === "activate") {
-				return runClientCommand(tenantId, id, "activate", {
-					activationDate: today,
-					...dateConfig,
-				});
-			}
+					await runClientCommand(tenantId, id, "close", {
+						closureDate: today,
+						closureReasonId: reasonId,
+						...dateConfig,
+					});
+				} else if (action === "reject") {
+					const reasonId = Number(selectedRejectionReasonId);
+					if (!Number.isFinite(reasonId) || reasonId <= 0) {
+						throw new Error(
+							"Rejection reason is required before rejecting this client.",
+						);
+					}
 
-			if (action === "close") {
-				const reasonId = Number(selectedClosureReasonId);
-				if (!Number.isFinite(reasonId) || reasonId <= 0) {
-					throw new Error(
-						"Closure reason is required before closing this client.",
-					);
+					await runClientCommand(tenantId, id, "reject", {
+						rejectionDate: today,
+						rejectionReasonId: reasonId,
+						...dateConfig,
+					});
+				} else if (action === "withdraw") {
+					const reasonId = Number(selectedWithdrawalReasonId);
+					if (!Number.isFinite(reasonId) || reasonId <= 0) {
+						throw new Error(
+							"Withdrawal reason is required before withdrawing this client.",
+						);
+					}
+
+					await runClientCommand(tenantId, id, "withdraw", {
+						withdrawalDate: today,
+						withdrawalReasonId: reasonId,
+						...dateConfig,
+					});
+				} else if (action === "reactivate") {
+					await runClientCommand(tenantId, id, "reactivate", {
+						reactivationDate: today,
+						...dateConfig,
+					});
+				} else if (action === "undoReject") {
+					await runClientCommand(tenantId, id, "undoRejection", {
+						reopenedDate: today,
+						...dateConfig,
+					});
+				} else {
+					await runClientCommand(tenantId, id, "undoWithdrawal", {
+						reopenedDate: today,
+						...dateConfig,
+					});
 				}
 
-				return runClientCommand(tenantId, id, "close", {
-					closureDate: today,
-					closureReasonId: reasonId,
-					...dateConfig,
+				setActionFeedback({
+					type: "success",
+					message:
+						action === "delete"
+							? "Client deleted successfully."
+							: "Client action completed successfully.",
 				});
-			}
+				setSubmitError(null);
+				setConfirmAction(null);
 
-			if (action === "reject") {
-				const reasonId = Number(selectedRejectionReasonId);
-				if (!Number.isFinite(reasonId) || reasonId <= 0) {
-					throw new Error(
-						"Rejection reason is required before rejecting this client.",
-					);
+				await Promise.all([
+					queryClient.invalidateQueries({ queryKey: ["clients", tenantId] }),
+					queryClient.invalidateQueries({ queryKey: ["client", tenantId, id] }),
+					queryClient.invalidateQueries({
+						queryKey: ["client-accounts", tenantId, id],
+					}),
+					queryClient.invalidateQueries({
+						queryKey: ["client-identifiers", tenantId, id],
+					}),
+					queryClient.invalidateQueries({
+						queryKey: ["client-transactions", tenantId, id],
+					}),
+					queryClient.invalidateQueries({
+						queryKey: ["client-audit", tenantId, id],
+					}),
+				]);
+
+				if (action === "delete") {
+					router.push("/config/operations/clients");
 				}
 
-				return runClientCommand(tenantId, id, "reject", {
-					rejectionDate: today,
-					rejectionReasonId: reasonId,
-					...dateConfig,
+				return successSubmitActionState();
+			} catch (error) {
+				const requestContext = getLifecycleActionRequestContext(id, action);
+				const trackedError = toSubmitActionError(error, {
+					action: `client:${action}`,
+					endpoint: requestContext.endpoint,
+					method: requestContext.method,
+					tenantId,
 				});
-			}
-
-			if (action === "withdraw") {
-				const reasonId = Number(selectedWithdrawalReasonId);
-				if (!Number.isFinite(reasonId) || reasonId <= 0) {
-					throw new Error(
-						"Withdrawal reason is required before withdrawing this client.",
-					);
-				}
-
-				return runClientCommand(tenantId, id, "withdraw", {
-					withdrawalDate: today,
-					withdrawalReasonId: reasonId,
-					...dateConfig,
+				setActionFeedback({
+					type: "error",
+					message: trackedError.message,
 				});
-			}
-
-			if (action === "reactivate") {
-				return runClientCommand(tenantId, id, "reactivate", {
-					reactivationDate: today,
-					...dateConfig,
-				});
-			}
-
-			if (action === "undoReject") {
-				return runClientCommand(tenantId, id, "undoRejection", {
-					reopenedDate: today,
-					...dateConfig,
-				});
-			}
-
-			return runClientCommand(tenantId, id, "undoWithdrawal", {
-				reopenedDate: today,
-				...dateConfig,
-			});
-		},
-		onSuccess: (_, action) => {
-			setActionFeedback({
-				type: "success",
-				message:
-					action === "delete"
-						? "Client deleted successfully."
-						: "Client action completed successfully.",
-			});
-			setSubmitError(null);
-			setConfirmAction(null);
-
-			queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
-			queryClient.invalidateQueries({ queryKey: ["client", tenantId, id] });
-			queryClient.invalidateQueries({
-				queryKey: ["client-accounts", tenantId, id],
-			});
-			queryClient.invalidateQueries({
-				queryKey: ["client-identifiers", tenantId, id],
-			});
-			queryClient.invalidateQueries({
-				queryKey: ["client-transactions", tenantId, id],
-			});
-			queryClient.invalidateQueries({
-				queryKey: ["client-audit", tenantId, id],
-			});
-
-			if (action === "delete") {
-				router.push("/config/operations/clients");
+				setSubmitError(trackedError);
+				setConfirmAction(null);
+				return {
+					error: trackedError,
+				};
 			}
 		},
-		onError: (error: unknown, action) => {
-			const requestContext = getLifecycleActionRequestContext(id, action);
-			const trackedError = toSubmitActionError(error, {
-				action: `client:${action}`,
-				endpoint: requestContext.endpoint,
-				method: requestContext.method,
-				tenantId,
-			});
-			setActionFeedback({
-				type: "error",
-				message: trackedError.message,
-			});
-			setSubmitError(trackedError);
-			setConfirmAction(null);
-		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
 
 	const handleActionClick = (action: ClientActionKey) => {
 		setActionFeedback(null);
@@ -1547,7 +1558,7 @@ export default function ClientDetailPage({
 												(!selectedWithdrawalReasonId ||
 													withdrawalReasonOptions.length === 0);
 											const disabled =
-												lifecycleMutation.isPending ||
+												isLifecyclePending ||
 												needsCloseReason ||
 												needsRejectReason ||
 												needsWithdrawReason;
@@ -2150,20 +2161,20 @@ export default function ClientDetailPage({
 						)}
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel disabled={lifecycleMutation.isPending}>
+						<AlertDialogCancel disabled={isLifecyclePending}>
 							Cancel
 						</AlertDialogCancel>
 						<AlertDialogAction
 							variant={isConfirmDestructive ? "destructive" : "default"}
-							disabled={!confirmAction || lifecycleMutation.isPending}
+							disabled={!confirmAction || isLifecyclePending}
 							onClick={(event) => {
 								event.preventDefault();
 								if (!confirmAction) return;
 								setSubmitError(null);
-								lifecycleMutation.mutate(confirmAction);
+								submitLifecycleAction(confirmAction);
 							}}
 						>
-							{lifecycleMutation.isPending ? "Processing..." : "Confirm"}
+							{isLifecyclePending ? "Processing..." : "Confirm"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

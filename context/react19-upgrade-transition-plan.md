@@ -15,11 +15,16 @@
 - Phase 3 complete:
   - `src/app/(admin)/config/operations/clients/[id]/page.tsx` audit tab upgraded to `<Activity>`.
   - `src/app/(admin)/config/products/loans/[id]/page.tsx` audit tab upgraded to `<Activity>`.
+- Phase 4 complete:
+  - `src/app/(admin)/config/financial/accounting/payment-types/page.tsx` delete confirmation migrated to `useActionState`.
+  - `src/app/(admin)/config/financial/currencies/[code]/page.tsx` deactivate confirmation migrated to `useActionState`.
+  - `src/app/(admin)/config/products/savings/[id]/page.tsx` delete confirmation migrated to `useActionState`.
+  - `src/app/(admin)/config/operations/clients/[id]/page.tsx` lifecycle confirm execution migrated from `useMutation` to `useActionState`.
 - Validation complete:
   - Biome check/format passed on touched files.
   - `pnpm exec tsc --noEmit` passed.
 
-## Baseline Inventory (Current Codebase)
+## Baseline Inventory (Initial Snapshot)
 - React version: `react@19.2.3`, `react-dom@19.2.3`
 - React Query mutation usage:
   - `47` files contain `useMutation(...)`
@@ -37,6 +42,15 @@
   - `0` occurrences of `<Activity ...>`
 - Existing React 19 `use(...)` usage:
   - `13` route pages using `use(params)` (already aligned with async params handling)
+
+## Current Inventory (Post-Phase 4)
+- React Query mutation usage:
+  - `43` files contain `useMutation(...)`
+  - `35` in `src/app`, `8` in `src/components`
+- React 19 Actions/Activity adoption:
+  - `7` occurrences of `useActionState`
+  - `1` occurrence of `useFormStatus`
+  - `4` occurrences of `<Activity ...>`
 
 ## High-Impact Hotspots
 

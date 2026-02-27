@@ -1,16 +1,22 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Banknote, CheckCircle2, Hash } from "lucide-react";
 import Link from "next/link";
-import { type ElementType, use, useMemo, useState } from "react";
+import {
+	type ElementType,
+	use,
+	useActionState,
+	useMemo,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { ActionSubmitButton } from "@/components/forms/action-submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
-	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
@@ -33,8 +39,12 @@ import type {
 	CurrencyConfigurationData,
 	CurrencyData,
 } from "@/lib/fineract/generated/types.gen";
+import {
+	failedSubmitActionState,
+	INITIAL_SUBMIT_ACTION_STATE,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 function resolveTenantId(tenantId?: string | null): string {
@@ -220,32 +230,34 @@ export default function CurrencyDetailPage({
 		[currenciesQuery.data],
 	);
 
-	const deactivateMutation = useMutation({
-		mutationFn: () => {
+	const [, submitDeactivateCurrency, isDeactivatePending] = useActionState(
+		async (_previousState: unknown, _formData: FormData) => {
 			const nextActiveCodes = activeCodes.filter(
 				(activeCode) => activeCode.toUpperCase() !== code,
 			);
-			return updateCurrencies(effectiveTenantId, nextActiveCodes);
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: ["currencies", effectiveTenantId],
-			});
-			setSubmitError(null);
-			setDeactivateDialogOpen(false);
-			toast.success(`Currency ${code} deactivated successfully`);
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
+
+			try {
+				await updateCurrencies(effectiveTenantId, nextActiveCodes);
+				await queryClient.invalidateQueries({
+					queryKey: ["currencies", effectiveTenantId],
+				});
+				setSubmitError(null);
+				setDeactivateDialogOpen(false);
+				toast.success(`Currency ${code} deactivated successfully`);
+				return successSubmitActionState();
+			} catch (error) {
+				const deactivateError = failedSubmitActionState(error, {
 					action: "deactivateCurrency",
 					endpoint: BFF_ROUTES.currencies,
 					method: "PUT",
 					tenantId: effectiveTenantId,
-				}),
-			);
+				});
+				setSubmitError(deactivateError.error);
+				return deactivateError;
+			}
 		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
 
 	const currency =
 		currenciesQuery.data?.selectedCurrencyOptions?.find(
@@ -446,13 +458,13 @@ export default function CurrencyDetailPage({
 								<Button
 									type="button"
 									variant="destructive"
-									disabled={!isActive || deactivateMutation.isPending}
+									disabled={!isActive || isDeactivatePending}
 									onClick={() => {
 										setSubmitError(null);
 										setDeactivateDialogOpen(true);
 									}}
 								>
-									{deactivateMutation.isPending
+									{isDeactivatePending
 										? "Deactivating..."
 										: `Deactivate ${currencyCode}`}
 								</Button>
@@ -478,21 +490,20 @@ export default function CurrencyDetailPage({
 							currencies.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={deactivateMutation.isPending}>
-							Cancel
-						</AlertDialogCancel>
-						<AlertDialogAction
-							variant="destructive"
-							disabled={deactivateMutation.isPending}
-							onClick={(event) => {
-								event.preventDefault();
-								deactivateMutation.mutate();
-							}}
-						>
-							Deactivate
-						</AlertDialogAction>
-					</AlertDialogFooter>
+					<form action={submitDeactivateCurrency}>
+						<AlertDialogFooter>
+							<AlertDialogCancel disabled={isDeactivatePending}>
+								Cancel
+							</AlertDialogCancel>
+							<ActionSubmitButton
+								variant="destructive"
+								pendingLabel="Deactivating..."
+								disabled={!isActive || isDeactivatePending}
+							>
+								Deactivate
+							</ActionSubmitButton>
+						</AlertDialogFooter>
+					</form>
 				</AlertDialogContent>
 			</AlertDialog>
 		</>

@@ -94,6 +94,38 @@ const MyComponent = React.forwardRef<
 MyComponent.displayName = "MyComponent";
 ```
 
+## React 19+ Conventions
+- Repository runtime is React 19 (`react@19.2.3`, `react-dom@19.2.3`).
+- Prefer React 19 primitives for new work when they reduce state plumbing without weakening validation/error UX.
+
+### Actions, RHF, and Mutations
+- Keep `react-hook-form` + Zod as the default for complex forms (multi-step, dynamic fields, cross-field rules, template-driven forms).
+- For simple mutation forms (small payloads, single submit intent), prefer React 19 Actions:
+  - Use `useActionState` for submit result/error state.
+  - Use `useFormStatus` inside submit controls for pending UI instead of ad-hoc pending flags.
+  - Use `useOptimistic` only for immediate local UX and still reconcile with React Query invalidation/refetch.
+- Whether using Actions or React Query mutations, submit failures must still follow the `SubmitActionError` standards in this document.
+
+### `use(...)` Rules
+- Use `use(promise)` only with stable/cached promises from framework or parent boundaries.
+- Do not create uncached promises during render and pass them to `use`.
+- Prefer Server Components for `use`-based data reads; client usage should be limited and intentional.
+
+### `Activity` Component Rules
+- Use `<Activity mode="visible" | "hidden">` for expensive secondary UI that should preserve state while hidden (e.g., loan detail sub-tabs, timelines, preview panels).
+- Prefer `Activity` when toggling visibility frequently and remounting is costly.
+- Do not use `Activity` for permission/security boundaries; conditionally render/unmount in those cases.
+- Keep loading UX compliant: hidden/visible switches do not replace required skeleton states for async content.
+
+### `Activity` Pattern
+```tsx
+import { Activity } from "react";
+
+<Activity mode={activeTab === "audit" ? "visible" : "hidden"}>
+  <LoanAuditTimeline loanId={loanId} />
+</Activity>
+```
+
 ## Next.js API Routes (Next.js 16)
 - In API routes (`src/app/api/*`), `params` is a Promise and must be awaited before destructuring.
 - Always use: `const { paramName } = await params;` instead of `const { paramName } = params;`
@@ -682,6 +714,8 @@ The code registry system provides comprehensive management of Fineract codes and
 
 ## Quick Checklist Before Hand-off
 - Verify all loading states use skeleton components (no spinners)
+- For new simple forms, prefer React 19 Actions (`useActionState` + `useFormStatus`) when RHF is unnecessary
+- For expensive tab/panel visibility toggles, evaluate `<Activity>` to preserve state and avoid remount churn
 - Verify submit actions show standardized error summary + field details and follow `SubmitActionError` tracking format
 - Run `pnpm lint` to catch issues early
 - Run `pnpm check:spacing` after layout work with spacing values

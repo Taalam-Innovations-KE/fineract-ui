@@ -42,3 +42,6 @@ docker/traefik/acme.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local agent planning/context notes
+/context/

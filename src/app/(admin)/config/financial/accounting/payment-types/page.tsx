@@ -3,16 +3,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import type { Resolver } from "react-hook-form";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { ActionSubmitButton } from "@/components/forms/action-submit-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
-	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogContent,
 	AlertDialogDescription,
@@ -48,6 +48,11 @@ import type {
 	PaymentTypeRequest,
 	PutPaymentTypesPaymentTypeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
+import {
+	failedSubmitActionState,
+	INITIAL_SUBMIT_ACTION_STATE,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { getFieldError } from "@/lib/fineract/ui-api-error";
@@ -337,34 +342,50 @@ export default function PaymentTypesPage() {
 		},
 	});
 
-	const deleteMutation = useMutation({
-		mutationFn: () =>
-			deletePaymentType(tenantId, Number(editingPaymentType?.id)),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["payment-types", tenantId] });
-			setSubmitError(null);
-			setIsDeleteDialogOpen(false);
-			setIsSheetOpen(false);
-			toast.success("Payment type deleted successfully");
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
+	const [, submitDeletePaymentType, isDeletePending] = useActionState(
+		async (_previousState: unknown, _formData: FormData) => {
+			if (editingPaymentType?.id === undefined) {
+				const deleteError = failedSubmitActionState(
+					{ message: "Select a payment type before deleting." },
+					{
+						action: "deletePaymentType",
+						endpoint: BFF_ROUTES.paymentTypeById(0),
+						method: "DELETE",
+						tenantId,
+					},
+				);
+				setSubmitError(deleteError.error);
+				return deleteError;
+			}
+
+			try {
+				await deletePaymentType(tenantId, Number(editingPaymentType.id));
+				await queryClient.invalidateQueries({
+					queryKey: ["payment-types", tenantId],
+				});
+				setSubmitError(null);
+				setIsDeleteDialogOpen(false);
+				setIsSheetOpen(false);
+				toast.success("Payment type deleted successfully");
+				return successSubmitActionState();
+			} catch (error) {
+				const deleteError = failedSubmitActionState(error, {
 					action: "deletePaymentType",
-					endpoint: BFF_ROUTES.paymentTypeById(editingPaymentType?.id || 0),
+					endpoint: BFF_ROUTES.paymentTypeById(editingPaymentType.id),
 					method: "DELETE",
 					tenantId,
-				}),
-			);
+				});
+				setSubmitError(deleteError.error);
+				return deleteError;
+			}
 		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
 
 	const isEditing = editingPaymentType !== null;
 	const isSystemDefined = Boolean(editingPaymentType?.isSystemDefined);
 	const isSubmitting =
-		createMutation.isPending ||
-		updateMutation.isPending ||
-		deleteMutation.isPending;
+		createMutation.isPending || updateMutation.isPending || isDeletePending;
 
 	const nameApiError = getFieldError(submitError, "name");
 	const descriptionApiError = getFieldError(submitError, "description");
@@ -744,20 +765,20 @@ export default function PaymentTypesPage() {
 							action cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={deleteMutation.isPending}>
-							Cancel
-						</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={(event) => {
-								event.preventDefault();
-								deleteMutation.mutate();
-							}}
-							disabled={deleteMutation.isPending}
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
+					<form action={submitDeletePaymentType}>
+						<AlertDialogFooter>
+							<AlertDialogCancel disabled={isDeletePending}>
+								Cancel
+							</AlertDialogCancel>
+							<ActionSubmitButton
+								variant="destructive"
+								pendingLabel="Deleting..."
+								disabled={editingPaymentType?.id === undefined}
+							>
+								Delete
+							</ActionSubmitButton>
+						</AlertDialogFooter>
+					</form>
 				</AlertDialogContent>
 			</AlertDialog>
 		</PageShell>

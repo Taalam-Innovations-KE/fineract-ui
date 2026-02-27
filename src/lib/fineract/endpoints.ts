@@ -44,6 +44,10 @@ export const FINERACT_ENDPOINTS = {
 	// Loans
 	loans: "/v1/loans",
 	loansTemplate: "/v1/loans/template",
+	rescheduleLoans: "/v1/rescheduleloans",
+	rescheduleLoansTemplate: "/v1/rescheduleloans/template",
+	rescheduleLoanById: (scheduleId: number | string) =>
+		`/v1/rescheduleloans/${scheduleId}`,
 	paymentTypes: "/v1/paymenttypes",
 	paymentTypeById: (paymentTypeId: number | string) =>
 		`/v1/paymenttypes/${paymentTypeId}`,
@@ -162,6 +166,10 @@ export const BFF_ROUTES = {
 	// Loans
 	loans: "/api/fineract/loans",
 	loansTemplate: "/api/fineract/loans/template",
+	rescheduleLoans: "/api/fineract/rescheduleloans",
+	rescheduleLoansTemplate: "/api/fineract/rescheduleloans/template",
+	rescheduleLoanById: (scheduleId: number | string) =>
+		`/api/fineract/rescheduleloans/${scheduleId}`,
 	paymentTypes: "/api/fineract/paymenttypes",
 	paymentTypeById: (paymentTypeId: number | string) =>
 		`/api/fineract/paymenttypes/${paymentTypeId}`,

@@ -5,6 +5,7 @@ import { format, isValid, parse, parseISO } from "date-fns";
 import { useMemo } from "react";
 import {
 	type Client,
+	type LoanApplicationSubmitPayload,
 	LoanBookingWizard,
 	type LoanProduct,
 } from "@/components/loans/loan-booking-wizard";
@@ -123,13 +124,21 @@ function mapLoanToInitialValues(
 		graceOnInterestPayment: loan.graceOnInterestPayment,
 		graceOnInterestCharged: loan.graceOnInterestCharged,
 		graceOnArrearsAgeing: loan.graceOnArrearsAgeing,
-		enableDownPayment: loan.enableDownPayment,
-		disbursedAmountPercentageForDownPayment:
-			loan.disbursedAmountPercentageForDownPayment,
-		enableAutoRepaymentForDownPayment: loan.enableAutoRepaymentForDownPayment,
-		maxOutstandingLoanBalance: loan.summary?.maxOutstandingLoanBalance,
-		disbursementData:
-			loan.disbursementDetails
+			enableDownPayment: loan.enableDownPayment,
+			disbursedAmountPercentageForDownPayment:
+				loan.disbursedAmountPercentageForDownPayment,
+			enableAutoRepaymentForDownPayment: loan.enableAutoRepaymentForDownPayment,
+			maxOutstandingLoanBalance: loan.summary?.maxOutstandingLoanBalance,
+			isTopup:
+				typeof dynamicLoan.isTopup === "boolean"
+					? dynamicLoan.isTopup
+					: undefined,
+			loanIdToClose:
+				typeof dynamicLoan.loanIdToClose === "number"
+					? dynamicLoan.loanIdToClose
+					: undefined,
+			disbursementData:
+				loan.disbursementDetails
 				?.map((item) => ({
 					principal: item.principal || 0,
 					expectedDisbursementDate:
@@ -231,7 +240,7 @@ export function LoanApplicationEditSheet({
 		}),
 		[loanForEdit],
 	);
-	const basePayload = useMemo<Partial<PostLoansRequest>>(() => {
+	const basePayload = useMemo<Partial<LoanApplicationSubmitPayload>>(() => {
 		const dynamicLoan = loanForEdit as Record<string, unknown>;
 		return {
 			clientId: loanForEdit.clientId,
@@ -260,14 +269,22 @@ export function LoanApplicationEditSheet({
 			graceOnInterestPayment: loanForEdit.graceOnInterestPayment,
 			graceOnInterestCharged: loanForEdit.graceOnInterestCharged,
 			graceOnArrearsAgeing: loanForEdit.graceOnArrearsAgeing,
-			enableDownPayment: loanForEdit.enableDownPayment,
-			disbursedAmountPercentageForDownPayment:
-				loanForEdit.disbursedAmountPercentageForDownPayment,
-			enableAutoRepaymentForDownPayment:
-				loanForEdit.enableAutoRepaymentForDownPayment,
-			maxOutstandingLoanBalance: loanForEdit.summary?.maxOutstandingLoanBalance,
-			disbursementData:
-				loanForEdit.disbursementDetails
+				enableDownPayment: loanForEdit.enableDownPayment,
+				disbursedAmountPercentageForDownPayment:
+					loanForEdit.disbursedAmountPercentageForDownPayment,
+				enableAutoRepaymentForDownPayment:
+					loanForEdit.enableAutoRepaymentForDownPayment,
+				maxOutstandingLoanBalance: loanForEdit.summary?.maxOutstandingLoanBalance,
+				isTopup:
+					typeof dynamicLoan.isTopup === "boolean"
+						? dynamicLoan.isTopup
+						: undefined,
+				loanIdToClose:
+					typeof dynamicLoan.loanIdToClose === "number"
+						? dynamicLoan.loanIdToClose
+						: undefined,
+				disbursementData:
+					loanForEdit.disbursementDetails
 					?.map((item) => ({
 						principal: item.principal,
 						expectedDisbursementDate: toFineractDateValue(
@@ -331,7 +348,7 @@ export function LoanApplicationEditSheet({
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: async (payload: PostLoansRequest) => {
+			mutationFn: async (payload: LoanApplicationSubmitPayload) => {
 			if (!loanForEdit.id) {
 				throw new Error("Loan ID is missing");
 			}

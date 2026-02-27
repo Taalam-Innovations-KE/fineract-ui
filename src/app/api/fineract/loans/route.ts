@@ -4,8 +4,19 @@ import {
 	getTenantFromRequest,
 } from "@/lib/fineract/client.server";
 import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
-import type { PostLoansRequest } from "@/lib/fineract/generated/types.gen";
+import type {
+	GetLoanProductsProductIdResponse,
+	GetLoansLoanIdResponse,
+	PostLoansRequest,
+} from "@/lib/fineract/generated/types.gen";
+import { validateTopupRules } from "@/lib/fineract/loan-rule-validations";
+import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
+
+type PostLoansRequestExtended = PostLoansRequest & {
+	isTopup?: boolean;
+	loanIdToClose?: number;
+};
 
 const UNSUPPORTED_LOAN_LIST_FIELDS = new Set(["clientname", "productname"]);
 
@@ -71,7 +82,57 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body = (await request.json()) as PostLoansRequest;
+		const body = (await request.json()) as PostLoansRequestExtended;
+
+		if (body.isTopup) {
+			const newLoanProduct =
+				typeof body.productId === "number"
+					? await fineractFetch<GetLoanProductsProductIdResponse>(
+							`${FINERACT_ENDPOINTS.loanProducts}/${body.productId}`,
+							{
+								method: "GET",
+								tenantId,
+							},
+						)
+					: null;
+
+			let loanToClose: GetLoansLoanIdResponse | null = null;
+			if (typeof body.loanIdToClose === "number" && body.loanIdToClose > 0) {
+				try {
+					loanToClose = await fineractFetch<GetLoansLoanIdResponse>(
+						`${FINERACT_ENDPOINTS.loans}/${body.loanIdToClose}?associations=transactions`,
+						{
+							method: "GET",
+							tenantId,
+						},
+					);
+				} catch {
+					loanToClose = null;
+				}
+			}
+
+			const loanToCloseProduct =
+				loanToClose?.loanProductId !== undefined
+					? await fineractFetch<GetLoanProductsProductIdResponse>(
+							`${FINERACT_ENDPOINTS.loanProducts}/${loanToClose.loanProductId}`,
+							{
+								method: "GET",
+								tenantId,
+							},
+						)
+					: null;
+
+			const topupIssues = validateTopupRules({
+				payload: body,
+				newLoanProduct,
+				loanToClose,
+				loanToCloseProduct,
+			});
+
+			if (topupIssues.length > 0) {
+				return validationErrorResponse("Top-up validation failed.", topupIssues);
+			}
+		}
 
 		const result = await fineractFetch(FINERACT_ENDPOINTS.loans, {
 			method: "POST",

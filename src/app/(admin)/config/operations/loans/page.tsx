@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { LoanApplicationSubmitPayload } from "@/components/loans/loan-booking-wizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,6 @@ import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetClientsResponse,
 	GetLoanProductsResponse,
-	PostLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
@@ -189,7 +189,10 @@ async function fetchLoans(
 	return response.json();
 }
 
-async function createLoan(tenantId: string, payload: PostLoansRequest) {
+async function createLoan(
+	tenantId: string,
+	payload: LoanApplicationSubmitPayload,
+) {
 	const response = await fetch(BFF_ROUTES.loans, {
 		method: "POST",
 		headers: {
@@ -251,7 +254,8 @@ export default function LoansPage() {
 	});
 
 	const createMutation = useMutation({
-		mutationFn: (payload: PostLoansRequest) => createLoan(tenantId, payload),
+		mutationFn: (payload: LoanApplicationSubmitPayload) =>
+			createLoan(tenantId, payload),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["loans", tenantId] });
 			setPageIndex(0);
@@ -342,7 +346,7 @@ export default function LoansPage() {
 		},
 	];
 
-	const handleWizardSubmit = async (data: PostLoansRequest) => {
+	const handleWizardSubmit = async (data: LoanApplicationSubmitPayload) => {
 		await createMutation.mutateAsync(data);
 	};
 

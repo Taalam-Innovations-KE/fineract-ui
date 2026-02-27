@@ -319,6 +319,7 @@ export function buildLoanProductRequest(
 		description: data.description,
 		includeInBorrowerCycle: data.includeInBorrowerCycle,
 		useBorrowerCycle: data.useBorrowerCycle,
+		canUseForTopup: data.canUseForTopup,
 		currencyCode: data.currencyCode,
 		digitsAfterDecimal: data.digitsAfterDecimal,
 		principal: data.principal,

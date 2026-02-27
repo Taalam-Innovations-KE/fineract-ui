@@ -61,6 +61,7 @@ export interface LoanProduct {
 	enableAutoRepaymentForDownPayment?: boolean;
 	multiDisburseLoan?: boolean;
 	maxTrancheCount?: number;
+	canUseForTopup?: boolean;
 	charges?: ProductCharge[];
 }
 
@@ -76,6 +77,10 @@ interface ProductCharge {
 }
 
 export type LoanBookingMode = "create" | "edit";
+export type LoanApplicationSubmitPayload = PostLoansRequest & {
+	isTopup?: boolean;
+	loanIdToClose?: number;
+};
 
 type LoanSubmissionDefaults = Pick<
 	PostLoansRequest,
@@ -90,14 +95,14 @@ interface LoanBookingWizardProps {
 	clients: Client[];
 	products: LoanProduct[];
 	isOpen: boolean;
-	onSubmit: (data: PostLoansRequest) => Promise<void>;
+	onSubmit: (data: LoanApplicationSubmitPayload) => Promise<void>;
 	onCancel: () => void;
 	mode?: LoanBookingMode;
 	loanId?: number;
 	initialValues?: Partial<LoanApplicationInput>;
 	lockClientProductSelection?: boolean;
 	submissionDefaults?: Partial<LoanSubmissionDefaults>;
-	basePayload?: Partial<PostLoansRequest>;
+	basePayload?: Partial<LoanApplicationSubmitPayload>;
 }
 
 const STEPS = [
@@ -127,6 +132,7 @@ function getBaseDefaultValues(): Partial<LoanApplicationInput> {
 		loanTermFrequencyType: 2,
 		repaymentEvery: 1,
 		charges: [],
+		isTopup: false,
 	};
 }
 
@@ -231,7 +237,8 @@ export function LoanBookingWizard({
 		defaultValues: initialFormValues,
 	});
 
-	const { setValue, getValues, trigger, reset } = form;
+	const { setValue, getValues, trigger, reset, watch } = form;
+	const selectedClientId = watch("clientId");
 
 	// Reset form when wizard opens
 	useEffect(() => {
@@ -387,8 +394,8 @@ export function LoanBookingWizard({
 					JSON.stringify(initialFormValues[field]);
 
 			// Build the payload
-			const payload: PostLoansRequest =
-				mode === "edit" ? { ...(basePayload || {}) } : {};
+				const payload: LoanApplicationSubmitPayload =
+					mode === "edit" ? { ...(basePayload || {}) } : {};
 
 			if (isFieldChanged("clientId")) {
 				payload.clientId = formData.clientId;
@@ -504,12 +511,20 @@ export function LoanBookingWizard({
 				payload.enableAutoRepaymentForDownPayment =
 					formData.enableAutoRepaymentForDownPayment;
 			}
-			if (isFieldChanged("maxOutstandingLoanBalance")) {
-				payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
-			}
-			if (
-				isFieldChanged("disbursementData") &&
-				formData.disbursementData &&
+				if (isFieldChanged("maxOutstandingLoanBalance")) {
+					payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
+				}
+				if (isFieldChanged("isTopup")) {
+					payload.isTopup = Boolean(formData.isTopup);
+				}
+				if (isFieldChanged("loanIdToClose")) {
+					payload.loanIdToClose = formData.isTopup
+						? formData.loanIdToClose
+						: undefined;
+				}
+				if (
+					isFieldChanged("disbursementData") &&
+					formData.disbursementData &&
 				formData.disbursementData.length > 0
 			) {
 				payload.disbursementData = formData.disbursementData.map((item) => ({
@@ -634,9 +649,13 @@ export function LoanBookingWizard({
 						/>
 					)}
 					{currentStep === 3 && <LoanGracePeriodsStep />}
-					{currentStep === 4 && (
-						<LoanAdvancedStep product={selectedProduct} currency={currency} />
-					)}
+						{currentStep === 4 && (
+							<LoanAdvancedStep
+								product={selectedProduct}
+								currency={currency}
+								selectedClientId={selectedClientId}
+							/>
+						)}
 					{currentStep === 5 && <LoanDatesStep />}
 					{currentStep === 6 && (
 						<LoanReviewStep

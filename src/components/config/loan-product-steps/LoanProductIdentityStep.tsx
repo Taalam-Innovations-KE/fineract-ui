@@ -223,10 +223,10 @@ export function LoanProductIdentityStep({
 						</div>
 					</div>
 
-					<div className="space-y-3 border-t pt-4">
-						<p className="text-xs text-muted-foreground">
-							Borrower cycle settings control whether repeat-borrowing counters
-							are maintained and applied to this product.
+						<div className="space-y-3 border-t pt-4">
+							<p className="text-xs text-muted-foreground">
+								Borrower cycle settings control whether repeat-borrowing counters
+								are maintained and applied to this product.
 						</p>
 						<div className="flex items-center gap-2">
 							<Controller
@@ -247,10 +247,10 @@ export function LoanProductIdentityStep({
 								Include loans in borrower cycle count
 							</Label>
 						</div>
-						<div className="flex items-center gap-2">
-							<Controller
-								control={control}
-								name="useBorrowerCycle"
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="useBorrowerCycle"
 								render={({ field }) => (
 									<Checkbox
 										id="useBorrowerCycle"
@@ -260,12 +260,28 @@ export function LoanProductIdentityStep({
 								)}
 							/>
 							<Label htmlFor="useBorrowerCycle" className="cursor-pointer">
-								Use borrower cycle-based variations
-							</Label>
+									Use borrower cycle-based variations
+								</Label>
+							</div>
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="canUseForTopup"
+									render={({ field }) => (
+										<Checkbox
+											id="canUseForTopup"
+											checked={Boolean(field.value)}
+											onCheckedChange={(value) => field.onChange(Boolean(value))}
+										/>
+									)}
+								/>
+								<Label htmlFor="canUseForTopup" className="cursor-pointer">
+									Allow loans from this product to be used for top-up
+								</Label>
+							</div>
 						</div>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
 		</TooltipProvider>
 	);
 }

@@ -325,6 +325,7 @@ function transformProductToFormData(
 		description: product.description || "",
 		includeInBorrowerCycle: Boolean(product.includeInBorrowerCycle),
 		useBorrowerCycle: Boolean(product.useBorrowerCycle),
+		canUseForTopup: Boolean(product.canUseForTopup),
 		currencyCode: product.currency?.code || "",
 		digitsAfterDecimal: product.currency?.decimalPlaces || 2,
 		minPrincipal,

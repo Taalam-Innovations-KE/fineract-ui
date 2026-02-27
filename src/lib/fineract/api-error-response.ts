@@ -14,3 +14,32 @@ export function invalidRequestResponse(message: string) {
 		status: error.httpStatus || 400,
 	});
 }
+
+export interface ValidationFieldIssue {
+	field: string;
+	message: string;
+	code?: string;
+}
+
+export function validationErrorResponse(
+	message: string,
+	issues: ValidationFieldIssue[],
+	status = 400,
+) {
+	const error = normalizeApiError({
+		status,
+		data: {
+			code: "VALIDATION_ERROR",
+			message,
+			fieldErrors: issues.map((issue) => ({
+				field: issue.field,
+				message: issue.message,
+				code: issue.code || "VALIDATION_ERROR",
+			})),
+		},
+	});
+
+	return NextResponse.json(error, {
+		status: error.httpStatus || status,
+	});
+}

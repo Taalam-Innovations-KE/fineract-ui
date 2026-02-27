@@ -11,6 +11,7 @@ import {
 	Download,
 	FileSpreadsheet,
 	FileText,
+	GitBranch,
 	History,
 	Info,
 	Loader2,
@@ -63,6 +64,7 @@ interface LoanDetailPageProps {
 type TabValue =
 	| "overview"
 	| "schedule"
+	| "restructure"
 	| "transactions"
 	| "charges"
 	| "collateral"
@@ -123,6 +125,15 @@ const LoanTransactionsTab = dynamic(
 	() =>
 		import("@/components/loans/tabs/loan-transactions-tab").then(
 			(mod) => mod.LoanTransactionsTab,
+		),
+	{
+		loading: () => <LoanTabPanelSkeleton />,
+	},
+);
+const LoanRestructureTab = dynamic(
+	() =>
+		import("@/components/loans/tabs/loan-restructure-tab").then(
+			(mod) => mod.LoanRestructureTab,
 		),
 	{
 		loading: () => <LoanTabPanelSkeleton />,
@@ -834,6 +845,10 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 							<History className="w-4 h-4 mr-1.5" />
 							Schedule
 						</TabsTrigger>
+						<TabsTrigger value="restructure">
+							<GitBranch className="w-4 h-4 mr-1.5" />
+							Restructure
+						</TabsTrigger>
 						<TabsTrigger value="transactions">
 							<DollarSign className="w-4 h-4 mr-1.5" />
 							Transactions
@@ -892,6 +907,19 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 										currency={currency}
 										loan={loan}
 									/>
+								))}
+						</TabsContent>
+
+						<TabsContent value="restructure">
+							{activeTab === "restructure" &&
+								(Number.isNaN(numericLoanId) ? (
+									<Card>
+										<CardContent className="pt-6 text-sm text-muted-foreground">
+											Restructure operations require a numeric loan ID.
+										</CardContent>
+									</Card>
+								) : (
+									<LoanRestructureTab loanId={numericLoanId} />
 								))}
 						</TabsContent>
 

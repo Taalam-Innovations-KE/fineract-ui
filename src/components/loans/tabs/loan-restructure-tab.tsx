@@ -861,7 +861,7 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 									)}
 								/>
 
-								{previewResult && (
+								{previewResult !== null && (
 									<Card className="rounded-sm border border-border/60 bg-muted/20">
 										<CardHeader className="pb-2">
 											<CardTitle className="text-sm">Preview Result</CardTitle>

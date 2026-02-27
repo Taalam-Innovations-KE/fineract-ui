@@ -184,9 +184,7 @@ function findInstallmentByDueDate(
 ): GetLoansLoanIdRepaymentPeriod | undefined {
 	return periods.find((period) => {
 		const periodDate = parseDateValue(period.dueDate);
-		return (
-			Boolean(periodDate) && periodDate.getTime() === dateValue.getTime()
-		);
+		return periodDate !== null && periodDate.getTime() === dateValue.getTime();
 	});
 }
 

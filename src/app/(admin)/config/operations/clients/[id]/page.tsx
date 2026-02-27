@@ -19,7 +19,7 @@ import {
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useMemo, useState } from "react";
+import { Activity, use, useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -794,6 +794,7 @@ export default function ClientDetailPage({
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState<ClientTab>("overview");
+	const [hasVisitedAuditTab, setHasVisitedAuditTab] = useState(false);
 	const [confirmAction, setConfirmAction] = useState<ClientActionKey | null>(
 		null,
 	);
@@ -1128,6 +1129,14 @@ export default function ClientDetailPage({
 		withdrawalReasonOptions.find(
 			(option) => String(option.id) === selectedWithdrawalReasonId,
 		)?.name || "";
+
+	const handleTabChange = (value: string) => {
+		const nextTab = value as ClientTab;
+		setActiveTab(nextTab);
+		if (nextTab === "audit") {
+			setHasVisitedAuditTab(true);
+		}
+	};
 
 	const headerActions = (
 		<div className="flex items-center gap-2">
@@ -1600,15 +1609,9 @@ export default function ClientDetailPage({
 						</Card>
 					)}
 
-					<Tabs
-						value={activeTab}
-						onValueChange={(value) => setActiveTab(value as ClientTab)}
-					>
+					<Tabs value={activeTab} onValueChange={handleTabChange}>
 						<div className="md:hidden">
-							<Select
-								value={activeTab}
-								onValueChange={(value) => setActiveTab(value as ClientTab)}
-							>
+							<Select value={activeTab} onValueChange={handleTabChange}>
 								<SelectTrigger>
 									{activeTab === "overview" && "Overview"}
 									{activeTab === "accounts" && "Accounts"}
@@ -2088,16 +2091,18 @@ export default function ClientDetailPage({
 							</TabsContent>
 
 							<TabsContent value="audit">
-								{activeTab === "audit" && (
-									<AuditTrailViewer
-										events={auditEvents}
-										isLoading={auditTrailQuery.isLoading}
-										error={
-											auditTrailQuery.error
-												? (auditTrailQuery.error as Error)
-												: null
-										}
-									/>
+								{hasVisitedAuditTab && (
+									<Activity mode={activeTab === "audit" ? "visible" : "hidden"}>
+										<AuditTrailViewer
+											events={auditEvents}
+											isLoading={auditTrailQuery.isLoading}
+											error={
+												auditTrailQuery.error
+													? (auditTrailQuery.error as Error)
+													: null
+											}
+										/>
+									</Activity>
 								)}
 							</TabsContent>
 						</div>

@@ -1,19 +1,15 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit, Save, Settings, Trash } from "lucide-react";
-import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { use, useActionState, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { ActionSubmitButton } from "@/components/forms/action-submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -21,6 +17,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Sheet,
 	SheetContent,
@@ -30,13 +28,19 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
 	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
-import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	failedSubmitActionState,
+	INITIAL_SUBMIT_ACTION_STATE,
+	type SubmitActionState,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
+import { getSubmitFieldError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
 async function fetchRole(
@@ -104,12 +108,10 @@ export default function RoleDetailPage({
 	const { roleId } = use(params);
 	const { tenantId } = useTenantStore();
 	const queryClient = useQueryClient();
+	const router = useRouter();
 	const [editDialogOpen, setEditDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [formData, setFormData] = useState({ name: "", description: "" });
-	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
-		null,
-	);
 
 	const {
 		data: role,
@@ -120,58 +122,62 @@ export default function RoleDetailPage({
 		queryFn: () => fetchRole(tenantId, roleId),
 	});
 
-	const updateMutation = useMutation({
-		mutationFn: (data: PutRolesRoleIdRequest) =>
-			updateRole(tenantId, Number(roleId), data),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["role", tenantId, roleId] });
-			setEditDialogOpen(false);
-			setSubmitError(null);
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
+	const [updateState, submitUpdateRole] = useActionState(
+		async (
+			_previousState: SubmitActionState,
+			formPayload: FormData,
+		): Promise<SubmitActionState> => {
+			const description = String(formPayload.get("description") ?? "").trim();
+
+			try {
+				await updateRole(tenantId, Number(roleId), { description });
+				await queryClient.invalidateQueries({
+					queryKey: ["role", tenantId, roleId],
+				});
+				await queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+				setEditDialogOpen(false);
+				return successSubmitActionState();
+			} catch (submitError) {
+				return failedSubmitActionState(submitError, {
 					action: "updateRole",
 					endpoint: `${BFF_ROUTES.roles}/${roleId}`,
 					method: "PUT",
 					tenantId,
-				}),
-			);
+				});
+			}
 		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
 
-	const deleteMutation = useMutation({
-		mutationFn: () => deleteRole(tenantId, Number(roleId)),
-		onSuccess: () => {
-			window.location.href = "/config/organisation/roles";
-			setSubmitError(null);
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
+	const [deleteState, submitDeleteRole] = useActionState(
+		async (_previousState: SubmitActionState): Promise<SubmitActionState> => {
+			try {
+				await deleteRole(tenantId, Number(roleId));
+				await queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+				setDeleteDialogOpen(false);
+				router.push("/config/organisation/roles");
+				return successSubmitActionState();
+			} catch (submitError) {
+				return failedSubmitActionState(submitError, {
 					action: "deleteRole",
 					endpoint: `${BFF_ROUTES.roles}/${roleId}`,
 					method: "DELETE",
 					tenantId,
-				}),
-			);
+				});
+			}
 		},
-	});
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
+
+	const submitError = deleteState.error ?? updateState.error;
+	const descriptionError = getSubmitFieldError(
+		updateState.error,
+		"description",
+	);
 
 	const isAdminRole =
 		role?.name?.toLowerCase().includes("admin") ||
 		role?.name?.toLowerCase().includes("super");
-
-	const handleEditSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		setSubmitError(null);
-		updateMutation.mutate({ description: formData.description });
-	};
-
-	const handleDeleteConfirm = () => {
-		setSubmitError(null);
-		deleteMutation.mutate();
-	};
 
 	if (isLoading) {
 		return (
@@ -283,36 +289,48 @@ export default function RoleDetailPage({
 				</div>
 			</PageShell>
 
-			{/* Edit Sheet */}
 			<Sheet open={editDialogOpen} onOpenChange={setEditDialogOpen}>
 				<SheetContent side="right" className="sm:max-w-[450px]">
 					<SheetHeader>
 						<SheetTitle>Edit Role</SheetTitle>
 						<SheetDescription>Modify the role details.</SheetDescription>
 					</SheetHeader>
-					<form onSubmit={handleEditSubmit} className="space-y-4 mt-6">
-						<div>
-							<label className="text-sm font-medium">Name</label>
-							<input
-								type="text"
+					<form action={submitUpdateRole} className="mt-6 space-y-4">
+						<SubmitErrorAlert
+							error={updateState.error}
+							title="Failed to update role"
+						/>
+						<div className="space-y-2">
+							<Label htmlFor="edit-role-name">Name</Label>
+							<Input
+								id="edit-role-name"
 								value={formData.name}
-								onChange={(e) =>
-									setFormData({ ...formData, name: e.target.value })
+								onChange={(event) =>
+									setFormData((current) => ({
+										...current,
+										name: event.target.value,
+									}))
 								}
-								className="mt-1 block w-full rounded border px-3 py-2"
-								required
+								disabled
 							/>
 						</div>
-						<div>
-							<label className="text-sm font-medium">Description</label>
-							<textarea
-								value={formData.description}
-								onChange={(e) =>
-									setFormData({ ...formData, description: e.target.value })
-								}
-								className="mt-1 block w-full rounded border px-3 py-2"
+						<div className="space-y-2">
+							<Label htmlFor="edit-role-description">Description</Label>
+							<Textarea
+								id="edit-role-description"
+								name="description"
 								rows={3}
+								value={formData.description}
+								onChange={(event) =>
+									setFormData((current) => ({
+										...current,
+										description: event.target.value,
+									}))
+								}
 							/>
+							{descriptionError && (
+								<p className="text-xs text-destructive">{descriptionError}</p>
+							)}
 						</div>
 						<SheetFooter>
 							<Button
@@ -322,16 +340,15 @@ export default function RoleDetailPage({
 							>
 								Cancel
 							</Button>
-							<Button type="submit" disabled={updateMutation.isPending}>
+							<ActionSubmitButton pendingLabel="Updating...">
 								<Save className="w-4 h-4 mr-2" />
-								{updateMutation.isPending ? "Updating..." : "Update"}
-							</Button>
+								Update
+							</ActionSubmitButton>
 						</SheetFooter>
 					</form>
 				</SheetContent>
 			</Sheet>
 
-			{/* Delete Dialog */}
 			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
 				<DialogContent>
 					<DialogHeader>
@@ -341,22 +358,27 @@ export default function RoleDetailPage({
 							be undone.
 						</DialogDescription>
 					</DialogHeader>
-					<div className="flex justify-end space-x-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => setDeleteDialogOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={handleDeleteConfirm}
-							disabled={deleteMutation.isPending}
-						>
-							{deleteMutation.isPending ? "Deleting..." : "Delete"}
-						</Button>
-					</div>
+					<form action={submitDeleteRole} className="space-y-4">
+						<SubmitErrorAlert
+							error={deleteState.error}
+							title="Failed to delete role"
+						/>
+						<div className="flex justify-end gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setDeleteDialogOpen(false)}
+							>
+								Cancel
+							</Button>
+							<ActionSubmitButton
+								variant="destructive"
+								pendingLabel="Deleting..."
+							>
+								Delete
+							</ActionSubmitButton>
+						</div>
+					</form>
 				</DialogContent>
 			</Dialog>
 		</>

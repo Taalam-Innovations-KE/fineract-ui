@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { use, useState } from "react";
+import { Activity, use, useState } from "react";
 import { LoanProductWizard } from "@/components/config/loan-product-wizard";
 import { PageShell } from "@/components/config/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -855,8 +855,17 @@ export default function LoanProductDetailPage({
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
 	const [activeTab, setActiveTab] = useState<TabValue>("overview");
+	const [hasVisitedAuditTab, setHasVisitedAuditTab] = useState(false);
 	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 	const queryClient = useQueryClient();
+
+	const handleTabChange = (value: string) => {
+		const nextTab = value as TabValue;
+		setActiveTab(nextTab);
+		if (nextTab === "audit") {
+			setHasVisitedAuditTab(true);
+		}
+	};
 
 	const {
 		data: product,
@@ -1193,16 +1202,10 @@ export default function LoanProductDetailPage({
 				</div>
 
 				{/* Tabs */}
-				<Tabs
-					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as TabValue)}
-				>
+				<Tabs value={activeTab} onValueChange={handleTabChange}>
 					{/* Mobile Tab Selector */}
 					<div className="md:hidden mb-4">
-						<Select
-							value={activeTab}
-							onValueChange={(v) => setActiveTab(v as TabValue)}
-						>
+						<Select value={activeTab} onValueChange={handleTabChange}>
 							<SelectTrigger>
 								<SelectValue placeholder="Select section" />
 							</SelectTrigger>
@@ -2214,16 +2217,18 @@ export default function LoanProductDetailPage({
 						</TabsContent>
 
 						<TabsContent value="audit">
-							{activeTab === "audit" && (
-								<AuditTrailViewer
-									events={auditEvents}
-									isLoading={auditTrailQuery.isLoading}
-									error={
-										auditTrailQuery.error
-											? (auditTrailQuery.error as Error)
-											: null
-									}
-								/>
+							{hasVisitedAuditTab && (
+								<Activity mode={activeTab === "audit" ? "visible" : "hidden"}>
+									<AuditTrailViewer
+										events={auditEvents}
+										isLoading={auditTrailQuery.isLoading}
+										error={
+											auditTrailQuery.error
+												? (auditTrailQuery.error as Error)
+												: null
+										}
+									/>
+								</Activity>
 							)}
 						</TabsContent>
 					</div>

@@ -1,19 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	Edit,
-	MoreHorizontal,
-	Plus,
-	Settings,
-	Shield,
-	Trash,
-	Users,
-} from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Shield, Users } from "lucide-react";
+import { useActionState, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { ActionSubmitButton } from "@/components/forms/action-submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,12 +16,15 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
 	Sheet,
 	SheetContent,
@@ -40,15 +35,37 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetRolesResponse,
 	PostRolesRequest,
-	PutRolesRoleIdRequest,
 } from "@/lib/fineract/generated/types.gen";
-import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	failedSubmitActionState,
+	INITIAL_SUBMIT_ACTION_STATE,
+	type SubmitActionState,
+	successSubmitActionState,
+} from "@/lib/fineract/submit-action-state";
+import { getSubmitFieldError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
+
+interface RoleTemplate {
+	name: string;
+	description: string;
+}
+
+const ROLE_TEMPLATES: RoleTemplate[] = [
+	{ name: "Super User", description: "Full system access" },
+	{ name: "Loan Officer", description: "Manage loans and clients" },
+	{ name: "Teller", description: "Handle transactions" },
+	{ name: "Auditor", description: "View reports and logs" },
+];
+
+const EMPTY_ROLE_FORM = {
+	name: "",
+	description: "",
+};
 
 async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
 	const response = await fetch(BFF_ROUTES.roles, {
@@ -64,42 +81,169 @@ async function fetchRoles(tenantId: string): Promise<GetRolesResponse[]> {
 	return response.json();
 }
 
-export default function RolesPage() {
-	const { tenantId } = useTenantStore();
-	const queryClient = useQueryClient();
-	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
-		null,
-	);
+async function createRole(
+	tenantId: string,
+	data: PostRolesRequest,
+): Promise<GetRolesResponse> {
+	const response = await fetch(BFF_ROUTES.roles, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(data),
+	});
 
-	async function createRole(data: PostRolesRequest): Promise<GetRolesResponse> {
-		const response = await fetch(BFF_ROUTES.roles, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"x-tenant-id": tenantId,
-			},
-			body: JSON.stringify(data),
-		});
-
-		if (!response.ok) {
-			const payload = await response
-				.json()
-				.catch(() => ({ message: "Failed to create role" }));
-			throw payload;
-		}
-
-		return response.json();
+	if (!response.ok) {
+		const payload = await response
+			.json()
+			.catch(() => ({ message: "Failed to create role" }));
+		throw payload;
 	}
 
-	const [createDialogOpen, setCreateDialogOpen] = useState(false);
-	const [formData, setFormData] = useState({ name: "", description: "" });
+	return response.json();
+}
 
-	const roleTemplates = [
-		{ name: "Super User", description: "Full system access" },
-		{ name: "Loan Officer", description: "Manage loans and clients" },
-		{ name: "Teller", description: "Handle transactions" },
-		{ name: "Auditor", description: "View reports and logs" },
-	];
+interface CreateRoleSheetFormProps {
+	tenantId: string;
+	onCancel: () => void;
+	onSuccess: () => void;
+}
+
+function CreateRoleSheetForm({
+	tenantId,
+	onCancel,
+	onSuccess,
+}: CreateRoleSheetFormProps) {
+	const queryClient = useQueryClient();
+	const [formData, setFormData] = useState(EMPTY_ROLE_FORM);
+
+	const [submitState, submitCreateRole] = useActionState(
+		async (
+			_previousState: SubmitActionState,
+			formPayload: FormData,
+		): Promise<SubmitActionState> => {
+			const name = String(formPayload.get("name") ?? "").trim();
+			const description = String(formPayload.get("description") ?? "").trim();
+
+			if (!name) {
+				return failedSubmitActionState(
+					{ message: "Name is required" },
+					{
+						action: "createRole",
+						endpoint: BFF_ROUTES.roles,
+						method: "POST",
+						tenantId,
+					},
+				);
+			}
+
+			try {
+				await createRole(tenantId, {
+					name,
+					description: description || undefined,
+				});
+				await queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
+				setFormData(EMPTY_ROLE_FORM);
+				onSuccess();
+				return successSubmitActionState();
+			} catch (error) {
+				return failedSubmitActionState(error, {
+					action: "createRole",
+					endpoint: BFF_ROUTES.roles,
+					method: "POST",
+					tenantId,
+				});
+			}
+		},
+		INITIAL_SUBMIT_ACTION_STATE,
+	);
+
+	const nameError = getSubmitFieldError(submitState.error, "name");
+	const descriptionError = getSubmitFieldError(
+		submitState.error,
+		"description",
+	);
+
+	return (
+		<form action={submitCreateRole} className="mt-6 space-y-4">
+			<SubmitErrorAlert
+				error={submitState.error}
+				title="Failed to create role"
+			/>
+			<div className="space-y-2">
+				<Label htmlFor="role-template">Template (Optional)</Label>
+				<Select
+					onValueChange={(value) => {
+						const template = ROLE_TEMPLATES.find((item) => item.name === value);
+						if (!template) {
+							return;
+						}
+						setFormData({
+							name: template.name,
+							description: template.description,
+						});
+					}}
+				>
+					<SelectTrigger id="role-template">
+						<SelectValue placeholder="Select a template" />
+					</SelectTrigger>
+					<SelectContent>
+						{ROLE_TEMPLATES.map((template) => (
+							<SelectItem key={template.name} value={template.name}>
+								{template.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<div className="space-y-2">
+				<Label htmlFor="role-name">Name</Label>
+				<Input
+					id="role-name"
+					name="name"
+					value={formData.name}
+					onChange={(event) =>
+						setFormData((current) => ({ ...current, name: event.target.value }))
+					}
+					required
+				/>
+				{nameError && <p className="text-xs text-destructive">{nameError}</p>}
+			</div>
+			<div className="space-y-2">
+				<Label htmlFor="role-description">Description</Label>
+				<Textarea
+					id="role-description"
+					name="description"
+					rows={3}
+					value={formData.description}
+					onChange={(event) =>
+						setFormData((current) => ({
+							...current,
+							description: event.target.value,
+						}))
+					}
+				/>
+				{descriptionError && (
+					<p className="text-xs text-destructive">{descriptionError}</p>
+				)}
+			</div>
+			<SheetFooter>
+				<Button type="button" variant="outline" onClick={onCancel}>
+					Cancel
+				</Button>
+				<ActionSubmitButton pendingLabel="Creating...">
+					Create
+				</ActionSubmitButton>
+			</SheetFooter>
+		</form>
+	);
+}
+
+export default function RolesPage() {
+	const { tenantId } = useTenantStore();
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [createFormKey, setCreateFormKey] = useState(0);
 
 	const {
 		data: roles = [],
@@ -109,35 +253,6 @@ export default function RolesPage() {
 		queryKey: ["roles", tenantId],
 		queryFn: () => fetchRoles(tenantId),
 	});
-
-	const createMutation = useMutation({
-		mutationFn: createRole,
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["roles", tenantId] });
-			setCreateDialogOpen(false);
-			setFormData({ name: "", description: "" });
-			setSubmitError(null);
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: "createRole",
-					endpoint: BFF_ROUTES.roles,
-					method: "POST",
-					tenantId,
-				}),
-			);
-		},
-	});
-
-	const handleCreateSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		setSubmitError(null);
-		createMutation.mutate({
-			name: formData.name,
-			description: formData.description,
-		});
-	};
 
 	const isAdminRole = (role: GetRolesResponse) =>
 		role.name?.toLowerCase().includes("admin") ||
@@ -180,7 +295,6 @@ export default function RolesPage() {
 			subtitle="View and manage system roles and their permissions"
 		>
 			<div className="space-y-6">
-				{/* Summary Cards */}
 				<div className="grid gap-4 md:grid-cols-3">
 					<Card>
 						<CardContent className="pt-6">
@@ -235,7 +349,15 @@ export default function RolesPage() {
 					<CardHeader>
 						<CardTitle className="flex items-center justify-between">
 							Roles
-							<Sheet open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+							<Sheet
+								open={createDialogOpen}
+								onOpenChange={(open) => {
+									setCreateDialogOpen(open);
+									if (open) {
+										setCreateFormKey((value) => value + 1);
+									}
+								}}
+							>
 								<SheetTrigger asChild>
 									<Button>
 										<Plus className="mr-2 h-4 w-4" />
@@ -249,79 +371,12 @@ export default function RolesPage() {
 											Add a new custom role to the system.
 										</SheetDescription>
 									</SheetHeader>
-									<form
-										onSubmit={handleCreateSubmit}
-										className="space-y-4 mt-6"
-									>
-										<SubmitErrorAlert
-											error={submitError}
-											title="Failed to create role"
-										/>
-										<div>
-											<label className="text-sm font-medium">
-												Template (Optional)
-											</label>
-											<select
-												onChange={(e) => {
-													const template = roleTemplates.find(
-														(t) => t.name === e.target.value,
-													);
-													if (template) {
-														setFormData({
-															name: template.name,
-															description: template.description,
-														});
-													}
-												}}
-												className="mt-1 block w-full rounded border px-3 py-2"
-											>
-												<option value="">Select a template</option>
-												{roleTemplates.map((template) => (
-													<option key={template.name} value={template.name}>
-														{template.name}
-													</option>
-												))}
-											</select>
-										</div>
-										<div>
-											<label className="text-sm font-medium">Name</label>
-											<input
-												type="text"
-												value={formData.name}
-												onChange={(e) =>
-													setFormData({ ...formData, name: e.target.value })
-												}
-												className="mt-1 block w-full rounded border px-3 py-2"
-												required
-											/>
-										</div>
-										<div>
-											<label className="text-sm font-medium">Description</label>
-											<textarea
-												value={formData.description}
-												onChange={(e) =>
-													setFormData({
-														...formData,
-														description: e.target.value,
-													})
-												}
-												className="mt-1 block w-full rounded border px-3 py-2"
-												rows={3}
-											/>
-										</div>
-										<SheetFooter>
-											<Button
-												type="button"
-												variant="outline"
-												onClick={() => setCreateDialogOpen(false)}
-											>
-												Cancel
-											</Button>
-											<Button type="submit" disabled={createMutation.isPending}>
-												{createMutation.isPending ? "Creating..." : "Create"}
-											</Button>
-										</SheetFooter>
-									</form>
+									<CreateRoleSheetForm
+										key={createFormKey}
+										tenantId={tenantId}
+										onCancel={() => setCreateDialogOpen(false)}
+										onSuccess={() => setCreateDialogOpen(false)}
+									/>
 								</SheetContent>
 							</Sheet>
 						</CardTitle>

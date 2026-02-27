@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Activity, useEffect, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { KpiCard, KpiCardSkeleton } from "@/components/loans/kpi-card";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,18 @@ type TabValue =
 	| "guarantors"
 	| "documents"
 	| "audit";
+
+const INITIAL_MOUNTED_TABS: Record<TabValue, boolean> = {
+	overview: true,
+	schedule: false,
+	restructure: false,
+	transactions: false,
+	charges: false,
+	collateral: false,
+	guarantors: false,
+	documents: false,
+	audit: false,
+};
 
 type LoanDownloadType = "schedule" | "statement";
 type LoanDownloadFormat = "pdf" | "xlsx" | "csv";
@@ -236,6 +248,8 @@ function getAvailableActions(
 export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 	const [loanId, setLoanId] = useState<string>("");
 	const [activeTab, setActiveTab] = useState<TabValue>("overview");
+	const [mountedTabs, setMountedTabs] =
+		useState<Record<TabValue, boolean>>(INITIAL_MOUNTED_TABS);
 
 	useEffect(() => {
 		params.then((resolvedParams) => {
@@ -834,7 +848,13 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 				{/* Tabs */}
 				<Tabs
 					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as TabValue)}
+					onValueChange={(value) => {
+						const nextTab = value as TabValue;
+						setActiveTab(nextTab);
+						setMountedTabs((current) =>
+							current[nextTab] ? current : { ...current, [nextTab]: true },
+						);
+					}}
 				>
 					<TabsList variant="line" className="w-full justify-start border-b">
 						<TabsTrigger value="overview">
@@ -882,88 +902,132 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 					<div className="mt-4">
 						<TabsContent value="overview">
-							{activeTab === "overview" && <LoanOverviewTab loan={loan} />}
+							{mountedTabs.overview && (
+								<Activity
+									mode={activeTab === "overview" ? "visible" : "hidden"}
+								>
+									<LoanOverviewTab loan={loan} />
+								</Activity>
+							)}
 						</TabsContent>
 
 						<TabsContent value="schedule">
-							{activeTab === "schedule" &&
-								(scheduleQuery.isLoading ? (
-									<LoanTabPanelSkeleton />
-								) : (
-									<LoanScheduleTab
-										schedule={scheduleQuery.data?.repaymentSchedule}
-										currency={currency}
-									/>
-								))}
+							{mountedTabs.schedule && (
+								<Activity
+									mode={activeTab === "schedule" ? "visible" : "hidden"}
+								>
+									{scheduleQuery.isLoading ? (
+										<LoanTabPanelSkeleton />
+									) : (
+										<LoanScheduleTab
+											schedule={scheduleQuery.data?.repaymentSchedule}
+											currency={currency}
+										/>
+									)}
+								</Activity>
+							)}
 						</TabsContent>
 
 						<TabsContent value="transactions">
-							{activeTab === "transactions" &&
-								(transactionsQuery.isLoading ? (
-									<LoanTabPanelSkeleton />
-								) : (
-									<LoanTransactionsTab
-										transactions={transactionsQuery.data?.transactions}
-										currency={currency}
-										loan={loan}
-									/>
-								))}
+							{mountedTabs.transactions && (
+								<Activity
+									mode={activeTab === "transactions" ? "visible" : "hidden"}
+								>
+									{transactionsQuery.isLoading ? (
+										<LoanTabPanelSkeleton />
+									) : (
+										<LoanTransactionsTab
+											transactions={transactionsQuery.data?.transactions}
+											currency={currency}
+											loan={loan}
+										/>
+									)}
+								</Activity>
+							)}
 						</TabsContent>
 
 						<TabsContent value="restructure">
-							{activeTab === "restructure" &&
-								(Number.isNaN(numericLoanId) ? (
-									<Card>
-										<CardContent className="pt-6 text-sm text-muted-foreground">
-											Restructure operations require a numeric loan ID.
-										</CardContent>
-									</Card>
-								) : (
-									<LoanRestructureTab loanId={numericLoanId} />
-								))}
+							{mountedTabs.restructure && (
+								<Activity
+									mode={activeTab === "restructure" ? "visible" : "hidden"}
+								>
+									{Number.isNaN(numericLoanId) ? (
+										<Card>
+											<CardContent className="pt-6 text-sm text-muted-foreground">
+												Restructure operations require a numeric loan ID.
+											</CardContent>
+										</Card>
+									) : (
+										<LoanRestructureTab loanId={numericLoanId} />
+									)}
+								</Activity>
+							)}
 						</TabsContent>
 
 						<TabsContent value="charges">
-							{activeTab === "charges" &&
-								(chargesQuery.isLoading ? (
-									<LoanTabPanelSkeleton />
-								) : (
-									<LoanChargesTab
-										charges={chargesQuery.data?.charges ?? loan.charges}
-										currency={currency}
-										feesOutstanding={summary?.feeChargesOutstanding}
-										penaltiesOutstanding={summary?.penaltyChargesOutstanding}
-										loan={loan}
-										transactions={transactionsQuery.data?.transactions}
-									/>
-								))}
+							{mountedTabs.charges && (
+								<Activity mode={activeTab === "charges" ? "visible" : "hidden"}>
+									{chargesQuery.isLoading ? (
+										<LoanTabPanelSkeleton />
+									) : (
+										<LoanChargesTab
+											charges={chargesQuery.data?.charges ?? loan.charges}
+											currency={currency}
+											feesOutstanding={summary?.feeChargesOutstanding}
+											penaltiesOutstanding={summary?.penaltyChargesOutstanding}
+											loan={loan}
+											transactions={transactionsQuery.data?.transactions}
+										/>
+									)}
+								</Activity>
+							)}
 						</TabsContent>
 
 						<TabsContent value="collateral">
-							{activeTab === "collateral" && (
-								<LoanCollateralTab loanId={numericLoanId} currency={currency} />
+							{mountedTabs.collateral && (
+								<Activity
+									mode={activeTab === "collateral" ? "visible" : "hidden"}
+								>
+									<LoanCollateralTab
+										loanId={numericLoanId}
+										currency={currency}
+									/>
+								</Activity>
 							)}
 						</TabsContent>
 
 						<TabsContent value="guarantors">
-							{activeTab === "guarantors" && (
-								<LoanGuarantorsTab loanId={numericLoanId} currency={currency} />
+							{mountedTabs.guarantors && (
+								<Activity
+									mode={activeTab === "guarantors" ? "visible" : "hidden"}
+								>
+									<LoanGuarantorsTab
+										loanId={numericLoanId}
+										currency={currency}
+									/>
+								</Activity>
 							)}
 						</TabsContent>
 
 						<TabsContent value="documents">
-							{activeTab === "documents" && (
-								<LoanDocumentsTab loanId={numericLoanId} />
+							{mountedTabs.documents && (
+								<Activity
+									mode={activeTab === "documents" ? "visible" : "hidden"}
+								>
+									<LoanDocumentsTab loanId={numericLoanId} />
+								</Activity>
 							)}
 						</TabsContent>
 
 						<TabsContent value="audit">
-							{activeTab === "audit" && (
-								<AuditTrailViewer
-									events={auditTrailQuery.data || []}
-									isLoading={auditTrailQuery.isLoading}
-									error={auditTrailQuery.error}
-								/>
+							{mountedTabs.audit && (
+								<Activity mode={activeTab === "audit" ? "visible" : "hidden"}>
+									<AuditTrailViewer
+										events={auditTrailQuery.data || []}
+										isLoading={auditTrailQuery.isLoading}
+										error={auditTrailQuery.error}
+									/>
+								</Activity>
 							)}
 						</TabsContent>
 					</div>

@@ -1278,7 +1278,7 @@ export default function ReportsPage() {
 															JSON.stringify(executionResult.data, null, 2)
 														: executionResult.kind === "text"
 															? executionResult.text
-															: "Binary file response ready for download."}
+															: "This export was downloaded and does not have an inline preview."}
 												</pre>
 											)}
 										</CardContent>

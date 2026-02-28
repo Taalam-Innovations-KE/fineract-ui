@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+	getMissingReportParameterDependencies,
 	getReportParameterMetadata,
 	type ReportParameter,
 	type ReportParameterOption,
@@ -19,6 +20,7 @@ import {
 interface ReportParameterFieldsProps {
 	parameters: ReportParameter[];
 	formValues: Record<string, string>;
+	requestValues: Record<string, string>;
 	onValueChange: (parameterName: string, value: string) => void;
 	parameterOptions: Record<string, ReportParameterOption[]>;
 	isLoadingOptions: boolean;
@@ -26,6 +28,14 @@ interface ReportParameterFieldsProps {
 
 interface ReportParameterFieldsSkeletonProps {
 	fieldCount?: number;
+}
+
+function formatDependencyLabel(dependency: string) {
+	return dependency
+		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+		.replace(/\bId\b/g, "")
+		.trim()
+		.toLowerCase();
 }
 
 export function ReportParameterFieldsSkeleton({
@@ -48,6 +58,7 @@ export function ReportParameterFieldsSkeleton({
 export function ReportParameterFields({
 	parameters,
 	formValues,
+	requestValues,
 	onValueChange,
 	parameterOptions,
 	isLoadingOptions,
@@ -58,26 +69,43 @@ export function ReportParameterFields({
 				const parameterName = parameter.parameterName || "";
 				const metadata = getReportParameterMetadata(parameter);
 				const options = parameterOptions[parameterName] || [];
+				const missingDependencies = getMissingReportParameterDependencies(
+					metadata,
+					requestValues,
+				);
 				const showFallbackInput =
 					metadata.control === "select" &&
 					!isLoadingOptions &&
-					options.length === 0;
+					options.length === 0 &&
+					missingDependencies.length === 0;
+				const dependencyHint =
+					missingDependencies.length > 0
+						? `Select ${missingDependencies
+								.map(formatDependencyLabel)
+								.join(", ")} first to load options.`
+						: null;
 
 				return (
 					<div key={parameterName} className="space-y-2">
-						<Label htmlFor={parameterName}>{metadata.label}</Label>
+						<Label htmlFor={parameterName}>{metadata.label} *</Label>
 
 						{metadata.control === "select" && !showFallbackInput ? (
-							isLoadingOptions && metadata.optionSource === "parameterType" ? (
+							isLoadingOptions &&
+							metadata.optionSource === "parameterType" &&
+							missingDependencies.length === 0 ? (
 								<Skeleton className="h-10 w-full" />
 							) : (
 								<Select
+									disabled={missingDependencies.length > 0}
 									value={formValues[parameterName] || ""}
 									onValueChange={(value) => onValueChange(parameterName, value)}
 								>
 									<SelectTrigger id={parameterName}>
 										<SelectValue
-											placeholder={`Select ${metadata.label.toLowerCase()}`}
+											placeholder={
+												dependencyHint ||
+												`Select ${metadata.label.toLowerCase()}`
+											}
 										/>
 									</SelectTrigger>
 									<SelectContent>
@@ -116,6 +144,11 @@ export function ReportParameterFields({
 						<div className="text-xs text-muted-foreground">
 							{metadata.description}
 						</div>
+						{dependencyHint ? (
+							<div className="text-[11px] text-muted-foreground">
+								{dependencyHint}
+							</div>
+						) : null}
 						<div className="text-[11px] text-muted-foreground">
 							Request key: <code>R_{metadata.requestKey}</code>
 						</div>

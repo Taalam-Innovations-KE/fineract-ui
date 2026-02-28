@@ -45,6 +45,7 @@ import {
 	fetchReportParameterOptions,
 	fetchReports,
 	fetchReportsBranchMetadata,
+	getMissingReportParameterDependencies,
 	getReportParameterMetadata,
 	type ReportExecutionResponse,
 	type ReportExportTarget,
@@ -73,10 +74,6 @@ function formatDateInput(date: Date) {
 
 function getDefaultParameterValue(metadata: ReportParameterMetadata) {
 	const today = new Date();
-
-	if (metadata.allowAll && metadata.allValue) {
-		return metadata.allValue;
-	}
 
 	if (metadata.requestKey === "endDate" || metadata.requestKey === "toDate") {
 		return formatDateInput(today);
@@ -143,6 +140,31 @@ function buildParameterValueMap(
 	}
 
 	return values;
+}
+
+function getRequiredParameterGaps(
+	parameters: ReportParameter[],
+	formValues: Record<string, string>,
+) {
+	return parameters.flatMap((parameter) => {
+		const parameterName = parameter.parameterName || "";
+		if (!parameterName) {
+			return [];
+		}
+
+		const value = formValues[parameterName] || "";
+		if (value.trim().length > 0) {
+			return [];
+		}
+
+		const metadata = getReportParameterMetadata(parameter);
+		return [
+			{
+				parameterName,
+				label: metadata.label,
+			},
+		];
+	});
 }
 
 function triggerBrowserDownload(
@@ -231,10 +253,20 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 						return [parameterName, []] as const;
 					}
 
+					if (
+						getMissingReportParameterDependencies(metadata, parameterValueMap)
+							.length > 0
+					) {
+						return [parameterName, []] as const;
+					}
+
 					const options = await fetchReportParameterOptions(
 						tenantId,
 						parameterName,
 						parameterValueMap,
+						{
+							excludeRequestKey: metadata.requestKey,
+						},
 					);
 
 					return [parameterName, options] as const;
@@ -330,6 +362,10 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			? availableExportsQuery.data
 			: [DEFAULT_EXPORT];
 	const parameterOptions = parameterOptionsQuery.data || {};
+	const missingRequiredParameters = getRequiredParameterGaps(
+		selectedParameters,
+		formValues,
+	);
 	const reportLoadError = reportsQuery.error
 		? normalizeApiError(reportsQuery.error)
 		: null;
@@ -349,6 +385,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 
 	const executeSelectedReport = () => {
 		if (!selectedReport?.reportName) {
+			return;
+		}
+
+		if (missingRequiredParameters.length > 0) {
+			setActiveTab("run");
 			return;
 		}
 
@@ -579,7 +620,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 										<CardTitle>Run Report</CardTitle>
 										<CardDescription>
 											Each field maps directly to the report service&apos;s `R_`
-											parameter contract.
+											parameter contract. All runtime parameters are required.
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-6">
@@ -647,6 +688,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 											<ReportParameterFields
 												parameters={selectedParameters}
 												formValues={formValues}
+												requestValues={parameterValueMap}
 												onValueChange={(parameterName, value) =>
 													setFormValues((current) => ({
 														...current,
@@ -657,6 +699,25 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 												isLoadingOptions={parameterOptionsQuery.isLoading}
 											/>
 										)}
+
+										{missingRequiredParameters.length > 0 ? (
+											<Alert>
+												<AlertTitle>Required parameters missing</AlertTitle>
+												<AlertDescription className="space-y-2">
+													<div>
+														Complete every runtime parameter before running this
+														report.
+													</div>
+													<ul className="list-disc pl-5 text-sm">
+														{missingRequiredParameters.map((parameter) => (
+															<li key={parameter.parameterName}>
+																{parameter.label}
+															</li>
+														))}
+													</ul>
+												</AlertDescription>
+											</Alert>
+										) : null}
 
 										{parameterOptionsQuery.error ? (
 											<Alert>
@@ -715,7 +776,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 												onClick={executeSelectedReport}
 												disabled={
 													runMutation.isPending ||
-													selectedReport.useReport === false
+													selectedReport.useReport === false ||
+													missingRequiredParameters.length > 0
 												}
 											>
 												{selectedExport === "JSON" ||

@@ -1,18 +1,13 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-	Download,
-	FileJson,
-	FileSpreadsheet,
-	FileText,
-	Filter,
-	Play,
-	RefreshCw,
-	Search,
-} from "lucide-react";
-import { useDeferredValue, useEffect, useState } from "react";
-import { toast } from "sonner";
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
+import { Download, FileBarChart2, Play, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -45,30 +40,210 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-	fetchReportAvailableExports,
-	fetchReportParameterOptions,
-	fetchReports,
-	fetchReportsBranchMetadata,
-	fetchReportsTemplate,
-	getReportParameterMetadata,
-	isStructuredReportPayload,
-	normalizeResultsetRows,
-	type ReportDefinition,
-	type ReportExecutionResponse,
-	type ReportExportTarget,
-	type ReportParameter,
-	type ReportParameterMetadata,
-	type ReportParameterOption,
-	runReport,
-} from "@/lib/fineract/reports";
+	discoverTablePentahoPairs,
+	normalizeReportName,
+	toReportCatalogItems,
+} from "@/lib/fineract/report-pairing";
 import {
-	getErrorMessages,
-	normalizeApiError,
-} from "@/lib/fineract/ui-api-error";
+	getOptionsEndpointReportName,
+	getReportParameterCatalogFields,
+	type ReportParameterCatalogSource,
+	type ReportParameterCatalogWidget,
+} from "@/lib/fineract/report-parameter-catalog";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
 
-const ALL_FILTER = "__ALL__";
-const DEFAULT_EXPORT: ReportExportTarget = "JSON";
+type ReportOutputType = "JSON" | "PDF" | "XLS" | "XLSX" | "CSV" | "HTML";
+
+type ReportData = GetReportsResponse & {
+	reportParameters?: Array<Record<string, unknown>>;
+};
+
+type ReportTemplateData = GetReportsTemplateResponse & {
+	allowedParameters?: Array<Record<string, unknown>>;
+};
+
+interface ReportParameterOption {
+	value: string;
+	label: string;
+}
+
+interface ReportParameterField {
+	key: string;
+	queryKey: string;
+	label: string;
+	required: boolean;
+	dataType: string;
+	widget: ReportParameterCatalogWidget;
+	source: ReportParameterCatalogSource;
+	format?: string;
+	optionsEndpoint?: string;
+	systemSubstitution?: string;
+	options: ReportParameterOption[];
+}
+
+interface ValidationFieldError {
+	field: string;
+	message: string;
+}
+
+interface OutputOption {
+	label: string;
+	value: ReportOutputType;
+}
+
+interface RunResult {
+	columnHeaders?: Array<{ columnName?: string }>;
+	data?: Array<unknown>;
+	[key: string]: unknown;
+}
+
+type RoleData = GetRolesResponse;
+
+interface PentahoEnforcementTableDisableResult {
+	reportId: number | null;
+	reportName: string;
+	pentahoReportName: string;
+	status: "disabled" | "already-disabled" | "skipped-no-id" | "failed";
+	error?: string;
+}
+
+interface PentahoEnforcementRoleUpdateResult {
+	roleId: number;
+	status: "updated" | "no-matching-permissions" | "failed";
+	updatedPermissionCodes: string[];
+	skippedPermissionCodes: string[];
+	error?: string;
+}
+
+interface PentahoEnforcementVerificationEntry {
+	variant: "table" | "pentaho";
+	reportName: string;
+	expectation: "denied" | "allowed";
+	outcome: "passed" | "failed" | "indeterminate";
+	httpStatus: number | null;
+	message: string;
+}
+
+interface PentahoEnforcementVerificationResult {
+	baseName: string;
+	entries: PentahoEnforcementVerificationEntry[];
+}
+
+interface PentahoEnforcementResponse {
+	summary: {
+		totalReports: number;
+		pairCount: number;
+		roleCount: number;
+		strictEnforcement: boolean;
+		verifyRunReports: boolean;
+		disabledTableCount: number;
+		alreadyDisabledTableCount: number;
+		failedTableDisableCount: number;
+		updatedRoleCount: number;
+		failedRoleCount: number;
+		roleNoMatchCount: number;
+		verificationPairCount: number;
+	};
+	tableDisableResults: PentahoEnforcementTableDisableResult[];
+	roleUpdateResults: PentahoEnforcementRoleUpdateResult[];
+	runReportVerifications: PentahoEnforcementVerificationResult[];
+	notes?: string[];
+}
+
+const PARAMETER_KEY_FIELDS = [
+	"reportParameterName",
+	"parameterName",
+	"name",
+	"paramName",
+	"code",
+] as const;
+
+const PARAMETER_LABEL_FIELDS = ["label", "displayName", "name"] as const;
+const PARAMETER_TYPE_FIELDS = ["type", "dataType", "parameterType"] as const;
+const PARAMETER_REQUIRED_FIELDS = ["required", "mandatory"] as const;
+const PARAMETER_OPTIONS_FIELDS = [
+	"options",
+	"values",
+	"selectOptions",
+	"allowedValues",
+	"valueOptions",
+	"columnValues",
+	"choices",
+	"items",
+] as const;
+const PARAMETER_OPTION_VALUE_FIELDS = [
+	"value",
+	"id",
+	"code",
+	"key",
+	"name",
+] as const;
+const PARAMETER_OPTION_LABEL_FIELDS = [
+	"label",
+	"displayName",
+	"name",
+	"description",
+	"code",
+	"value",
+	"id",
+] as const;
+
+const PARAMETER_KEY_OVERRIDES: Record<string, string> = {
+	OfficeIdSelectOne: "R_officeId",
+	loanOfficerIdSelectAll: "R_loanOfficerId",
+	currencyIdSelectAll: "R_currencyId",
+	fundIdSelectAll: "R_fundId",
+	loanProductIdSelectAll: "R_loanProductId",
+	loanPurposeIdSelectAll: "R_loanPurposeId",
+	savingsProductIdSelectAll: "R_savingsProductId",
+	startDateSelect: "R_startDate",
+	endDateSelect: "R_endDate",
+	obligDateTypeSelect: "R_obligDateType",
+};
+
+const OUTPUT_LABELS: Record<ReportOutputType, string> = {
+	JSON: "JSON Preview",
+	PDF: "PDF",
+	XLS: "XLS",
+	XLSX: "XLSX",
+	CSV: "CSV",
+	HTML: "HTML",
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	return value as Record<string, unknown>;
+}
+
+function readStringField(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+): string | null {
+	for (const key of keys) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+	}
+	return null;
+}
+
+function readArrayField(
+	record: Record<string, unknown>,
+	keys: readonly string[],
+): unknown[] {
+	for (const key of keys) {
+		const value = record[key];
+		if (Array.isArray(value)) {
+			return value;
+		}
+	}
+	return [];
+}
 
 type VisibilityFilter = "runnable" | "all";
 
@@ -86,7 +261,266 @@ function getDefaultParameterValue(metadata: ReportParameterMetadata) {
 	if (metadata.requestKey === "endDate" || metadata.requestKey === "toDate") {
 		return formatDateInput(today);
 	}
+	return null;
+}
 
+function getDefaultWidget(
+	dataType: string,
+	options: ReportParameterOption[],
+): ReportParameterCatalogWidget {
+	if (options.length > 0) {
+		return "dropdown";
+	}
+	if (getParameterInputType(dataType) === "date") {
+		return "datepicker";
+	}
+	return "textbox";
+}
+
+function extractParameterOptions(
+	record: Record<string, unknown>,
+): ReportParameterOption[] {
+	const rawOptions = readArrayField(record, PARAMETER_OPTIONS_FIELDS);
+	if (rawOptions.length === 0) {
+		return [];
+	}
+
+	const parsedOptions: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const rawOption of rawOptions) {
+		if (typeof rawOption === "string" || typeof rawOption === "number") {
+			const value = toOptionValue(rawOption);
+			if (!value || seenValues.has(value)) {
+				continue;
+			}
+			parsedOptions.push({
+				value,
+				label: value,
+			});
+			seenValues.add(value);
+			continue;
+		}
+
+		const optionRecord = asRecord(rawOption);
+		if (!optionRecord) {
+			continue;
+		}
+
+		const value =
+			readStringField(optionRecord, PARAMETER_OPTION_VALUE_FIELDS) ||
+			toOptionValue(optionRecord.id) ||
+			toOptionValue(optionRecord.value);
+		if (!value || seenValues.has(value)) {
+			continue;
+		}
+
+		const label =
+			readStringField(optionRecord, PARAMETER_OPTION_LABEL_FIELDS) || value;
+		parsedOptions.push({ value, label });
+		seenValues.add(value);
+	}
+
+	return parsedOptions;
+}
+
+function toParameterField(
+	record: Record<string, unknown>,
+): ReportParameterField | null {
+	const key = readStringField(record, PARAMETER_KEY_FIELDS);
+	if (!key) {
+		return null;
+	}
+
+	const queryKey = toQueryParameterKey(key);
+	const label =
+		readStringField(record, PARAMETER_LABEL_FIELDS) || toTitleLabel(key);
+	const dataType = readStringField(record, PARAMETER_TYPE_FIELDS) || "text";
+	const required = readBooleanField(record, PARAMETER_REQUIRED_FIELDS);
+	const options = extractParameterOptions(record);
+
+	return {
+		key,
+		queryKey,
+		label,
+		dataType,
+		required,
+		widget: getDefaultWidget(dataType, options),
+		source: "user",
+		format: undefined,
+		optionsEndpoint: undefined,
+		systemSubstitution: undefined,
+		options,
+	};
+}
+
+function toCatalogParameterField(
+	field: ReturnType<typeof getReportParameterCatalogFields>[number],
+): ReportParameterField {
+	return {
+		key: field.key,
+		queryKey: toQueryParameterKey(field.key),
+		label: field.label || toTitleLabel(field.key),
+		required: field.required,
+		dataType: field.type,
+		widget: field.widget,
+		source: field.source,
+		format: field.format,
+		optionsEndpoint: field.optionsEndpoint,
+		systemSubstitution: field.systemSubstitution,
+		options: [],
+	};
+}
+
+function mergeParameterOptions(
+	primary: ReportParameterOption[],
+	secondary: ReportParameterOption[],
+): ReportParameterOption[] {
+	const merged: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const option of [...primary, ...secondary]) {
+		if (seenValues.has(option.value)) {
+			continue;
+		}
+		merged.push(option);
+		seenValues.add(option.value);
+	}
+
+	return merged;
+}
+
+function mergeParameterField(
+	reportField: ReportParameterField,
+	templateField: ReportParameterField | null,
+): ReportParameterField {
+	if (!templateField) {
+		return reportField;
+	}
+
+	const shouldUseTemplateDataType =
+		reportField.dataType === "text" && templateField.dataType !== "text";
+
+	return {
+		...reportField,
+		label:
+			reportField.label === toTitleLabel(reportField.key)
+				? templateField.label
+				: reportField.label,
+		dataType: shouldUseTemplateDataType
+			? templateField.dataType
+			: reportField.dataType,
+		required: reportField.required || templateField.required,
+		widget:
+			reportField.widget === "textbox" && templateField.widget !== "textbox"
+				? templateField.widget
+				: reportField.widget,
+		source:
+			reportField.source === "user" ? templateField.source : reportField.source,
+		format: reportField.format || templateField.format,
+		optionsEndpoint:
+			reportField.optionsEndpoint || templateField.optionsEndpoint,
+		systemSubstitution:
+			reportField.systemSubstitution || templateField.systemSubstitution,
+		options: mergeParameterOptions(reportField.options, templateField.options),
+	};
+}
+
+function applyCatalogParameterField(
+	field: ReportParameterField,
+	catalogField: ReportParameterField | null,
+): ReportParameterField {
+	if (!catalogField) {
+		return field;
+	}
+
+	return {
+		...field,
+		label: catalogField.label || field.label,
+		required: field.required || catalogField.required,
+		dataType: catalogField.dataType || field.dataType,
+		widget: catalogField.widget || field.widget,
+		source: catalogField.source || field.source,
+		format: catalogField.format || field.format,
+		optionsEndpoint: catalogField.optionsEndpoint || field.optionsEndpoint,
+		systemSubstitution:
+			catalogField.systemSubstitution || field.systemSubstitution,
+		options: mergeParameterOptions(field.options, catalogField.options),
+	};
+}
+
+function addFieldLookup(
+	fieldMap: Map<string, ReportParameterField>,
+	field: ReportParameterField,
+) {
+	fieldMap.set(field.queryKey, field);
+	fieldMap.set(field.key, field);
+}
+
+function extractReportParameters(
+	report: ReportData,
+	template: ReportTemplateData | undefined,
+): ReportParameterField[] {
+	const rawParameters = report.reportParameters || [];
+	const templateAllowed = template?.allowedParameters || [];
+	const catalogFields = getReportParameterCatalogFields(report.reportName).map(
+		toCatalogParameterField,
+	);
+	const fields: ReportParameterField[] = [];
+	const seenKeys = new Set<string>();
+	const templateByKey = new Map<string, ReportParameterField>();
+	const catalogByKey = new Map<string, ReportParameterField>();
+
+	for (const rawTemplateParameter of templateAllowed) {
+		const record = asRecord(rawTemplateParameter);
+		if (!record) continue;
+		const field = toParameterField(record);
+		if (!field) continue;
+		addFieldLookup(templateByKey, field);
+	}
+
+	for (const catalogField of catalogFields) {
+		addFieldLookup(catalogByKey, catalogField);
+	}
+
+	for (const rawParameter of rawParameters) {
+		const record = asRecord(rawParameter);
+		if (!record) continue;
+		const reportField = toParameterField(record);
+		if (!reportField || seenKeys.has(reportField.queryKey)) continue;
+
+		const templateMatch =
+			templateByKey.get(reportField.queryKey) ||
+			templateByKey.get(reportField.key);
+		const catalogMatch =
+			catalogByKey.get(reportField.queryKey) ||
+			catalogByKey.get(reportField.key);
+		fields.push(
+			applyCatalogParameterField(
+				mergeParameterField(reportField, templateMatch || null),
+				catalogMatch || null,
+			),
+		);
+		seenKeys.add(reportField.queryKey);
+	}
+
+	for (const catalogField of catalogFields) {
+		if (seenKeys.has(catalogField.queryKey)) {
+			continue;
+		}
+
+		const templateMatch =
+			templateByKey.get(catalogField.queryKey) ||
+			templateByKey.get(catalogField.key);
+		fields.push(mergeParameterField(catalogField, templateMatch || null));
+		seenKeys.add(catalogField.queryKey);
+	}
+
+	return fields;
+}
+
+function normalizeOutputType(value: string): ReportOutputType | null {
+	const upper = value.toUpperCase();
 	if (
 		metadata.requestKey === "startDate" ||
 		metadata.requestKey === "fromDate"
@@ -160,16 +594,123 @@ function getExportLabel(exportTarget: ReportExportTarget) {
 	}
 }
 
-function getExportIcon(exportTarget: ReportExportTarget) {
-	switch (exportTarget) {
-		case "JSON":
-		case "PRETTY_JSON":
-			return FileJson;
-		case "CSV":
-			return FileSpreadsheet;
-		case "PDF":
-		case "S3":
-			return FileText;
+function parseOptionRow(row: unknown): ReportParameterOption | null {
+	if (typeof row === "string" || typeof row === "number") {
+		const value = toOptionValue(row);
+		if (!value) {
+			return null;
+		}
+		return { value, label: value };
+	}
+
+	if (Array.isArray(row)) {
+		const value = toOptionValue(row[0]);
+		if (!value) {
+			return null;
+		}
+		return {
+			value,
+			label: toOptionValue(row[1]) || value,
+		};
+	}
+
+	const record = asRecord(row);
+	if (!record) {
+		return null;
+	}
+
+	const value =
+		readStringField(record, PARAMETER_OPTION_VALUE_FIELDS) ||
+		toOptionValue(record.id) ||
+		toOptionValue(record.value);
+	if (!value) {
+		return null;
+	}
+
+	return {
+		value,
+		label:
+			readStringField(record, PARAMETER_OPTION_LABEL_FIELDS) ||
+			toOptionValue(record.name) ||
+			value,
+	};
+}
+
+function parseDynamicOptionsPayload(payload: unknown): ReportParameterOption[] {
+	const payloadRecord = asRecord(payload);
+	const rows = Array.isArray(payload)
+		? payload
+		: Array.isArray(payloadRecord?.data)
+			? payloadRecord.data
+			: Array.isArray(payloadRecord?.pageItems)
+				? payloadRecord.pageItems
+				: [];
+	if (rows.length === 0) {
+		return [];
+	}
+
+	const options: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const row of rows) {
+		const option = parseOptionRow(row);
+		if (!option || seenValues.has(option.value)) {
+			continue;
+		}
+		options.push(option);
+		seenValues.add(option.value);
+	}
+
+	return options;
+}
+
+function formatDateValueForReport(
+	value: string,
+	format: string | undefined,
+): string {
+	if (!value || !format) {
+		return value;
+	}
+
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+
+	const [year, month, day] = value.split("-");
+	if (format === "dd-MM-yyyy") {
+		return `${day}-${month}-${year}`;
+	}
+	if (format === "yyyy-MM-dd") {
+		return `${year}-${month}-${day}`;
+	}
+
+	return value;
+}
+
+function serializeParameterValue(
+	field: ReportParameterField,
+	value: string,
+): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return "";
+	}
+
+	if (field.widget === "datepicker") {
+		return formatDateValueForReport(trimmed, field.format);
+	}
+
+	return trimmed;
+}
+
+function getParameterInputType(dataType: string): "text" | "number" | "date" {
+	const normalized = dataType.trim().toLowerCase();
+	if (
+		normalized.includes("date") ||
+		normalized.includes("localdate") ||
+		normalized.includes("datetime")
+	) {
+		return "date";
 	}
 }
 
@@ -231,22 +772,75 @@ function ResultsSkeleton() {
 	);
 }
 
-function ReportsPageSkeleton() {
-	return (
-		<div className="space-y-6">
-			<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-				{Array.from({ length: 4 }).map((_, index) => (
-					<Card key={`summary-${index}`}>
-						<CardContent className="pt-6">
-							<div className="space-y-2">
-								<Skeleton className="h-4 w-24" />
-								<Skeleton className="h-8 w-20" />
-								<Skeleton className="h-3 w-32" />
-							</div>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+async function fetchReportParameterOptions(
+	tenantId: string,
+	optionsEndpoint: string,
+): Promise<ReportParameterOption[]> {
+	const reportName = getOptionsEndpointReportName(optionsEndpoint);
+	if (!reportName) {
+		return [];
+	}
+
+	const parsedOptionsEndpoint = new URL(
+		optionsEndpoint,
+		"https://placeholder.local",
+	);
+	const search = parsedOptionsEndpoint.searchParams.toString();
+	const endpoint = BFF_ROUTES.runReport(reportName);
+	const response = await fetch(
+		search ? `${endpoint}?${search}` : `${endpoint}?parameterType=true`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch report parameter options");
+	}
+
+	const payload = await response.json();
+	return parseDynamicOptionsPayload(payload);
+}
+
+async function fetchRoles(tenantId: string): Promise<RoleData[]> {
+	const response = await fetch(BFF_ROUTES.roles, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch roles");
+	}
+
+	return response.json();
+}
+
+async function applyPentahoEnforcement(
+	tenantId: string,
+	payload: {
+		roleIds: number[];
+		strictEnforcement: boolean;
+		verifyRunReports: boolean;
+	},
+): Promise<PentahoEnforcementResponse> {
+	const response = await fetch(BFF_ROUTES.reportsPentahoEnforcement, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to apply Pentaho report enforcement" }));
+		throw errorPayload;
+	}
 
 			<div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
 				<Card>
@@ -370,31 +964,141 @@ export default function ReportsPage() {
 						return [parameterName, []] as const;
 					}
 
-					const options = await fetchReportParameterOptions(
-						tenantId,
-						parameterName,
-						parameterValueMap,
-					);
+	const categories = useMemo(() => {
+		const values = new Set<string>();
+		for (const report of applicableReports) {
+			if (report.reportCategory) {
+				values.add(report.reportCategory);
+			}
+		}
+		return Array.from(values).sort((a, b) => a.localeCompare(b));
+	}, [applicableReports]);
 
-					return [parameterName, options] as const;
-				}),
-			);
+	const filteredReports = useMemo(() => {
+		const searchLower = searchTerm.trim().toLowerCase();
+		return applicableReports.filter((report) => {
+			const matchesCategory =
+				categoryFilter === "all" || report.reportCategory === categoryFilter;
+			const matchesSearch =
+				!searchLower ||
+				report.reportName?.toLowerCase().includes(searchLower) ||
+				report.reportCategory?.toLowerCase().includes(searchLower) ||
+				report.description?.toLowerCase().includes(searchLower);
+			return matchesCategory && matchesSearch;
+		});
+	}, [applicableReports, categoryFilter, searchTerm]);
 
-			return Object.fromEntries(optionEntries) as Record<
-				string,
-				ReportParameterOption[]
-			>;
-		},
-		enabled: Boolean(
-			tenantId &&
-				selectedReport &&
-				selectedParameters.some(
-					(parameter) =>
-						getReportParameterMetadata(parameter).optionSource ===
-						"parameterType",
-				),
-		),
+	const selectedParameterMetadata = useMemo(
+		() =>
+			selectedReport
+				? extractReportParameters(
+						selectedReport,
+						reportTemplateQuery.data || undefined,
+					)
+				: [],
+		[selectedReport, reportTemplateQuery.data],
+	);
+	const parameterOptionFields = useMemo(
+		() =>
+			selectedParameterMetadata.filter(
+				(field) =>
+					field.source === "user" &&
+					field.widget === "dropdown" &&
+					field.options.length === 0 &&
+					Boolean(field.optionsEndpoint),
+			),
+		[selectedParameterMetadata],
+	);
+	const parameterOptionQueries = useQueries({
+		queries: parameterOptionFields.map((field) => ({
+			queryKey: [
+				"report-parameter-options",
+				tenantId,
+				selectedReport?.reportName,
+				field.optionsEndpoint,
+			],
+			queryFn: () =>
+				fetchReportParameterOptions(tenantId, field.optionsEndpoint || ""),
+			enabled:
+				isRunnerOpen &&
+				Boolean(selectedReport?.reportName) &&
+				Boolean(field.optionsEndpoint),
+			staleTime: 5 * 60 * 1000,
+		})),
 	});
+	const parameterOptionStateByKey = useMemo(() => {
+		const state = new Map<
+			string,
+			{
+				isLoading: boolean;
+				errorMessage?: string;
+				options: ReportParameterOption[];
+			}
+		>();
+
+		parameterOptionFields.forEach((field, index) => {
+			const query = parameterOptionQueries[index];
+			state.set(field.queryKey, {
+				isLoading: query?.isLoading === true,
+				errorMessage:
+					query?.error instanceof Error
+						? query.error.message
+						: query?.error
+							? "Could not load options from backend."
+							: undefined,
+				options: query?.data || [],
+			});
+		});
+
+		return state;
+	}, [parameterOptionFields, parameterOptionQueries]);
+	const selectedParameterFields = useMemo(
+		() =>
+			selectedParameterMetadata.map((field) => {
+				const optionState = parameterOptionStateByKey.get(field.queryKey);
+				if (!optionState?.options.length) {
+					return field;
+				}
+
+				return {
+					...field,
+					options: mergeParameterOptions(optionState.options, field.options),
+				};
+			}),
+		[selectedParameterMetadata, parameterOptionStateByKey],
+	);
+	const visibleParameterFields = useMemo(
+		() =>
+			selectedParameterFields.filter(
+				(field) => field.source === "user" && field.widget !== "hidden",
+			),
+		[selectedParameterFields],
+	);
+	const systemParameterFields = useMemo(
+		() =>
+			selectedParameterFields.filter(
+				(field) => field.source !== "user" || field.widget === "hidden",
+			),
+		[selectedParameterFields],
+	);
+	const requiredParameterCount = useMemo(
+		() => visibleParameterFields.filter((field) => field.required).length,
+		[visibleParameterFields],
+	);
+	const additionalParameterEntries = useMemo(
+		() => parseAdditionalParams(additionalParams),
+		[additionalParams],
+	);
+	const missingRequiredFields = useMemo(() => {
+		const providedParameterKeys = new Set<string>();
+
+		for (const field of visibleParameterFields) {
+			if (
+				serializeParameterValue(field, parameterValues[field.queryKey] || "")
+			) {
+				providedParameterKeys.add(field.queryKey);
+			}
+		}
 
 	const runMutation = useMutation({
 		mutationFn: (input: {
@@ -417,14 +1121,14 @@ export default function ReportsPage() {
 				return;
 			}
 
-			setExecutionResult(result);
-			toast.success(`${variables.reportName} completed.`);
-		},
-		onError: (error) => {
-			setExecutionResult(null);
-			console.error("report-run-error", normalizeApiError(error));
-		},
-	});
+		return visibleParameterFields.filter(
+			(field) => field.required && !providedParameterKeys.has(field.queryKey),
+		);
+	}, [additionalParameterEntries, parameterValues, visibleParameterFields]);
+	const missingRequiredByKey = useMemo(
+		() => new Set(missingRequiredFields.map((field) => field.queryKey)),
+		[missingRequiredFields],
+	);
 
 	useEffect(() => {
 		if (selectedReportId || reports.length === 0) {
@@ -478,12 +1182,15 @@ export default function ReportsPage() {
 			return false;
 		}
 
-		if (
-			categoryFilter !== ALL_FILTER &&
-			(report.reportCategory?.trim() || "Uncategorized") !== categoryFilter
-		) {
-			return false;
-		}
+				for (const field of visibleParameterFields) {
+					const value = serializeParameterValue(
+						field,
+						parameterValues[field.queryKey] || "",
+					);
+					if (value) {
+						params.append(field.queryKey, value);
+					}
+				}
 
 		if (
 			typeFilter !== ALL_FILTER &&
@@ -510,47 +1217,112 @@ export default function ReportsPage() {
 		return haystack.includes(normalizedSearch);
 	});
 
-	const groupedReports = groupReportsByCategory(filteredReports);
-	const categories = Array.from(
-		new Set(
-			reports.map((report) => report.reportCategory?.trim() || "Uncategorized"),
-		),
-	).sort((left, right) => left.localeCompare(right));
-	const reportTypes = Array.from(
-		new Set(reports.map((report) => report.reportType?.trim() || "Unknown")),
-	).sort((left, right) => left.localeCompare(right));
-	const runnableCount = reports.filter(
-		(report) => report.useReport !== false,
-	).length;
-	const parameterizedCount = reports.filter(
-		(report) => (report.reportParameters?.length || 0) > 0,
-	).length;
-	const allowedTypes = template?.allowedReportTypes?.length || 0;
-	const parameterCatalogCount = template?.allowedParameters?.length || 0;
-	const branchMetadata =
-		(branchQuery.data as {
-			note?: string;
-			legacyOutputTypeSupported?: boolean;
-		}) || null;
-	const availableExports =
-		availableExportsQuery.data && availableExportsQuery.data.length > 0
-			? availableExportsQuery.data
-			: [DEFAULT_EXPORT];
-	const parameterOptions = parameterOptionsQuery.data || {};
-	const runError = runMutation.error
-		? normalizeApiError(runMutation.error)
-		: null;
-	const reportLoadError = reportsQuery.error
-		? normalizeApiError(reportsQuery.error)
-		: null;
-	const templateLoadError = templateQuery.error
-		? normalizeApiError(templateQuery.error)
-		: null;
+	const previewColumns = useMemo(
+		() => getPreviewColumns(runResult),
+		[runResult],
+	);
+	const previewRows = Array.isArray(runResult?.data) ? runResult.data : [];
 
-	const executeSelectedReport = () => {
-		if (!selectedReport?.reportName) {
-			return;
-		}
+	const reportColumns: DataTableColumn<ReportData>[] = [
+		{
+			header: "Report",
+			cell: (report) => (
+				<div>
+					<div className="font-medium">
+						{report.reportName || "Unnamed Report"}
+					</div>
+					<div className="text-xs text-muted-foreground line-clamp-1">
+						{report.description || "No description"}
+					</div>
+				</div>
+			),
+		},
+		{
+			header: "Category",
+			cell: (report) => <span>{report.reportCategory || "Uncategorized"}</span>,
+		},
+		{
+			header: "Type",
+			cell: (report) => (
+				<Badge variant="secondary">{report.reportType || "Unknown"}</Badge>
+			),
+		},
+		{
+			header: "Parameters",
+			cell: (report) => {
+				const parameters = extractReportParameters(
+					report,
+					reportTemplateQuery.data || undefined,
+				).filter(
+					(parameter) =>
+						parameter.source === "user" && parameter.widget !== "hidden",
+				);
+				const requiredCount = parameters.filter(
+					(parameter) => parameter.required,
+				).length;
+				if (requiredCount === 0) {
+					return <span>{parameters.length.toLocaleString()}</span>;
+				}
+
+				return (
+					<span>
+						{requiredCount.toLocaleString()} required /{" "}
+						{parameters.length.toLocaleString()} total
+					</span>
+				);
+			},
+		},
+		{
+			header: "Status",
+			cell: (report) => (
+				<div className="flex items-center gap-2">
+					<Badge variant={report.coreReport ? "outline" : "secondary"}>
+						{report.coreReport ? "Core" : "Custom"}
+					</Badge>
+					<Badge
+						variant={report.useReport === false ? "destructive" : "success"}
+					>
+						{report.useReport === false ? "Disabled" : "Enabled"}
+					</Badge>
+				</div>
+			),
+		},
+		{
+			header: "Run",
+			cell: (report) => (
+				<Button
+					size="sm"
+					onClick={() => {
+						const fields = extractReportParameters(
+							report,
+							reportTemplateQuery.data || undefined,
+						);
+						setSelectedReport(report);
+						setParameterValues(
+							Object.fromEntries(
+								fields
+									.filter(
+										(field) =>
+											field.source === "user" && field.widget !== "hidden",
+									)
+									.map((field) => [field.queryKey, ""]),
+							),
+						);
+						setAdditionalParams("");
+						setSelectedOutput("JSON");
+						setRunResult(null);
+						runReportMutation.reset();
+						setIsRunnerOpen(true);
+					}}
+				>
+					<Play className="mr-2 h-4 w-4" />
+					Run
+				</Button>
+			),
+			className: "text-right",
+			headerClassName: "text-right",
+		},
+	];
 
 		runMutation.mutate({
 			reportName: selectedReport.reportName,
@@ -1128,11 +1900,42 @@ export default function ReportsPage() {
 															continue;
 														}
 
-														resetValues[parameterName] =
-															getDefaultParameterValue(
-																getReportParameterMetadata(parameter),
-															);
-													}
+								<div className="rounded-sm border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+									{selectedParameterFields.length === 0 ? (
+										<p>
+											This report does not publish parameter metadata. Use
+											additional query parameters if the backend expects inputs.
+										</p>
+									) : (
+										<div className="space-y-1">
+											<p>
+												{requiredParameterCount.toLocaleString()} required and{" "}
+												{(
+													visibleParameterFields.length - requiredParameterCount
+												).toLocaleString()}{" "}
+												optional user inputs resolved from backend metadata and
+												the local report catalog.
+											</p>
+											{systemParameterFields.length > 0 && (
+												<p>
+													{systemParameterFields.length.toLocaleString()} system
+													parameter
+													{systemParameterFields.length === 1 ? "" : "s"} are
+													backend-supplied and do not need user input.
+												</p>
+											)}
+										</div>
+									)}
+								</div>
+								{reportTemplateQuery.isLoading && (
+									<Skeleton className="h-4 w-64" />
+								)}
+								{reportTemplateQuery.error && (
+									<p className="text-xs text-muted-foreground">
+										Could not load backend parameter template metadata. Showing
+										report metadata plus local catalog mappings.
+									</p>
+								)}
 
 													setFormValues(resetValues);
 													setExecutionResult(null);
@@ -1148,41 +1951,138 @@ export default function ReportsPage() {
 													selectedReport.useReport === false
 												}
 											>
-												{(() => {
-													const ExportIcon = getExportIcon(selectedExport);
-													return (
-														<>
-															{selectedExport === "JSON" ||
-															selectedExport === "PRETTY_JSON" ? (
-																<Play className="mr-2 h-4 w-4" />
-															) : (
-																<Download className="mr-2 h-4 w-4" />
-															)}
-															<ExportIcon className="mr-2 h-4 w-4" />
-															{selectedExport === "JSON" ||
-															selectedExport === "PRETTY_JSON"
-																? "Run Report"
-																: `Export ${getExportLabel(selectedExport)}`}
-														</>
-													);
-												})()}
-											</Button>
-										</div>
-									</CardContent>
-								</Card>
+												{outputValue}
+											</Badge>
+										))}
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Supported by backend for this report.
+									</p>
+									{availableExportsQuery.isLoading && (
+										<Skeleton className="h-4 w-56" />
+									)}
+									{availableExportsQuery.error && (
+										<p className="text-xs text-muted-foreground">
+											Could not resolve export options from backend. JSON
+											preview remains available.
+										</p>
+									)}
+								</div>
 
-								<Card>
-									<CardHeader>
-										<CardTitle>Parameter Contract</CardTitle>
-										<CardDescription>
-											Structured definitions generated from the report template
-											and the report-specific parameter mapping.
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										{selectedParameters.length === 0 ? (
-											<div className="rounded-sm border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-												No parameters declared for this report.
+								<div className="space-y-4">
+									{visibleParameterFields.map((field) => {
+										const fieldHasClientMissingError =
+											missingRequiredByKey.has(field.queryKey) &&
+											Boolean(runReportError);
+										const fieldErrorMessage = getParameterFieldError(
+											field,
+											runReportFieldErrors,
+										);
+										const optionState = parameterOptionStateByKey.get(
+											field.queryKey,
+										);
+										const isLoadingOptions = optionState?.isLoading === true;
+										const optionErrorMessage = optionState?.errorMessage;
+										const hasResolvedOptions = field.options.length > 0;
+										const shouldRenderSelect = field.widget === "dropdown";
+
+										return (
+											<div key={field.queryKey} className="space-y-2">
+												<Label htmlFor={`param-${field.queryKey}`}>
+													{field.label}
+													{field.required ? " *" : ""}
+												</Label>
+												{shouldRenderSelect && hasResolvedOptions ? (
+													<Select
+														value={
+															parameterValues[field.queryKey] ||
+															(field.required ? undefined : "__empty__")
+														}
+														onValueChange={(value) => {
+															setParameterValues((previous) => ({
+																...previous,
+																[field.queryKey]:
+																	value === "__empty__" ? "" : value,
+															}));
+															runReportMutation.reset();
+														}}
+													>
+														<SelectTrigger id={`param-${field.queryKey}`}>
+															<SelectValue
+																placeholder={`Select ${field.label.toLowerCase()}`}
+															/>
+														</SelectTrigger>
+														<SelectContent>
+															{!field.required && (
+																<SelectItem value="__empty__">Any</SelectItem>
+															)}
+															{field.options.map((option) => (
+																<SelectItem
+																	key={option.value}
+																	value={option.value}
+																>
+																	{option.label}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												) : shouldRenderSelect && isLoadingOptions ? (
+													<div className="space-y-2">
+														<Select disabled={true}>
+															<SelectTrigger id={`param-${field.queryKey}`}>
+																<SelectValue placeholder="Loading options..." />
+															</SelectTrigger>
+														</Select>
+														<Skeleton className="h-4 w-32" />
+													</div>
+												) : (
+													<Input
+														id={`param-${field.queryKey}`}
+														type={
+															field.widget === "datepicker"
+																? "date"
+																: getParameterInputType(field.dataType)
+														}
+														value={parameterValues[field.queryKey] || ""}
+														onChange={(event) => {
+															setParameterValues((previous) => ({
+																...previous,
+																[field.queryKey]: event.target.value,
+															}));
+															runReportMutation.reset();
+														}}
+														placeholder={
+															shouldRenderSelect && !hasResolvedOptions
+																? `Enter ${field.label.toLowerCase()}`
+																: `${field.queryKey} (${field.dataType})`
+														}
+													/>
+												)}
+												{!fieldErrorMessage && optionErrorMessage && (
+													<p className="text-xs text-muted-foreground">
+														{optionErrorMessage} Enter a raw value instead.
+													</p>
+												)}
+												{fieldErrorMessage && (
+													<p className="text-xs text-destructive">
+														{fieldErrorMessage}
+													</p>
+												)}
+												{!fieldErrorMessage && fieldHasClientMissingError && (
+													<p className="text-xs text-destructive">
+														{field.label} is required.
+													</p>
+												)}
+												{field.key !== field.queryKey && (
+													<p className="text-xs text-muted-foreground">
+														Source key: {field.key}
+													</p>
+												)}
+												{field.format && (
+													<p className="text-xs text-muted-foreground">
+														Backend format: {field.format}
+													</p>
+												)}
 											</div>
 										) : (
 											<div className="rounded-sm border border-border/60">

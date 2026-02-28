@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { Download, FileBarChart2, Play, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
@@ -56,6 +61,12 @@ import {
 	normalizeReportName,
 	toReportCatalogItems,
 } from "@/lib/fineract/report-pairing";
+import {
+	getOptionsEndpointReportName,
+	getReportParameterCatalogFields,
+	type ReportParameterCatalogSource,
+	type ReportParameterCatalogWidget,
+} from "@/lib/fineract/report-parameter-catalog";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
@@ -946,6 +957,38 @@ async function fetchReportExports(
 	}
 
 	return response.json();
+}
+
+async function fetchReportParameterOptions(
+	tenantId: string,
+	optionsEndpoint: string,
+): Promise<ReportParameterOption[]> {
+	const reportName = getOptionsEndpointReportName(optionsEndpoint);
+	if (!reportName) {
+		return [];
+	}
+
+	const parsedOptionsEndpoint = new URL(
+		optionsEndpoint,
+		"https://placeholder.local",
+	);
+	const search = parsedOptionsEndpoint.searchParams.toString();
+	const endpoint = BFF_ROUTES.runReport(reportName);
+	const response = await fetch(
+		search ? `${endpoint}?${search}` : `${endpoint}?parameterType=true`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch report parameter options");
+	}
+
+	const payload = await response.json();
+	return parseDynamicOptionsPayload(payload);
 }
 
 async function fetchRoles(tenantId: string): Promise<RoleData[]> {

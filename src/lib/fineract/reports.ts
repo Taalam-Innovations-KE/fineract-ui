@@ -1,4 +1,4 @@
-import { FINERACT_LOCALE } from "@/lib/date-utils";
+import { FINERACT_DATE_FORMAT, FINERACT_LOCALE } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	DeleteReportsResponse,
@@ -40,7 +40,7 @@ export type ReportsTemplate = Omit<
 	allowedParameters?: Array<ReportParameter>;
 };
 
-export type ReportExportTarget = "JSON" | "PRETTY_JSON" | "CSV" | "PDF" | "S3";
+export type ReportExportTarget = "JSON" | "CSV" | "PDF";
 
 export type ReportParameterControl = "date" | "number" | "text" | "select";
 
@@ -86,13 +86,17 @@ export type ReportExecutionResponse =
 			filename?: string;
 	  };
 
-const EXPORT_TARGETS: ReportExportTarget[] = [
-	"JSON",
-	"PRETTY_JSON",
-	"CSV",
-	"PDF",
-	"S3",
-];
+const EXPORT_TARGET_ALIASES: Record<string, ReportExportTarget> = {
+	CSV: "CSV",
+	EXPORTCSV: "CSV",
+	PDF: "PDF",
+	EXPORTPDF: "PDF",
+	JSON: "JSON",
+	EXPORTJSON: "JSON",
+	PRETTYJSON: "JSON",
+	PRETTY_JSON: "JSON",
+	PRETTY: "JSON",
+};
 
 const PARAMETER_METADATA: Record<string, ReportParameterMetadata> = {
 	startDateSelect: {
@@ -402,10 +406,14 @@ export function normalizeAvailableExportTargets(
 			(value): value is string =>
 				typeof value === "string" && value.trim().length > 0,
 		)
-		.map((value) => value.toUpperCase())
-		.filter((value): value is ReportExportTarget =>
-			EXPORT_TARGETS.includes(value as ReportExportTarget),
-		);
+		.map((value) =>
+			value
+				.trim()
+				.replaceAll(/[^a-z0-9]/giu, "")
+				.toUpperCase(),
+		)
+		.map((value) => EXPORT_TARGET_ALIASES[value])
+		.filter((value): value is ReportExportTarget => Boolean(value));
 
 	if (!resolved.includes("JSON")) {
 		resolved.unshift("JSON");
@@ -419,6 +427,7 @@ export function createReportSearchParams(
 	exportTarget: ReportExportTarget,
 	options?: {
 		includeLocale?: boolean;
+		includeDateFormat?: boolean;
 	},
 ) {
 	const params = new URLSearchParams();
@@ -435,22 +444,19 @@ export function createReportSearchParams(
 		case "JSON":
 			params.set("exportJSON", "true");
 			break;
-		case "PRETTY_JSON":
-			params.set("pretty", "true");
-			break;
 		case "CSV":
 			params.set("exportCSV", "true");
 			break;
 		case "PDF":
 			params.set("exportPDF", "true");
 			break;
-		case "S3":
-			params.set("exportS3", "true");
-			break;
 	}
 
 	if (options?.includeLocale) {
 		params.set("locale", FINERACT_LOCALE);
+	}
+	if (options?.includeDateFormat) {
+		params.set("dateFormat", FINERACT_DATE_FORMAT);
 	}
 
 	return params;
@@ -758,6 +764,7 @@ export async function runReport(
 	exportTarget: ReportExportTarget,
 	options?: {
 		includeLocale?: boolean;
+		includeDateFormat?: boolean;
 	},
 ): Promise<ReportExecutionResponse> {
 	const params = createReportSearchParams(values, exportTarget, options);

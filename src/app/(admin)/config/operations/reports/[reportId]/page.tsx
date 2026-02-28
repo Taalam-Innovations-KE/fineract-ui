@@ -39,6 +39,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	FINERACT_DATE_FORMAT,
+	formatDateStringToFormat,
+} from "@/lib/date-utils";
 import { findReportByRouteId } from "@/lib/fineract/report-route";
 import {
 	fetchReportAvailableExports,
@@ -99,26 +103,28 @@ function getExportLabel(exportTarget: ReportExportTarget) {
 	switch (exportTarget) {
 		case "JSON":
 			return "JSON";
-		case "PRETTY_JSON":
-			return "Pretty JSON";
 		case "CSV":
 			return "CSV";
 		case "PDF":
 			return "PDF";
-		case "S3":
-			return "S3";
 	}
+}
+
+function getExportOptionLabel(exportTarget: ReportExportTarget) {
+	if (exportTarget === "JSON") {
+		return "JSON";
+	}
+
+	return `Download ${getExportLabel(exportTarget)}`;
 }
 
 function getExportIcon(exportTarget: ReportExportTarget) {
 	switch (exportTarget) {
 		case "JSON":
-		case "PRETTY_JSON":
 			return FileJson;
 		case "CSV":
 			return FileSpreadsheet;
 		case "PDF":
-		case "S3":
 			return FileText;
 	}
 }
@@ -126,6 +132,9 @@ function getExportIcon(exportTarget: ReportExportTarget) {
 function buildParameterValueMap(
 	parameters: ReportParameter[],
 	formValues: Record<string, string>,
+	options?: {
+		formatDates?: boolean;
+	},
 ) {
 	const values: Record<string, string> = {};
 
@@ -136,7 +145,13 @@ function buildParameterValueMap(
 		}
 
 		const metadata = getReportParameterMetadata(parameter);
-		values[metadata.requestKey] = formValues[parameterName] || "";
+		const rawValue = formValues[parameterName] || "";
+		values[metadata.requestKey] =
+			options?.formatDates &&
+			metadata.control === "date" &&
+			rawValue.trim().length > 0
+				? formatDateStringToFormat(rawValue, FINERACT_DATE_FORMAT)
+				: rawValue;
 	}
 
 	return values;
@@ -219,10 +234,14 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		[reports, reportId],
 	);
 	const selectedParameters = selectedReport?.reportParameters || [];
+	const isPentahoReport = selectedReport?.reportType?.trim() === "Pentaho";
 
 	const parameterValueMap = useMemo(
-		() => buildParameterValueMap(selectedParameters, formValues),
-		[selectedParameters, formValues],
+		() =>
+			buildParameterValueMap(selectedParameters, formValues, {
+				formatDates: isPentahoReport,
+			}),
+		[selectedParameters, formValues, isPentahoReport],
 	);
 
 	const availableExportsQuery = useQuery({
@@ -295,9 +314,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			values: Record<string, string>;
 			exportTarget: ReportExportTarget;
 			includeLocale?: boolean;
+			includeDateFormat?: boolean;
 		}) =>
 			runReport(tenantId, input.reportName, input.values, input.exportTarget, {
 				includeLocale: input.includeLocale,
+				includeDateFormat: input.includeDateFormat,
 			}),
 		onSuccess: (result, variables) => {
 			if (result.kind === "file") {
@@ -400,7 +421,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			reportName: selectedReport.reportName,
 			values: parameterValueMap,
 			exportTarget: selectedExport,
-			includeLocale: selectedReport.reportType?.trim() === "Pentaho",
+			includeLocale: isPentahoReport,
+			includeDateFormat: isPentahoReport,
 		});
 	};
 
@@ -665,7 +687,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 															>
 																<div className="flex items-center gap-2">
 																	<ExportIcon className="h-4 w-4" />
-																	<span>{getExportLabel(exportTarget)}</span>
+																	<span>
+																		{getExportOptionLabel(exportTarget)}
+																	</span>
 																</div>
 															</SelectItem>
 														);
@@ -673,6 +697,12 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 												</SelectContent>
 											</Select>
 										</div>
+										{selectedExport !== "JSON" ? (
+											<div className="text-xs text-muted-foreground">
+												Selecting {getExportLabel(selectedExport)} downloads the
+												report as a file.
+											</div>
+										) : null}
 
 										{selectedReport.useReport === false ? (
 											<Alert>
@@ -784,16 +814,14 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 													missingRequiredParameters.length > 0
 												}
 											>
-												{selectedExport === "JSON" ||
-												selectedExport === "PRETTY_JSON" ? (
+												{selectedExport === "JSON" ? (
 													<Play className="mr-2 h-4 w-4" />
 												) : (
 													<Download className="mr-2 h-4 w-4" />
 												)}
-												{selectedExport === "JSON" ||
-												selectedExport === "PRETTY_JSON"
+												{selectedExport === "JSON"
 													? "Run Report"
-													: `Export ${getExportLabel(selectedExport)}`}
+													: `Download ${getExportLabel(selectedExport)}`}
 											</Button>
 										</div>
 									</CardContent>

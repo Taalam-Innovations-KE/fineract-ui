@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, FileBarChart2, Play, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
@@ -15,6 +15,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,15 +47,15 @@ import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	GetReportsResponse,
 	GetReportsTemplateResponse,
+	GetRolesResponse,
 	ReportExportType,
 	RunReportsResponse,
 } from "@/lib/fineract/generated/types.gen";
 import {
-	getOptionsEndpointReportName,
-	getReportParameterCatalogFields,
-	type ReportParameterCatalogSource,
-	type ReportParameterCatalogWidget,
-} from "@/lib/fineract/report-parameter-catalog";
+	discoverTablePentahoPairs,
+	normalizeReportName,
+	toReportCatalogItems,
+} from "@/lib/fineract/report-pairing";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
@@ -102,6 +103,59 @@ interface RunResult {
 	columnHeaders?: Array<{ columnName?: string }>;
 	data?: Array<unknown>;
 	[key: string]: unknown;
+}
+
+type RoleData = GetRolesResponse;
+
+interface PentahoEnforcementTableDisableResult {
+	reportId: number | null;
+	reportName: string;
+	pentahoReportName: string;
+	status: "disabled" | "already-disabled" | "skipped-no-id" | "failed";
+	error?: string;
+}
+
+interface PentahoEnforcementRoleUpdateResult {
+	roleId: number;
+	status: "updated" | "no-matching-permissions" | "failed";
+	updatedPermissionCodes: string[];
+	skippedPermissionCodes: string[];
+	error?: string;
+}
+
+interface PentahoEnforcementVerificationEntry {
+	variant: "table" | "pentaho";
+	reportName: string;
+	expectation: "denied" | "allowed";
+	outcome: "passed" | "failed" | "indeterminate";
+	httpStatus: number | null;
+	message: string;
+}
+
+interface PentahoEnforcementVerificationResult {
+	baseName: string;
+	entries: PentahoEnforcementVerificationEntry[];
+}
+
+interface PentahoEnforcementResponse {
+	summary: {
+		totalReports: number;
+		pairCount: number;
+		roleCount: number;
+		strictEnforcement: boolean;
+		verifyRunReports: boolean;
+		disabledTableCount: number;
+		alreadyDisabledTableCount: number;
+		failedTableDisableCount: number;
+		updatedRoleCount: number;
+		failedRoleCount: number;
+		roleNoMatchCount: number;
+		verificationPairCount: number;
+	};
+	tableDisableResults: PentahoEnforcementTableDisableResult[];
+	roleUpdateResults: PentahoEnforcementRoleUpdateResult[];
+	runReportVerifications: PentahoEnforcementVerificationResult[];
+	notes?: string[];
 }
 
 const PARAMETER_KEY_FIELDS = [
@@ -894,36 +948,45 @@ async function fetchReportExports(
 	return response.json();
 }
 
-async function fetchReportParameterOptions(
-	tenantId: string,
-	optionsEndpoint: string,
-): Promise<ReportParameterOption[]> {
-	const reportName = getOptionsEndpointReportName(optionsEndpoint);
-	if (!reportName) {
-		return [];
-	}
-
-	const parsedOptionsEndpoint = new URL(
-		optionsEndpoint,
-		"https://placeholder.local",
-	);
-	const search = parsedOptionsEndpoint.searchParams.toString();
-	const endpoint = BFF_ROUTES.runReport(reportName);
-	const response = await fetch(
-		search ? `${endpoint}?${search}` : `${endpoint}?parameterType=true`,
-		{
-			headers: {
-				"x-tenant-id": tenantId,
-			},
+async function fetchRoles(tenantId: string): Promise<RoleData[]> {
+	const response = await fetch(BFF_ROUTES.roles, {
+		headers: {
+			"x-tenant-id": tenantId,
 		},
-	);
+	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch report parameter options");
+		throw new Error("Failed to fetch roles");
 	}
 
-	const payload = await response.json();
-	return parseDynamicOptionsPayload(payload);
+	return response.json();
+}
+
+async function applyPentahoEnforcement(
+	tenantId: string,
+	payload: {
+		roleIds: number[];
+		strictEnforcement: boolean;
+		verifyRunReports: boolean;
+	},
+): Promise<PentahoEnforcementResponse> {
+	const response = await fetch(BFF_ROUTES.reportsPentahoEnforcement, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		const errorPayload = await response
+			.json()
+			.catch(() => ({ message: "Failed to apply Pentaho report enforcement" }));
+		throw errorPayload;
+	}
+
+	return response.json();
 }
 
 function ReportsTableSkeleton() {
@@ -979,6 +1042,7 @@ function ReportsTableSkeleton() {
 
 export default function ReportsPage() {
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
 	const [searchTerm, setSearchTerm] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState("all");
 	const [selectedReport, setSelectedReport] = useState<ReportData | null>(null);
@@ -990,10 +1054,19 @@ export default function ReportsPage() {
 	const [selectedOutput, setSelectedOutput] =
 		useState<ReportOutputType>("JSON");
 	const [runResult, setRunResult] = useState<RunResult | null>(null);
+	const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+	const [strictEnforcement, setStrictEnforcement] = useState(true);
+	const [verifyRunReports, setVerifyRunReports] = useState(false);
+	const [enforcementResult, setEnforcementResult] =
+		useState<PentahoEnforcementResponse | null>(null);
 
 	const reportsQuery = useQuery({
 		queryKey: ["reports", tenantId],
 		queryFn: () => fetchReports(tenantId),
+	});
+	const rolesQuery = useQuery({
+		queryKey: ["roles", tenantId],
+		queryFn: () => fetchRoles(tenantId),
 	});
 	const reportTemplateQuery = useQuery({
 		queryKey: ["report-template", tenantId],
@@ -1018,6 +1091,31 @@ export default function ReportsPage() {
 				return enabled && !isMailingReport;
 			}),
 		[reportsQuery.data],
+	);
+	const tablePentahoPairs = useMemo(
+		() =>
+			discoverTablePentahoPairs(toReportCatalogItems(reportsQuery.data || [])),
+		[reportsQuery.data],
+	);
+	const alreadyDisabledTablePairCount = useMemo(
+		() =>
+			tablePentahoPairs.filter((pair) => pair.tableReport.useReport === false)
+				.length,
+		[tablePentahoPairs],
+	);
+	const roleOptions = useMemo(
+		() =>
+			(rolesQuery.data || []).filter(
+				(role): role is RoleData & { id: number } =>
+					typeof role.id === "number" &&
+					Number.isInteger(role.id) &&
+					role.id > 0,
+			),
+		[rolesQuery.data],
+	);
+	const allRoleIds = useMemo(
+		() => roleOptions.map((role) => String(role.id)),
+		[roleOptions],
 	);
 
 	const categories = useMemo(() => {
@@ -1186,6 +1284,82 @@ export default function ReportsPage() {
 			setSelectedOutput(available[0] || "JSON");
 		}
 	}, [outputOptionValues, selectedOutput]);
+
+	const toggleRoleSelection = (roleId: string, checked: boolean) => {
+		setSelectedRoleIds((current) => {
+			if (checked) {
+				if (current.includes(roleId)) {
+					return current;
+				}
+				return [...current, roleId].sort((a, b) => Number(a) - Number(b));
+			}
+			return current.filter((candidate) => candidate !== roleId);
+		});
+	};
+
+	const selectAllRoles = () => {
+		setSelectedRoleIds(allRoleIds);
+	};
+
+	const clearRoleSelection = () => {
+		setSelectedRoleIds([]);
+	};
+
+	const enforceReportsMutation = useMutation({
+		mutationFn: async () => {
+			try {
+				const roleIds = selectedRoleIds
+					.map((value) => Number(value))
+					.filter(
+						(roleId) => Number.isInteger(roleId) && Number.isFinite(roleId),
+					);
+
+				if (roleIds.length === 0) {
+					throw toSubmitActionError(
+						{
+							code: "INVALID_REQUEST",
+							message: "Select at least one role to apply report enforcement.",
+							status: 400,
+							fieldErrors: [
+								{
+									field: "roleIds",
+									message: "At least one role is required.",
+								},
+							],
+						},
+						{
+							action: "applyPentahoEnforcement",
+							endpoint: BFF_ROUTES.reportsPentahoEnforcement,
+							method: "POST",
+							tenantId,
+						},
+					);
+				}
+
+				return await applyPentahoEnforcement(tenantId, {
+					roleIds,
+					strictEnforcement,
+					verifyRunReports,
+				});
+			} catch (error) {
+				throw toSubmitActionError(error, {
+					action: "applyPentahoEnforcement",
+					endpoint: BFF_ROUTES.reportsPentahoEnforcement,
+					method: "POST",
+					tenantId,
+				});
+			}
+		},
+		onMutate: () => {
+			setEnforcementResult(null);
+		},
+		onSuccess: (response) => {
+			setEnforcementResult(response);
+			queryClient.invalidateQueries({ queryKey: ["reports", tenantId] });
+		},
+	});
+	const enforceReportsError =
+		enforceReportsMutation.error as SubmitActionError | null;
 
 	const runReportMutation = useMutation({
 		mutationFn: async () => {
@@ -1494,6 +1668,345 @@ export default function ReportsPage() {
 						</CardContent>
 					</Card>
 				</div>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Table/Pentaho Enforcement</CardTitle>
+						<CardDescription>
+							Disable Table report variants that have Pentaho counterparts and
+							update READ permissions for selected roles.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<Alert>
+							<AlertTitle>API-Only Enforcement Flow</AlertTitle>
+							<AlertDescription>
+								This action discovers report pairs from <code>/v1/reports</code>
+								, disables Table entries with <code>useReport=false</code>, then
+								updates each selected role through{" "}
+								<code>/v1/roles/{`{roleId}`}/permissions</code>.
+							</AlertDescription>
+						</Alert>
+
+						<div className="grid gap-4 md:grid-cols-3">
+							<Card>
+								<CardContent className="pt-6">
+									<div className="flex items-center justify-between">
+										<span className="text-sm text-muted-foreground">Pairs</span>
+										<span className="text-2xl font-bold">
+											{tablePentahoPairs.length.toLocaleString()}
+										</span>
+									</div>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="pt-6">
+									<div className="flex items-center justify-between">
+										<span className="text-sm text-muted-foreground">
+											Table Disabled
+										</span>
+										<span className="text-2xl font-bold">
+											{alreadyDisabledTablePairCount.toLocaleString()}
+										</span>
+									</div>
+								</CardContent>
+							</Card>
+							<Card>
+								<CardContent className="pt-6">
+									<div className="flex items-center justify-between">
+										<span className="text-sm text-muted-foreground">
+											Selected Roles
+										</span>
+										<span className="text-2xl font-bold">
+											{selectedRoleIds.length.toLocaleString()}
+										</span>
+									</div>
+								</CardContent>
+							</Card>
+						</div>
+
+						<div className="grid gap-4 lg:grid-cols-2">
+							<div className="space-y-2">
+								<div className="flex items-center justify-between">
+									<Label>Target Roles</Label>
+									<div className="flex items-center gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={selectAllRoles}
+											disabled={
+												enforceReportsMutation.isPending ||
+												roleOptions.length === 0
+											}
+										>
+											Select All
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={clearRoleSelection}
+											disabled={
+												enforceReportsMutation.isPending ||
+												selectedRoleIds.length === 0
+											}
+										>
+											Clear
+										</Button>
+									</div>
+								</div>
+								{rolesQuery.isLoading ? (
+									<div className="space-y-2 rounded-sm border border-border/60 p-3">
+										{Array.from({ length: 5 }).map((_, index) => (
+											<div
+												key={`role-skeleton-${index}`}
+												className="flex items-center gap-2"
+											>
+												<Skeleton className="h-4 w-4" />
+												<Skeleton className="h-4 w-44" />
+											</div>
+										))}
+									</div>
+								) : rolesQuery.error ? (
+									<Alert variant="destructive">
+										<AlertTitle>Failed To Load Roles</AlertTitle>
+										<AlertDescription>
+											{rolesQuery.error instanceof Error
+												? rolesQuery.error.message
+												: "Could not fetch roles for permissions updates."}
+										</AlertDescription>
+									</Alert>
+								) : (
+									<div className="max-h-56 space-y-2 overflow-y-auto rounded-sm border border-border/60 p-3">
+										{roleOptions.length === 0 ? (
+											<p className="text-sm text-muted-foreground">
+												No roles are available for permission updates.
+											</p>
+										) : (
+											roleOptions.map((role) => {
+												const roleId = String(role.id);
+												const checked = selectedRoleIds.includes(roleId);
+
+												return (
+													<label
+														key={roleId}
+														className="flex cursor-pointer items-center gap-2 rounded-sm border border-border/40 px-2 py-1.5"
+													>
+														<Checkbox
+															checked={checked}
+															onCheckedChange={(value) =>
+																toggleRoleSelection(roleId, value === true)
+															}
+														/>
+														<span className="text-sm">
+															{role.name || `Role ${roleId}`}
+														</span>
+														<span className="ml-auto text-xs text-muted-foreground">
+															#{roleId}
+														</span>
+													</label>
+												);
+											})
+										)}
+									</div>
+								)}
+							</div>
+
+							<div className="space-y-2">
+								<Label>Enforcement Options</Label>
+								<div className="space-y-2 rounded-sm border border-border/60 p-3">
+									<label className="flex cursor-pointer items-start gap-2">
+										<Checkbox
+											checked={strictEnforcement}
+											onCheckedChange={(value) =>
+												setStrictEnforcement(value === true)
+											}
+											disabled={enforceReportsMutation.isPending}
+										/>
+										<div>
+											<p className="text-sm font-medium">
+												Strict role enforcement
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Also sets ALL_FUNCTIONS, ALL_FUNCTIONS_READ and
+												REPORTING_SUPER_USER to false when those permissions
+												exist on the role.
+											</p>
+										</div>
+									</label>
+									<label className="flex cursor-pointer items-start gap-2">
+										<Checkbox
+											checked={verifyRunReports}
+											onCheckedChange={(value) =>
+												setVerifyRunReports(value === true)
+											}
+											disabled={enforceReportsMutation.isPending}
+										/>
+										<div>
+											<p className="text-sm font-medium">
+												Verify with /v1/runreports
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Runs best-effort permission checks after updates.
+												Reports requiring parameters may return indeterminate
+												results.
+											</p>
+										</div>
+									</label>
+								</div>
+								<div className="rounded-sm border border-border/60">
+									<Table>
+										<TableHeader className="bg-muted/40">
+											<TableRow>
+												<TableHead>Table</TableHead>
+												<TableHead>Pentaho</TableHead>
+												<TableHead className="text-right">State</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{tablePentahoPairs.slice(0, 6).map((pair, index) => {
+												const tableReportName = normalizeReportName(
+													pair.tableReport.reportName,
+												);
+												const pentahoReportName = normalizeReportName(
+													pair.pentahoReport.reportName,
+												);
+
+												return (
+													<TableRow
+														key={`${tableReportName}-${pentahoReportName}-${index}`}
+													>
+														<TableCell className="text-sm">
+															{tableReportName || "Unnamed"}
+														</TableCell>
+														<TableCell className="text-sm">
+															{pentahoReportName || "Unnamed"}
+														</TableCell>
+														<TableCell className="text-right">
+															<Badge
+																variant={
+																	pair.tableReport.useReport === false
+																		? "destructive"
+																		: "success"
+																}
+															>
+																{pair.tableReport.useReport === false
+																	? "Disabled"
+																	: "Enabled"}
+															</Badge>
+														</TableCell>
+													</TableRow>
+												);
+											})}
+											{tablePentahoPairs.length === 0 && (
+												<TableRow>
+													<TableCell
+														colSpan={3}
+														className="text-center text-sm text-muted-foreground"
+													>
+														No Table/Pentaho pairs were detected.
+													</TableCell>
+												</TableRow>
+											)}
+										</TableBody>
+									</Table>
+								</div>
+							</div>
+						</div>
+
+						<div className="flex items-center justify-end gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									enforceReportsMutation.reset();
+									setEnforcementResult(null);
+								}}
+								disabled={
+									enforceReportsMutation.isPending && enforcementResult === null
+								}
+							>
+								Reset Result
+							</Button>
+							<Button
+								type="button"
+								onClick={() => enforceReportsMutation.mutate()}
+								disabled={
+									enforceReportsMutation.isPending ||
+									selectedRoleIds.length === 0 ||
+									tablePentahoPairs.length === 0
+								}
+							>
+								{enforceReportsMutation.isPending
+									? "Applying..."
+									: "Apply Enforcement"}
+							</Button>
+						</div>
+
+						<SubmitErrorAlert
+							error={enforceReportsError}
+							title="Report Enforcement Failed"
+						/>
+
+						{enforcementResult && (
+							<Card className="rounded-sm border border-border/60">
+								<CardHeader>
+									<CardTitle className="text-base">
+										Enforcement Summary
+									</CardTitle>
+									<CardDescription>
+										{enforcementResult.summary.disabledTableCount.toLocaleString()}{" "}
+										table reports disabled,{" "}
+										{enforcementResult.summary.updatedRoleCount.toLocaleString()}{" "}
+										roles updated.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-3">
+									<div className="grid gap-3 md:grid-cols-3">
+										<div className="rounded-sm border border-border/50 p-3">
+											<div className="text-xs text-muted-foreground">
+												Disable Failures
+											</div>
+											<div className="text-lg font-semibold">
+												{enforcementResult.summary.failedTableDisableCount.toLocaleString()}
+											</div>
+										</div>
+										<div className="rounded-sm border border-border/50 p-3">
+											<div className="text-xs text-muted-foreground">
+												Role Failures
+											</div>
+											<div className="text-lg font-semibold">
+												{enforcementResult.summary.failedRoleCount.toLocaleString()}
+											</div>
+										</div>
+										<div className="rounded-sm border border-border/50 p-3">
+											<div className="text-xs text-muted-foreground">
+												No Match Roles
+											</div>
+											<div className="text-lg font-semibold">
+												{enforcementResult.summary.roleNoMatchCount.toLocaleString()}
+											</div>
+										</div>
+									</div>
+									{enforcementResult.notes &&
+										enforcementResult.notes.length > 0 && (
+											<div className="space-y-1 rounded-sm border border-border/50 bg-muted/30 p-3">
+												{enforcementResult.notes.map((note) => (
+													<p
+														key={note}
+														className="text-xs text-muted-foreground"
+													>
+														{note}
+													</p>
+												))}
+											</div>
+										)}
+								</CardContent>
+							</Card>
+						)}
+					</CardContent>
+				</Card>
 
 				<Card>
 					<CardHeader>

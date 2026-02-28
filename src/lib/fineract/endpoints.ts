@@ -69,6 +69,12 @@ export const FINERACT_ENDPOINTS = {
 	loansCatchUp: "/v1/loans/catch-up",
 	loansCatchUpRunning: "/v1/loans/is-catch-up-running",
 	loansOldestCOB: "/v1/loans/oldest-cob-closed",
+	reports: "/v1/reports",
+	reportsTemplate: "/v1/reports/template",
+	reportAvailableExports: (reportName: string) =>
+		`/v1/runreports/availableExports/${encodeURIComponent(reportName)}`,
+	runReport: (reportName: string) =>
+		`/v1/runreports/${encodeURIComponent(reportName)}`,
 
 	// Accounting - Journal Entries
 	journalEntries: "/v1/journalentries",
@@ -95,15 +101,6 @@ export const FINERACT_ENDPOINTS = {
 	provisioningCriteriaTemplate: "/v1/provisioningcriteria/template",
 	provisioningCriteriaById: (criteriaId: number | string) =>
 		`/v1/provisioningcriteria/${criteriaId}`,
-
-	// Reports
-	reports: "/v1/reports",
-	reportById: (reportId: number | string) => `/v1/reports/${reportId}`,
-	reportTemplate: "/v1/reports/template",
-	runReports: (reportName: string) =>
-		`/v1/runreports/${encodeURIComponent(reportName)}`,
-	runReportsAvailableExports: (reportName: string) =>
-		`/v1/runreports/availableExports/${encodeURIComponent(reportName)}`,
 } as const;
 
 /**
@@ -193,6 +190,13 @@ export const BFF_ROUTES = {
 	loansCatchUp: "/api/fineract/loans/catch-up",
 	loansCatchUpRunning: "/api/fineract/loans/is-catch-up-running",
 	loansOldestCOB: "/api/fineract/loans/oldest-cob-closed",
+	reports: "/api/fineract/reports",
+	reportsTemplate: "/api/fineract/reports/template",
+	reportsPentahoEnforcement: "/api/fineract/reports/pentaho-enforcement",
+	reportAvailableExports: (reportName: string) =>
+		`/api/fineract/reports/available-exports/${encodeURIComponent(reportName)}`,
+	runReport: (reportName: string) =>
+		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,
 
 	// Accounting - Journal Entries
 	journalEntries: "/api/fineract/journalentries",
@@ -220,13 +224,4 @@ export const BFF_ROUTES = {
 	provisioningCriteriaTemplate: "/api/fineract/provisioningcriteria/template",
 	provisioningCriteriaById: (criteriaId: number | string) =>
 		`/api/fineract/provisioningcriteria/${criteriaId}`,
-
-	// Reports
-	reports: "/api/fineract/reports",
-	reportsPentahoEnforcement: "/api/fineract/reports/pentaho-enforcement",
-	reportsTemplate: "/api/fineract/reports/template",
-	runReport: (reportName: string) =>
-		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,
-	runReportAvailableExports: (reportName: string) =>
-		`/api/fineract/reports/available-exports/${encodeURIComponent(reportName)}`,
 } as const;

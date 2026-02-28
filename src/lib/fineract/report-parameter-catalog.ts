@@ -37,7 +37,7 @@ const SYSTEM_PARAMETER_SUBSTITUTIONS = {
 	userhierarchy: "authenticated_user.office.hierarchy",
 } as const;
 
-const PARAMETER_CATALOG = {
+const PARAMETER_CATALOG: Record<string, ReportParameterCatalogDefinition> = {
 	Account: {
 		type: "integer",
 		source: "user",
@@ -251,9 +251,9 @@ const PARAMETER_CATALOG = {
 		widget: "textbox",
 		label: "User ID",
 	},
-} as const satisfies Record<string, ReportParameterCatalogDefinition>;
+};
 
-const REPORT_DEFINITIONS = [
+const REPORT_DEFINITIONS: ReadonlyArray<ReportParameterCatalogReportDefinition> = [
 	{
 		name: "Active Loan Summary per Branch",
 		required: ["userhierarchy"],
@@ -938,7 +938,7 @@ const REPORT_DEFINITIONS = [
 			},
 		},
 	},
-] as const satisfies ReportParameterCatalogReportDefinition[];
+];
 
 const REPORT_DEFINITION_MAP = new Map<
 	string,

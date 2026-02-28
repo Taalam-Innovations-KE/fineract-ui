@@ -7,19 +7,15 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import type { GetReportsTemplateResponse } from "@/lib/fineract/generated/types.gen";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
-/**
- * GET /api/fineract/reports/template
- * Fetches report template metadata (allowed parameters and report types)
- */
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-
 		const template = await fineractFetch<GetReportsTemplateResponse>(
-			FINERACT_ENDPOINTS.reportTemplate,
+			FINERACT_ENDPOINTS.reportsTemplate,
 			{
 				method: "GET",
 				tenantId,
+				useBasicAuth: true,
 			},
 		);
 

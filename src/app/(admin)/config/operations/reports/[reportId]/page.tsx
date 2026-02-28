@@ -39,6 +39,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	FINERACT_DATE_FORMAT,
+	formatDateStringToFormat,
+} from "@/lib/date-utils";
 import { findReportByRouteId } from "@/lib/fineract/report-route";
 import {
 	fetchReportAvailableExports,
@@ -105,8 +109,6 @@ function getExportLabel(exportTarget: ReportExportTarget) {
 			return "CSV";
 		case "PDF":
 			return "PDF";
-		case "S3":
-			return "S3";
 	}
 }
 
@@ -118,7 +120,6 @@ function getExportIcon(exportTarget: ReportExportTarget) {
 		case "CSV":
 			return FileSpreadsheet;
 		case "PDF":
-		case "S3":
 			return FileText;
 	}
 }
@@ -126,6 +127,9 @@ function getExportIcon(exportTarget: ReportExportTarget) {
 function buildParameterValueMap(
 	parameters: ReportParameter[],
 	formValues: Record<string, string>,
+	options?: {
+		formatDates?: boolean;
+	},
 ) {
 	const values: Record<string, string> = {};
 
@@ -136,7 +140,13 @@ function buildParameterValueMap(
 		}
 
 		const metadata = getReportParameterMetadata(parameter);
-		values[metadata.requestKey] = formValues[parameterName] || "";
+		const rawValue = formValues[parameterName] || "";
+		values[metadata.requestKey] =
+			options?.formatDates &&
+			metadata.control === "date" &&
+			rawValue.trim().length > 0
+				? formatDateStringToFormat(rawValue, FINERACT_DATE_FORMAT)
+				: rawValue;
 	}
 
 	return values;
@@ -219,10 +229,14 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		[reports, reportId],
 	);
 	const selectedParameters = selectedReport?.reportParameters || [];
+	const isPentahoReport = selectedReport?.reportType?.trim() === "Pentaho";
 
 	const parameterValueMap = useMemo(
-		() => buildParameterValueMap(selectedParameters, formValues),
-		[selectedParameters, formValues],
+		() =>
+			buildParameterValueMap(selectedParameters, formValues, {
+				formatDates: isPentahoReport,
+			}),
+		[selectedParameters, formValues, isPentahoReport],
 	);
 
 	const availableExportsQuery = useQuery({
@@ -295,9 +309,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			values: Record<string, string>;
 			exportTarget: ReportExportTarget;
 			includeLocale?: boolean;
+			includeDateFormat?: boolean;
 		}) =>
 			runReport(tenantId, input.reportName, input.values, input.exportTarget, {
 				includeLocale: input.includeLocale,
+				includeDateFormat: input.includeDateFormat,
 			}),
 		onSuccess: (result, variables) => {
 			if (result.kind === "file") {
@@ -400,7 +416,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			reportName: selectedReport.reportName,
 			values: parameterValueMap,
 			exportTarget: selectedExport,
-			includeLocale: selectedReport.reportType?.trim() === "Pentaho",
+			includeLocale: isPentahoReport,
+			includeDateFormat: isPentahoReport,
 		});
 	};
 

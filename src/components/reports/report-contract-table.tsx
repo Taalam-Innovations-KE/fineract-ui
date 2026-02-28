@@ -81,7 +81,7 @@ export function ReportContractTable({ parameters }: ReportContractTableProps) {
 						<TableHead>Parameter</TableHead>
 						<TableHead>Request Key</TableHead>
 						<TableHead>Control</TableHead>
-						<TableHead>Notes</TableHead>
+						<TableHead className="w-[32rem] whitespace-normal">Notes</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -103,7 +103,7 @@ export function ReportContractTable({ parameters }: ReportContractTableProps) {
 								<TableCell>
 									<Badge variant="outline">{metadata.control}</Badge>
 								</TableCell>
-								<TableCell className="text-sm text-muted-foreground">
+								<TableCell className="max-w-[32rem] align-top whitespace-normal break-words text-sm text-muted-foreground">
 									{metadata.description}
 								</TableCell>
 							</TableRow>

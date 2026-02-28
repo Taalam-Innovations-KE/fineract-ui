@@ -1,3 +1,4 @@
+import { FINERACT_LOCALE } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	DeleteReportsResponse,
@@ -416,6 +417,9 @@ export function normalizeAvailableExportTargets(
 export function createReportSearchParams(
 	values: Record<string, string>,
 	exportTarget: ReportExportTarget,
+	options?: {
+		includeLocale?: boolean;
+	},
 ) {
 	const params = new URLSearchParams();
 
@@ -443,6 +447,10 @@ export function createReportSearchParams(
 		case "S3":
 			params.set("exportS3", "true");
 			break;
+	}
+
+	if (options?.includeLocale) {
+		params.set("locale", FINERACT_LOCALE);
 	}
 
 	return params;
@@ -748,8 +756,11 @@ export async function runReport(
 	reportName: string,
 	values: Record<string, string>,
 	exportTarget: ReportExportTarget,
+	options?: {
+		includeLocale?: boolean;
+	},
 ): Promise<ReportExecutionResponse> {
-	const params = createReportSearchParams(values, exportTarget);
+	const params = createReportSearchParams(values, exportTarget, options);
 	const response = await fetch(
 		`${BFF_ROUTES.runReport(reportName)}?${params.toString()}`,
 		{

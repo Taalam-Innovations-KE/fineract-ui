@@ -151,8 +151,9 @@ export default function ReportsPage() {
 		() => [
 			{
 				header: "Report",
+				className: "align-top whitespace-normal",
 				cell: (report: ReportDefinition) => (
-					<div>
+					<div className="max-w-[32rem] break-words">
 						<div className="font-medium">
 							{report.reportName || "Unnamed report"}
 						</div>

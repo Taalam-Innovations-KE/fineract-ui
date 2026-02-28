@@ -294,8 +294,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			reportName: string;
 			values: Record<string, string>;
 			exportTarget: ReportExportTarget;
+			includeLocale?: boolean;
 		}) =>
-			runReport(tenantId, input.reportName, input.values, input.exportTarget),
+			runReport(tenantId, input.reportName, input.values, input.exportTarget, {
+				includeLocale: input.includeLocale,
+			}),
 		onSuccess: (result, variables) => {
 			if (result.kind === "file") {
 				triggerBrowserDownload(
@@ -397,6 +400,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			reportName: selectedReport.reportName,
 			values: parameterValueMap,
 			exportTarget: selectedExport,
+			includeLocale: selectedReport.reportType?.trim() === "Pentaho",
 		});
 	};
 

@@ -40,7 +40,7 @@ export type ReportsTemplate = Omit<
 	allowedParameters?: Array<ReportParameter>;
 };
 
-export type ReportExportTarget = "JSON" | "PRETTY_JSON" | "CSV" | "PDF";
+export type ReportExportTarget = "JSON" | "CSV" | "PDF";
 
 export type ReportParameterControl = "date" | "number" | "text" | "select";
 
@@ -93,9 +93,9 @@ const EXPORT_TARGET_ALIASES: Record<string, ReportExportTarget> = {
 	EXPORTPDF: "PDF",
 	JSON: "JSON",
 	EXPORTJSON: "JSON",
-	PRETTYJSON: "PRETTY_JSON",
-	PRETTY_JSON: "PRETTY_JSON",
-	PRETTY: "PRETTY_JSON",
+	PRETTYJSON: "JSON",
+	PRETTY_JSON: "JSON",
+	PRETTY: "JSON",
 };
 
 const PARAMETER_METADATA: Record<string, ReportParameterMetadata> = {
@@ -443,9 +443,6 @@ export function createReportSearchParams(
 	switch (exportTarget) {
 		case "JSON":
 			params.set("exportJSON", "true");
-			break;
-		case "PRETTY_JSON":
-			params.set("pretty", "true");
 			break;
 		case "CSV":
 			params.set("exportCSV", "true");

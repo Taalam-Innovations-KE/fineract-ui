@@ -103,8 +103,6 @@ function getExportLabel(exportTarget: ReportExportTarget) {
 	switch (exportTarget) {
 		case "JSON":
 			return "JSON";
-		case "PRETTY_JSON":
-			return "Pretty JSON";
 		case "CSV":
 			return "CSV";
 		case "PDF":
@@ -112,10 +110,17 @@ function getExportLabel(exportTarget: ReportExportTarget) {
 	}
 }
 
+function getExportOptionLabel(exportTarget: ReportExportTarget) {
+	if (exportTarget === "JSON") {
+		return "JSON";
+	}
+
+	return `Download ${getExportLabel(exportTarget)}`;
+}
+
 function getExportIcon(exportTarget: ReportExportTarget) {
 	switch (exportTarget) {
 		case "JSON":
-		case "PRETTY_JSON":
 			return FileJson;
 		case "CSV":
 			return FileSpreadsheet;
@@ -682,7 +687,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 															>
 																<div className="flex items-center gap-2">
 																	<ExportIcon className="h-4 w-4" />
-																	<span>{getExportLabel(exportTarget)}</span>
+																	<span>
+																		{getExportOptionLabel(exportTarget)}
+																	</span>
 																</div>
 															</SelectItem>
 														);
@@ -690,6 +697,12 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 												</SelectContent>
 											</Select>
 										</div>
+										{selectedExport !== "JSON" ? (
+											<div className="text-xs text-muted-foreground">
+												Selecting {getExportLabel(selectedExport)} downloads the
+												report as a file.
+											</div>
+										) : null}
 
 										{selectedReport.useReport === false ? (
 											<Alert>
@@ -801,16 +814,14 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 													missingRequiredParameters.length > 0
 												}
 											>
-												{selectedExport === "JSON" ||
-												selectedExport === "PRETTY_JSON" ? (
+												{selectedExport === "JSON" ? (
 													<Play className="mr-2 h-4 w-4" />
 												) : (
 													<Download className="mr-2 h-4 w-4" />
 												)}
-												{selectedExport === "JSON" ||
-												selectedExport === "PRETTY_JSON"
+												{selectedExport === "JSON"
 													? "Run Report"
-													: `Export ${getExportLabel(selectedExport)}`}
+													: `Download ${getExportLabel(selectedExport)}`}
 											</Button>
 										</div>
 									</CardContent>

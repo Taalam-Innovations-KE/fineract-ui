@@ -89,14 +89,11 @@ export function ReportResultsPanel({
 			<CardHeader>
 				<CardTitle>Latest Result</CardTitle>
 				<CardDescription>
-					{selectedExport === "PRETTY_JSON"
-						? "Formatted JSON payload returned by the report service."
-						: "Most recent successful report response for the current selection."}
+					Most recent successful report response for the current selection.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
 				{result.kind === "structured" &&
-				selectedExport !== "PRETTY_JSON" &&
 				isStructuredReportPayload(result.data) &&
 				(result.data.columnHeaders?.length || 0) > 0 ? (
 					<DataTable

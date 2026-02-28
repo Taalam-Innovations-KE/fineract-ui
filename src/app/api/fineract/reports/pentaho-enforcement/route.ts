@@ -4,10 +4,9 @@ export async function GET() {
 	return NextResponse.json({
 		legacyOutputTypeSupported: false,
 		defaultExportTarget: "JSON",
-		availableExportTargets: ["JSON", "PRETTY_JSON", "CSV", "PDF"],
+		availableExportTargets: ["JSON", "CSV", "PDF"],
 		flags: {
 			JSON: "exportJSON=true",
-			PRETTY_JSON: "pretty=true",
 			CSV: "exportCSV=true",
 			PDF: "exportPDF=true",
 		},

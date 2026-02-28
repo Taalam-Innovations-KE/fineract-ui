@@ -98,6 +98,7 @@ export const FINERACT_ENDPOINTS = {
 
 	// Reports
 	reports: "/v1/reports",
+	reportById: (reportId: number | string) => `/v1/reports/${reportId}`,
 	reportTemplate: "/v1/reports/template",
 	runReports: (reportName: string) =>
 		`/v1/runreports/${encodeURIComponent(reportName)}`,
@@ -222,6 +223,7 @@ export const BFF_ROUTES = {
 
 	// Reports
 	reports: "/api/fineract/reports",
+	reportsPentahoEnforcement: "/api/fineract/reports/pentaho-enforcement",
 	reportsTemplate: "/api/fineract/reports/template",
 	runReport: (reportName: string) =>
 		`/api/fineract/reports/run/${encodeURIComponent(reportName)}`,

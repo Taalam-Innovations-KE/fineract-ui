@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { Download, FileBarChart2, Play, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
@@ -49,6 +49,12 @@ import type {
 	ReportExportType,
 	RunReportsResponse,
 } from "@/lib/fineract/generated/types.gen";
+import {
+	getOptionsEndpointReportName,
+	getReportParameterCatalogFields,
+	type ReportParameterCatalogSource,
+	type ReportParameterCatalogWidget,
+} from "@/lib/fineract/report-parameter-catalog";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
 import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { useTenantStore } from "@/store/tenant";
@@ -74,6 +80,11 @@ interface ReportParameterField {
 	label: string;
 	required: boolean;
 	dataType: string;
+	widget: ReportParameterCatalogWidget;
+	source: ReportParameterCatalogSource;
+	format?: string;
+	optionsEndpoint?: string;
+	systemSubstitution?: string;
 	options: ReportParameterOption[];
 }
 
@@ -251,6 +262,19 @@ function toOptionValue(value: unknown): string | null {
 	return null;
 }
 
+function getDefaultWidget(
+	dataType: string,
+	options: ReportParameterOption[],
+): ReportParameterCatalogWidget {
+	if (options.length > 0) {
+		return "dropdown";
+	}
+	if (getParameterInputType(dataType) === "date") {
+		return "datepicker";
+	}
+	return "textbox";
+}
+
 function extractParameterOptions(
 	record: Record<string, unknown>,
 ): ReportParameterOption[] {
@@ -319,7 +343,30 @@ function toParameterField(
 		label,
 		dataType,
 		required,
+		widget: getDefaultWidget(dataType, options),
+		source: "user",
+		format: undefined,
+		optionsEndpoint: undefined,
+		systemSubstitution: undefined,
 		options,
+	};
+}
+
+function toCatalogParameterField(
+	field: ReturnType<typeof getReportParameterCatalogFields>[number],
+): ReportParameterField {
+	return {
+		key: field.key,
+		queryKey: toQueryParameterKey(field.key),
+		label: field.label || toTitleLabel(field.key),
+		required: field.required,
+		dataType: field.type,
+		widget: field.widget,
+		source: field.source,
+		format: field.format,
+		optionsEndpoint: field.optionsEndpoint,
+		systemSubstitution: field.systemSubstitution,
+		options: [],
 	};
 }
 
@@ -362,8 +409,50 @@ function mergeParameterField(
 			? templateField.dataType
 			: reportField.dataType,
 		required: reportField.required || templateField.required,
+		widget:
+			reportField.widget === "textbox" && templateField.widget !== "textbox"
+				? templateField.widget
+				: reportField.widget,
+		source:
+			reportField.source === "user" ? templateField.source : reportField.source,
+		format: reportField.format || templateField.format,
+		optionsEndpoint:
+			reportField.optionsEndpoint || templateField.optionsEndpoint,
+		systemSubstitution:
+			reportField.systemSubstitution || templateField.systemSubstitution,
 		options: mergeParameterOptions(reportField.options, templateField.options),
 	};
+}
+
+function applyCatalogParameterField(
+	field: ReportParameterField,
+	catalogField: ReportParameterField | null,
+): ReportParameterField {
+	if (!catalogField) {
+		return field;
+	}
+
+	return {
+		...field,
+		label: catalogField.label || field.label,
+		required: field.required || catalogField.required,
+		dataType: catalogField.dataType || field.dataType,
+		widget: catalogField.widget || field.widget,
+		source: catalogField.source || field.source,
+		format: catalogField.format || field.format,
+		optionsEndpoint: catalogField.optionsEndpoint || field.optionsEndpoint,
+		systemSubstitution:
+			catalogField.systemSubstitution || field.systemSubstitution,
+		options: mergeParameterOptions(field.options, catalogField.options),
+	};
+}
+
+function addFieldLookup(
+	fieldMap: Map<string, ReportParameterField>,
+	field: ReportParameterField,
+) {
+	fieldMap.set(field.queryKey, field);
+	fieldMap.set(field.key, field);
 }
 
 function extractReportParameters(
@@ -372,17 +461,24 @@ function extractReportParameters(
 ): ReportParameterField[] {
 	const rawParameters = report.reportParameters || [];
 	const templateAllowed = template?.allowedParameters || [];
+	const catalogFields = getReportParameterCatalogFields(report.reportName).map(
+		toCatalogParameterField,
+	);
 	const fields: ReportParameterField[] = [];
 	const seenKeys = new Set<string>();
 	const templateByKey = new Map<string, ReportParameterField>();
+	const catalogByKey = new Map<string, ReportParameterField>();
 
 	for (const rawTemplateParameter of templateAllowed) {
 		const record = asRecord(rawTemplateParameter);
 		if (!record) continue;
 		const field = toParameterField(record);
 		if (!field) continue;
-		templateByKey.set(field.queryKey, field);
-		templateByKey.set(field.key, field);
+		addFieldLookup(templateByKey, field);
+	}
+
+	for (const catalogField of catalogFields) {
+		addFieldLookup(catalogByKey, catalogField);
 	}
 
 	for (const rawParameter of rawParameters) {
@@ -394,8 +490,28 @@ function extractReportParameters(
 		const templateMatch =
 			templateByKey.get(reportField.queryKey) ||
 			templateByKey.get(reportField.key);
-		fields.push(mergeParameterField(reportField, templateMatch || null));
+		const catalogMatch =
+			catalogByKey.get(reportField.queryKey) ||
+			catalogByKey.get(reportField.key);
+		fields.push(
+			applyCatalogParameterField(
+				mergeParameterField(reportField, templateMatch || null),
+				catalogMatch || null,
+			),
+		);
 		seenKeys.add(reportField.queryKey);
+	}
+
+	for (const catalogField of catalogFields) {
+		if (seenKeys.has(catalogField.queryKey)) {
+			continue;
+		}
+
+		const templateMatch =
+			templateByKey.get(catalogField.queryKey) ||
+			templateByKey.get(catalogField.key);
+		fields.push(mergeParameterField(catalogField, templateMatch || null));
+		seenKeys.add(catalogField.queryKey);
 	}
 
 	return fields;
@@ -545,6 +661,115 @@ function getPreviewCellValue(
 	return formatPreviewValue(record[column]);
 }
 
+function parseOptionRow(row: unknown): ReportParameterOption | null {
+	if (typeof row === "string" || typeof row === "number") {
+		const value = toOptionValue(row);
+		if (!value) {
+			return null;
+		}
+		return { value, label: value };
+	}
+
+	if (Array.isArray(row)) {
+		const value = toOptionValue(row[0]);
+		if (!value) {
+			return null;
+		}
+		return {
+			value,
+			label: toOptionValue(row[1]) || value,
+		};
+	}
+
+	const record = asRecord(row);
+	if (!record) {
+		return null;
+	}
+
+	const value =
+		readStringField(record, PARAMETER_OPTION_VALUE_FIELDS) ||
+		toOptionValue(record.id) ||
+		toOptionValue(record.value);
+	if (!value) {
+		return null;
+	}
+
+	return {
+		value,
+		label:
+			readStringField(record, PARAMETER_OPTION_LABEL_FIELDS) ||
+			toOptionValue(record.name) ||
+			value,
+	};
+}
+
+function parseDynamicOptionsPayload(payload: unknown): ReportParameterOption[] {
+	const payloadRecord = asRecord(payload);
+	const rows = Array.isArray(payload)
+		? payload
+		: Array.isArray(payloadRecord?.data)
+			? payloadRecord.data
+			: Array.isArray(payloadRecord?.pageItems)
+				? payloadRecord.pageItems
+				: [];
+	if (rows.length === 0) {
+		return [];
+	}
+
+	const options: ReportParameterOption[] = [];
+	const seenValues = new Set<string>();
+
+	for (const row of rows) {
+		const option = parseOptionRow(row);
+		if (!option || seenValues.has(option.value)) {
+			continue;
+		}
+		options.push(option);
+		seenValues.add(option.value);
+	}
+
+	return options;
+}
+
+function formatDateValueForReport(
+	value: string,
+	format: string | undefined,
+): string {
+	if (!value || !format) {
+		return value;
+	}
+
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+
+	const [year, month, day] = value.split("-");
+	if (format === "dd-MM-yyyy") {
+		return `${day}-${month}-${year}`;
+	}
+	if (format === "yyyy-MM-dd") {
+		return `${year}-${month}-${day}`;
+	}
+
+	return value;
+}
+
+function serializeParameterValue(
+	field: ReportParameterField,
+	value: string,
+): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return "";
+	}
+
+	if (field.widget === "datepicker") {
+		return formatDateValueForReport(trimmed, field.format);
+	}
+
+	return trimmed;
+}
+
 function getParameterInputType(dataType: string): "text" | "number" | "date" {
 	const normalized = dataType.trim().toLowerCase();
 	if (
@@ -669,6 +894,38 @@ async function fetchReportExports(
 	return response.json();
 }
 
+async function fetchReportParameterOptions(
+	tenantId: string,
+	optionsEndpoint: string,
+): Promise<ReportParameterOption[]> {
+	const reportName = getOptionsEndpointReportName(optionsEndpoint);
+	if (!reportName) {
+		return [];
+	}
+
+	const parsedOptionsEndpoint = new URL(
+		optionsEndpoint,
+		"https://placeholder.local",
+	);
+	const search = parsedOptionsEndpoint.searchParams.toString();
+	const endpoint = BFF_ROUTES.runReport(reportName);
+	const response = await fetch(
+		search ? `${endpoint}?${search}` : `${endpoint}?parameterType=true`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch report parameter options");
+	}
+
+	const payload = await response.json();
+	return parseDynamicOptionsPayload(payload);
+}
+
 function ReportsTableSkeleton() {
 	return (
 		<div className="space-y-2">
@@ -787,7 +1044,7 @@ export default function ReportsPage() {
 		});
 	}, [applicableReports, categoryFilter, searchTerm]);
 
-	const selectedParameterFields = useMemo(
+	const selectedParameterMetadata = useMemo(
 		() =>
 			selectedReport
 				? extractReportParameters(
@@ -797,9 +1054,92 @@ export default function ReportsPage() {
 				: [],
 		[selectedReport, reportTemplateQuery.data],
 	);
-	const requiredParameterCount = useMemo(
-		() => selectedParameterFields.filter((field) => field.required).length,
+	const parameterOptionFields = useMemo(
+		() =>
+			selectedParameterMetadata.filter(
+				(field) =>
+					field.source === "user" &&
+					field.widget === "dropdown" &&
+					field.options.length === 0 &&
+					Boolean(field.optionsEndpoint),
+			),
+		[selectedParameterMetadata],
+	);
+	const parameterOptionQueries = useQueries({
+		queries: parameterOptionFields.map((field) => ({
+			queryKey: [
+				"report-parameter-options",
+				tenantId,
+				selectedReport?.reportName,
+				field.optionsEndpoint,
+			],
+			queryFn: () =>
+				fetchReportParameterOptions(tenantId, field.optionsEndpoint || ""),
+			enabled:
+				isRunnerOpen &&
+				Boolean(selectedReport?.reportName) &&
+				Boolean(field.optionsEndpoint),
+			staleTime: 5 * 60 * 1000,
+		})),
+	});
+	const parameterOptionStateByKey = useMemo(() => {
+		const state = new Map<
+			string,
+			{
+				isLoading: boolean;
+				errorMessage?: string;
+				options: ReportParameterOption[];
+			}
+		>();
+
+		parameterOptionFields.forEach((field, index) => {
+			const query = parameterOptionQueries[index];
+			state.set(field.queryKey, {
+				isLoading: query?.isLoading === true,
+				errorMessage:
+					query?.error instanceof Error
+						? query.error.message
+						: query?.error
+							? "Could not load options from backend."
+							: undefined,
+				options: query?.data || [],
+			});
+		});
+
+		return state;
+	}, [parameterOptionFields, parameterOptionQueries]);
+	const selectedParameterFields = useMemo(
+		() =>
+			selectedParameterMetadata.map((field) => {
+				const optionState = parameterOptionStateByKey.get(field.queryKey);
+				if (!optionState?.options.length) {
+					return field;
+				}
+
+				return {
+					...field,
+					options: mergeParameterOptions(optionState.options, field.options),
+				};
+			}),
+		[selectedParameterMetadata, parameterOptionStateByKey],
+	);
+	const visibleParameterFields = useMemo(
+		() =>
+			selectedParameterFields.filter(
+				(field) => field.source === "user" && field.widget !== "hidden",
+			),
 		[selectedParameterFields],
+	);
+	const systemParameterFields = useMemo(
+		() =>
+			selectedParameterFields.filter(
+				(field) => field.source !== "user" || field.widget === "hidden",
+			),
+		[selectedParameterFields],
+	);
+	const requiredParameterCount = useMemo(
+		() => visibleParameterFields.filter((field) => field.required).length,
+		[visibleParameterFields],
 	);
 	const additionalParameterEntries = useMemo(
 		() => parseAdditionalParams(additionalParams),
@@ -808,8 +1148,10 @@ export default function ReportsPage() {
 	const missingRequiredFields = useMemo(() => {
 		const providedParameterKeys = new Set<string>();
 
-		for (const field of selectedParameterFields) {
-			if ((parameterValues[field.queryKey] || "").trim()) {
+		for (const field of visibleParameterFields) {
+			if (
+				serializeParameterValue(field, parameterValues[field.queryKey] || "")
+			) {
 				providedParameterKeys.add(field.queryKey);
 			}
 		}
@@ -820,10 +1162,10 @@ export default function ReportsPage() {
 			}
 		}
 
-		return selectedParameterFields.filter(
+		return visibleParameterFields.filter(
 			(field) => field.required && !providedParameterKeys.has(field.queryKey),
 		);
-	}, [additionalParameterEntries, parameterValues, selectedParameterFields]);
+	}, [additionalParameterEntries, parameterValues, visibleParameterFields]);
 	const missingRequiredByKey = useMemo(
 		() => new Set(missingRequiredFields.map((field) => field.queryKey)),
 		[missingRequiredFields],
@@ -892,8 +1234,11 @@ export default function ReportsPage() {
 
 				const params = new URLSearchParams();
 
-				for (const field of selectedParameterFields) {
-					const value = (parameterValues[field.queryKey] || "").trim();
+				for (const field of visibleParameterFields) {
+					const value = serializeParameterValue(
+						field,
+						parameterValues[field.queryKey] || "",
+					);
 					if (value) {
 						params.append(field.queryKey, value);
 					}
@@ -1007,6 +1352,9 @@ export default function ReportsPage() {
 				const parameters = extractReportParameters(
 					report,
 					reportTemplateQuery.data || undefined,
+				).filter(
+					(parameter) =>
+						parameter.source === "user" && parameter.widget !== "hidden",
 				);
 				const requiredCount = parameters.filter(
 					(parameter) => parameter.required,
@@ -1050,7 +1398,14 @@ export default function ReportsPage() {
 						);
 						setSelectedReport(report);
 						setParameterValues(
-							Object.fromEntries(fields.map((field) => [field.queryKey, ""])),
+							Object.fromEntries(
+								fields
+									.filter(
+										(field) =>
+											field.source === "user" && field.widget !== "hidden",
+									)
+									.map((field) => [field.queryKey, ""]),
+							),
 						);
 						setAdditionalParams("");
 						setSelectedOutput("JSON");
@@ -1240,13 +1595,24 @@ export default function ReportsPage() {
 											additional query parameters if the backend expects inputs.
 										</p>
 									) : (
-										<p>
-											{requiredParameterCount.toLocaleString()} required and{" "}
-											{(
-												selectedParameterFields.length - requiredParameterCount
-											).toLocaleString()}{" "}
-											optional parameters from report metadata.
-										</p>
+										<div className="space-y-1">
+											<p>
+												{requiredParameterCount.toLocaleString()} required and{" "}
+												{(
+													visibleParameterFields.length - requiredParameterCount
+												).toLocaleString()}{" "}
+												optional user inputs resolved from backend metadata and
+												the local report catalog.
+											</p>
+											{systemParameterFields.length > 0 && (
+												<p>
+													{systemParameterFields.length.toLocaleString()} system
+													parameter
+													{systemParameterFields.length === 1 ? "" : "s"} are
+													backend-supplied and do not need user input.
+												</p>
+											)}
+										</div>
 									)}
 								</div>
 								{reportTemplateQuery.isLoading && (
@@ -1254,8 +1620,8 @@ export default function ReportsPage() {
 								)}
 								{reportTemplateQuery.error && (
 									<p className="text-xs text-muted-foreground">
-										Could not load parameter catalog metadata. Showing report
-										parameters only.
+										Could not load backend parameter template metadata. Showing
+										report metadata plus local catalog mappings.
 									</p>
 								)}
 
@@ -1308,7 +1674,7 @@ export default function ReportsPage() {
 								</div>
 
 								<div className="space-y-4">
-									{selectedParameterFields.map((field) => {
+									{visibleParameterFields.map((field) => {
 										const fieldHasClientMissingError =
 											missingRequiredByKey.has(field.queryKey) &&
 											Boolean(runReportError);
@@ -1316,6 +1682,13 @@ export default function ReportsPage() {
 											field,
 											runReportFieldErrors,
 										);
+										const optionState = parameterOptionStateByKey.get(
+											field.queryKey,
+										);
+										const isLoadingOptions = optionState?.isLoading === true;
+										const optionErrorMessage = optionState?.errorMessage;
+										const hasResolvedOptions = field.options.length > 0;
+										const shouldRenderSelect = field.widget === "dropdown";
 
 										return (
 											<div key={field.queryKey} className="space-y-2">
@@ -1323,7 +1696,7 @@ export default function ReportsPage() {
 													{field.label}
 													{field.required ? " *" : ""}
 												</Label>
-												{field.options.length > 0 ? (
+												{shouldRenderSelect && hasResolvedOptions ? (
 													<Select
 														value={
 															parameterValues[field.queryKey] ||
@@ -1357,10 +1730,23 @@ export default function ReportsPage() {
 															))}
 														</SelectContent>
 													</Select>
+												) : shouldRenderSelect && isLoadingOptions ? (
+													<div className="space-y-2">
+														<Select disabled={true}>
+															<SelectTrigger id={`param-${field.queryKey}`}>
+																<SelectValue placeholder="Loading options..." />
+															</SelectTrigger>
+														</Select>
+														<Skeleton className="h-4 w-32" />
+													</div>
 												) : (
 													<Input
 														id={`param-${field.queryKey}`}
-														type={getParameterInputType(field.dataType)}
+														type={
+															field.widget === "datepicker"
+																? "date"
+																: getParameterInputType(field.dataType)
+														}
 														value={parameterValues[field.queryKey] || ""}
 														onChange={(event) => {
 															setParameterValues((previous) => ({
@@ -1369,8 +1755,17 @@ export default function ReportsPage() {
 															}));
 															runReportMutation.reset();
 														}}
-														placeholder={`${field.queryKey} (${field.dataType})`}
+														placeholder={
+															shouldRenderSelect && !hasResolvedOptions
+																? `Enter ${field.label.toLowerCase()}`
+																: `${field.queryKey} (${field.dataType})`
+														}
 													/>
+												)}
+												{!fieldErrorMessage && optionErrorMessage && (
+													<p className="text-xs text-muted-foreground">
+														{optionErrorMessage} Enter a raw value instead.
+													</p>
 												)}
 												{fieldErrorMessage && (
 													<p className="text-xs text-destructive">
@@ -1385,6 +1780,11 @@ export default function ReportsPage() {
 												{field.key !== field.queryKey && (
 													<p className="text-xs text-muted-foreground">
 														Source key: {field.key}
+													</p>
+												)}
+												{field.format && (
+													<p className="text-xs text-muted-foreground">
+														Backend format: {field.format}
 													</p>
 												)}
 											</div>

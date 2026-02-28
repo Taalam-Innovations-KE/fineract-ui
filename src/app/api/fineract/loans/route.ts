@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
@@ -10,7 +11,6 @@ import type {
 	PostLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { validateTopupRules } from "@/lib/fineract/loan-rule-validations";
-import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 type PostLoansRequestExtended = PostLoansRequest & {
@@ -130,7 +130,10 @@ export async function POST(request: NextRequest) {
 			});
 
 			if (topupIssues.length > 0) {
-				return validationErrorResponse("Top-up validation failed.", topupIssues);
+				return validationErrorResponse(
+					"Top-up validation failed.",
+					topupIssues,
+				);
 			}
 		}
 

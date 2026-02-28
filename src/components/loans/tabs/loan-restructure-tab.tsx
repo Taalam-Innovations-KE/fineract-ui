@@ -228,9 +228,12 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 	const queryClient = useQueryClient();
 	const [isCreateSheetOpen, setIsCreateSheetOpen] = useState(false);
 	const [previewResult, setPreviewResult] = useState<unknown | null>(null);
-	const [createError, setCreateError] = useState<SubmitActionError | null>(null);
-	const [decisionError, setDecisionError] =
-		useState<SubmitActionError | null>(null);
+	const [createError, setCreateError] = useState<SubmitActionError | null>(
+		null,
+	);
+	const [decisionError, setDecisionError] = useState<SubmitActionError | null>(
+		null,
+	);
 	const [decisionContext, setDecisionContext] = useState<{
 		open: boolean;
 		request: GetLoanRescheduleRequestResponse | null;
@@ -315,7 +318,7 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 			}
 			return response.json();
 		},
-			onSuccess: () => {
+		onSuccess: () => {
 			setCreateError(null);
 			setPreviewResult(null);
 			setIsCreateSheetOpen(false);
@@ -328,9 +331,9 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 				dateFormat: "dd MMMM yyyy",
 				locale: "en",
 			});
-				void rescheduleRequestsQuery.refetch();
-				void queryClient.invalidateQueries({ queryKey: ["loan", tenantId] });
-			},
+			void rescheduleRequestsQuery.refetch();
+			void queryClient.invalidateQueries({ queryKey: ["loan", tenantId] });
+		},
 		onError: (error) => {
 			setCreateError(
 				toSubmitActionError(error, {
@@ -403,7 +406,7 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 			}
 			return response.json();
 		},
-			onSuccess: () => {
+		onSuccess: () => {
 			setDecisionError(null);
 			setDecisionContext({ open: false, request: null, action: "approve" });
 			decisionForm.reset({
@@ -412,9 +415,9 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 				dateFormat: "dd MMMM yyyy",
 				locale: "en",
 			});
-				void rescheduleRequestsQuery.refetch();
-				void queryClient.invalidateQueries({ queryKey: ["loan", tenantId] });
-			},
+			void rescheduleRequestsQuery.refetch();
+			void queryClient.invalidateQueries({ queryKey: ["loan", tenantId] });
+		},
 		onError: (error, variables) => {
 			const scheduleId = decisionContext.request?.id;
 			setDecisionError(
@@ -540,26 +543,27 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 						<div>
 							<CardTitle>Loan Restructure Requests</CardTitle>
 							<CardDescription>
-								Create, preview, and action loan reschedule requests for this loan.
+								Create, preview, and action loan reschedule requests for this
+								loan.
 							</CardDescription>
 						</div>
 						<Button type="button" onClick={() => setIsCreateSheetOpen(true)}>
 							New Restructure Request
 						</Button>
 					</CardHeader>
-						<CardContent>
-							{rescheduleRequestsQuery.isLoading ? (
-								<RestructureTableSkeleton />
-							) : rescheduleRequestsQuery.error ? (
-								<Alert variant="destructive">
-									<AlertTitle>Unable to load restructure requests</AlertTitle>
-									<AlertDescription>
-										{rescheduleRequestsQuery.error.message ||
-											"Failed to load restructure requests."}
-									</AlertDescription>
-								</Alert>
-							) : (
-								<DataTable
+					<CardContent>
+						{rescheduleRequestsQuery.isLoading ? (
+							<RestructureTableSkeleton />
+						) : rescheduleRequestsQuery.error ? (
+							<Alert variant="destructive">
+								<AlertTitle>Unable to load restructure requests</AlertTitle>
+								<AlertDescription>
+									{rescheduleRequestsQuery.error.message ||
+										"Failed to load restructure requests."}
+								</AlertDescription>
+							</Alert>
+						) : (
+							<DataTable
 								data={rescheduleRequests}
 								columns={columns}
 								getRowId={(item) => String(item.id || "")}
@@ -573,24 +577,27 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 
 			<Sheet
 				open={isCreateSheetOpen}
-					onOpenChange={(open) => {
-						if (!open) {
-							setPreviewResult(null);
-							setCreateError(null);
-							createForm.reset({
-								loanId,
-								submittedOnDate: getTodayDateInputValue(),
-								rescheduleFromDate: getTodayDateInputValue(),
-								rescheduleReasonComment: "",
-								recalculateInterest: false,
-								dateFormat: "dd MMMM yyyy",
-								locale: "en",
-							});
-						}
-						setIsCreateSheetOpen(open);
-					}}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPreviewResult(null);
+						setCreateError(null);
+						createForm.reset({
+							loanId,
+							submittedOnDate: getTodayDateInputValue(),
+							rescheduleFromDate: getTodayDateInputValue(),
+							rescheduleReasonComment: "",
+							recalculateInterest: false,
+							dateFormat: "dd MMMM yyyy",
+							locale: "en",
+						});
+					}
+					setIsCreateSheetOpen(open);
+				}}
 			>
-				<SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+				<SheetContent
+					side="right"
+					className="w-full overflow-y-auto sm:max-w-xl"
+				>
 					<SheetHeader>
 						<SheetTitle>Create Restructure Request</SheetTitle>
 						<SheetDescription>
@@ -648,7 +655,11 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 											<FormItem>
 												<FormLabel>Adjusted Due Date</FormLabel>
 												<FormControl>
-													<Input type="date" {...field} value={field.value || ""} />
+													<Input
+														type="date"
+														{...field}
+														value={field.value || ""}
+													/>
 												</FormControl>
 												<FormMessage />
 											</FormItem>
@@ -792,7 +803,8 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 									render={({ field }) => (
 										<FormItem>
 											<FormLabel>
-												Reschedule Reason <span className="text-destructive">*</span>
+												Reschedule Reason{" "}
+												<span className="text-destructive">*</span>
 											</FormLabel>
 											<Select
 												value={field.value?.toString() || ""}
@@ -807,7 +819,10 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 												</FormControl>
 												<SelectContent>
 													{rescheduleReasonOptions.map((reason) => (
-														<SelectItem key={reason.id} value={String(reason.id)}>
+														<SelectItem
+															key={reason.id}
+															value={String(reason.id)}
+														>
 															{reason.name || `Reason #${reason.id}`}
 														</SelectItem>
 													))}
@@ -818,25 +833,25 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 									)}
 								/>
 
-							<FormField
-								control={createForm.control}
-								name="recalculateInterest"
-								render={({ field }) => (
-									<FormItem className="space-y-2">
-										<div className="flex items-center gap-2">
-											<FormControl>
-												<Checkbox
-													checked={Boolean(field.value)}
-													onCheckedChange={(checked) =>
-														field.onChange(Boolean(checked))
-													}
-												/>
-											</FormControl>
-											<Label>Recalculate Interest</Label>
-										</div>
+								<FormField
+									control={createForm.control}
+									name="recalculateInterest"
+									render={({ field }) => (
+										<FormItem className="space-y-2">
+											<div className="flex items-center gap-2">
+												<FormControl>
+													<Checkbox
+														checked={Boolean(field.value)}
+														onCheckedChange={(checked) =>
+															field.onChange(Boolean(checked))
+														}
+													/>
+												</FormControl>
+												<Label>Recalculate Interest</Label>
+											</div>
 											<p className="text-xs text-muted-foreground">
-												Stored on request by Fineract, but current backend approval
-												logic may not branch on this flag.
+												Stored on request by Fineract, but current backend
+												approval logic may not branch on this flag.
 											</p>
 											<FormMessage />
 										</FormItem>
@@ -913,7 +928,11 @@ export function LoanRestructureTab({ loanId }: LoanRestructureTabProps) {
 				onOpenChange={(open) => {
 					if (!open) {
 						setDecisionError(null);
-						setDecisionContext({ open: false, request: null, action: "approve" });
+						setDecisionContext({
+							open: false,
+							request: null,
+							action: "approve",
+						});
 					}
 				}}
 			>

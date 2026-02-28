@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
@@ -10,7 +11,6 @@ import type {
 	PostLoansLoanIdRequest,
 	PutLoansLoanIdRequest,
 } from "@/lib/fineract/generated/types.gen";
-import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import { validateTopupRules } from "@/lib/fineract/loan-rule-validations";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
@@ -101,89 +101,95 @@ export async function PUT(
 			return NextResponse.json(transitionResult);
 		}
 
-			// Loan application updates are only valid while pending approval.
-			const loanStatus = (await fineractFetch(
-				`${FINERACT_ENDPOINTS.loans}/${loanId}?fields=status`,
-				{
-					method: "GET",
-					tenantId,
+		// Loan application updates are only valid while pending approval.
+		const loanStatus = (await fineractFetch(
+			`${FINERACT_ENDPOINTS.loans}/${loanId}?fields=status`,
+			{
+				method: "GET",
+				tenantId,
+			},
+		)) as LoanStatusSnapshot;
+		if (!loanStatus.status?.pendingApproval) {
+			const transitionError = normalizeApiError({
+				status: 409,
+				data: {
+					code: "LOAN_APPLICATION_EDIT_NOT_ALLOWED",
+					message:
+						"Loan application can only be edited while pending approval.",
 				},
-			)) as LoanStatusSnapshot;
-			if (!loanStatus.status?.pendingApproval) {
-				const transitionError = normalizeApiError({
-					status: 409,
-					data: {
-						code: "LOAN_APPLICATION_EDIT_NOT_ALLOWED",
-						message:
-							"Loan application can only be edited while pending approval.",
-					},
-				});
-				return NextResponse.json(transitionError, {
-					status: transitionError.httpStatus || 409,
-				});
-			}
+			});
+			return NextResponse.json(transitionError, {
+				status: transitionError.httpStatus || 409,
+			});
+		}
 
-			const loanUpdatePayload = body as PutLoansLoanIdRequest;
-			if (
-				loanUpdatePayload.isTopup ||
-				loanUpdatePayload.loanIdToClose !== undefined
-			) {
-				const newLoanProduct =
-					typeof loanUpdatePayload.productId === "number"
-						? await fineractFetch<GetLoanProductsProductIdResponse>(
-								`${FINERACT_ENDPOINTS.loanProducts}/${loanUpdatePayload.productId}`,
-								{
-									method: "GET",
-									tenantId,
-								},
-							)
-						: null;
-
-				let loanToClose: GetLoansLoanIdResponse | null = null;
-				if (
-					typeof loanUpdatePayload.loanIdToClose === "number" &&
-					loanUpdatePayload.loanIdToClose > 0
-				) {
-					try {
-						loanToClose = await fineractFetch<GetLoansLoanIdResponse>(
-							`${FINERACT_ENDPOINTS.loans}/${loanUpdatePayload.loanIdToClose}?associations=transactions`,
+		const loanUpdatePayload = body as PutLoansLoanIdRequest;
+		if (
+			loanUpdatePayload.isTopup ||
+			loanUpdatePayload.loanIdToClose !== undefined
+		) {
+			const newLoanProduct =
+				typeof loanUpdatePayload.productId === "number"
+					? await fineractFetch<GetLoanProductsProductIdResponse>(
+							`${FINERACT_ENDPOINTS.loanProducts}/${loanUpdatePayload.productId}`,
 							{
 								method: "GET",
 								tenantId,
 							},
-						);
-					} catch {
-						loanToClose = null;
-					}
-				}
+						)
+					: null;
 
-				const loanToCloseProduct =
-					typeof loanToClose?.loanProductId === "number"
-						? await fineractFetch<GetLoanProductsProductIdResponse>(
-								`${FINERACT_ENDPOINTS.loanProducts}/${loanToClose.loanProductId}`,
-								{
-									method: "GET",
-									tenantId,
-								},
-							)
-						: null;
-
-				const topupIssues = validateTopupRules({
-					payload: loanUpdatePayload,
-					newLoanProduct,
-					loanToClose,
-					loanToCloseProduct,
-				});
-				if (topupIssues.length > 0) {
-					return validationErrorResponse("Top-up validation failed.", topupIssues);
+			let loanToClose: GetLoansLoanIdResponse | null = null;
+			if (
+				typeof loanUpdatePayload.loanIdToClose === "number" &&
+				loanUpdatePayload.loanIdToClose > 0
+			) {
+				try {
+					loanToClose = await fineractFetch<GetLoansLoanIdResponse>(
+						`${FINERACT_ENDPOINTS.loans}/${loanUpdatePayload.loanIdToClose}?associations=transactions`,
+						{
+							method: "GET",
+							tenantId,
+						},
+					);
+				} catch {
+					loanToClose = null;
 				}
 			}
 
-			const result = await fineractFetch(`${FINERACT_ENDPOINTS.loans}/${loanId}`, {
+			const loanToCloseProduct =
+				typeof loanToClose?.loanProductId === "number"
+					? await fineractFetch<GetLoanProductsProductIdResponse>(
+							`${FINERACT_ENDPOINTS.loanProducts}/${loanToClose.loanProductId}`,
+							{
+								method: "GET",
+								tenantId,
+							},
+						)
+					: null;
+
+			const topupIssues = validateTopupRules({
+				payload: loanUpdatePayload,
+				newLoanProduct,
+				loanToClose,
+				loanToCloseProduct,
+			});
+			if (topupIssues.length > 0) {
+				return validationErrorResponse(
+					"Top-up validation failed.",
+					topupIssues,
+				);
+			}
+		}
+
+		const result = await fineractFetch(
+			`${FINERACT_ENDPOINTS.loans}/${loanId}`,
+			{
 				method: "PUT",
 				body,
 				tenantId,
-			});
+			},
+		);
 
 		return NextResponse.json(result);
 	} catch (error) {

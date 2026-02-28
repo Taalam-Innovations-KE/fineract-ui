@@ -1276,7 +1276,9 @@ export default function ReportsPage() {
 													{executionResult.kind === "structured"
 														? executionResult.rawText ||
 															JSON.stringify(executionResult.data, null, 2)
-														: executionResult.text}
+														: executionResult.kind === "text"
+															? executionResult.text
+															: "Binary file response ready for download."}
 												</pre>
 											)}
 										</CardContent>

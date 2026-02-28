@@ -334,8 +334,8 @@ export function LoanAdvancedStep({
 									<div className="space-y-1 leading-none">
 										<FormLabel>Use as top-up loan</FormLabel>
 										<FormDescription>
-											This application can close an active client loan and disburse
-											the net remainder.
+											This application can close an active client loan and
+											disburse the net remainder.
 										</FormDescription>
 									</div>
 								</FormItem>
@@ -369,8 +369,8 @@ export function LoanAdvancedStep({
 										<Alert variant="warning">
 											<AlertTitle>No eligible active loans found</AlertTitle>
 											<AlertDescription>
-												No active loan matching this client and product currency is
-												available for top-up.
+												No active loan matching this client and product currency
+												is available for top-up.
 											</AlertDescription>
 										</Alert>
 									)}
@@ -382,7 +382,8 @@ export function LoanAdvancedStep({
 										render={({ field }) => (
 											<FormItem>
 												<FormLabel>
-													Loan to Close <span className="text-destructive">*</span>
+													Loan to Close{" "}
+													<span className="text-destructive">*</span>
 												</FormLabel>
 												<Select
 													value={field.value?.toString() || ""}
@@ -403,44 +404,50 @@ export function LoanAdvancedStep({
 																currency;
 															const outstanding = getOutstandingAmount(loan);
 															return (
-																<SelectItem key={loan.id} value={String(loan.id)}>
-																	{loan.accountNo || `Loan #${loan.id}`} ({formatCurrency(
-																		outstanding,
-																		displayCurrency,
-																	)})
+																<SelectItem
+																	key={loan.id}
+																	value={String(loan.id)}
+																>
+																	{loan.accountNo || `Loan #${loan.id}`} (
+																	{formatCurrency(outstanding, displayCurrency)}
+																	)
 																</SelectItem>
 															);
 														})}
 													</SelectContent>
 												</Select>
-											<FormDescription>
-												New principal ({formatCurrency(watchPrincipal, currency)})
-												must cover the selected loan outstanding balance.
-											</FormDescription>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
-							)}
-							{selectedTopupLoan &&
-								watchPrincipal !== undefined &&
-								getOutstandingAmount(selectedTopupLoan) > watchPrincipal && (
-									<Alert variant="warning">
-										<AlertTitle>Principal is lower than outstanding</AlertTitle>
-										<AlertDescription>
-											Selected loan outstanding{" "}
-											{formatCurrency(
-												getOutstandingAmount(selectedTopupLoan),
-												currency,
-											)}{" "}
-											exceeds new principal {formatCurrency(watchPrincipal, currency)}
-											. Fineract will reject this top-up request.
-										</AlertDescription>
-									</Alert>
+												<FormDescription>
+													New principal (
+													{formatCurrency(watchPrincipal, currency)}) must cover
+													the selected loan outstanding balance.
+												</FormDescription>
+												<FormMessage />
+											</FormItem>
+										)}
+									/>
 								)}
-						</div>
-					)}
-				</div>
+								{selectedTopupLoan &&
+									watchPrincipal !== undefined &&
+									getOutstandingAmount(selectedTopupLoan) > watchPrincipal && (
+										<Alert variant="warning">
+											<AlertTitle>
+												Principal is lower than outstanding
+											</AlertTitle>
+											<AlertDescription>
+												Selected loan outstanding{" "}
+												{formatCurrency(
+													getOutstandingAmount(selectedTopupLoan),
+													currency,
+												)}{" "}
+												exceeds new principal{" "}
+												{formatCurrency(watchPrincipal, currency)}. Fineract
+												will reject this top-up request.
+											</AlertDescription>
+										</Alert>
+									)}
+							</div>
+						)}
+					</div>
 				)}
 			</CardContent>
 		</Card>

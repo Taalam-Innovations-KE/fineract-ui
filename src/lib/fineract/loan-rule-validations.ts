@@ -1,4 +1,5 @@
 import { isValid, parse, parseISO, startOfDay } from "date-fns";
+import type { ValidationFieldIssue } from "@/lib/fineract/api-error-response";
 import type {
 	GetLoanProductsProductIdResponse,
 	GetLoanRescheduleRequestResponse,
@@ -8,7 +9,6 @@ import type {
 	PostLoansDisbursementData,
 	PostUpdateRescheduleLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
-import type { ValidationFieldIssue } from "@/lib/fineract/api-error-response";
 
 const FINERACT_DATE_FORMAT = "dd MMMM yyyy";
 
@@ -130,7 +130,9 @@ function readLoanDisbursedOnDate(loan: GetLoansLoanIdResponse): Date | null {
 	]);
 }
 
-function readLoanLastUserTransactionDate(loan: GetLoansLoanIdResponse): Date | null {
+function readLoanLastUserTransactionDate(
+	loan: GetLoansLoanIdResponse,
+): Date | null {
 	const lastTxn = (loan.transactions || [])
 		.filter((txn) => {
 			if (txn.manuallyReversed) return false;
@@ -156,7 +158,9 @@ function readLoanOutstandingAmount(loan: GetLoansLoanIdResponse): number {
 	);
 }
 
-function readFirstDisbursalAmount(payload: TopupLoanPayload): number | undefined {
+function readFirstDisbursalAmount(
+	payload: TopupLoanPayload,
+): number | undefined {
 	const firstTranchePrincipal = payload.disbursementData
 		?.map((item) => item.principal)
 		.find((principal): principal is number => typeof principal === "number");
@@ -164,7 +168,9 @@ function readFirstDisbursalAmount(payload: TopupLoanPayload): number | undefined
 	return firstTranchePrincipal ?? payload.principal;
 }
 
-function readInstallmentOutstanding(installment: GetLoansLoanIdRepaymentPeriod): number {
+function readInstallmentOutstanding(
+	installment: GetLoansLoanIdRepaymentPeriod,
+): number {
 	return (
 		installment.totalOutstandingForPeriod ??
 		(installment.principalOutstanding || 0) +
@@ -326,7 +332,10 @@ export function validateTopupRules(
 		});
 	}
 
-	if (typeof firstDisbursalAmount === "number" && firstDisbursalAmount - outstanding < 0) {
+	if (
+		typeof firstDisbursalAmount === "number" &&
+		firstDisbursalAmount - outstanding < 0
+	) {
 		issues.push({
 			field: "principal",
 			message: "Net disbursal cannot be negative for a top-up loan.",
@@ -404,7 +413,10 @@ export function validateRescheduleCreateRules(
 	}
 
 	if (rescheduleFromDate) {
-		const anchorInstallment = findInstallmentByDueDate(periods, rescheduleFromDate);
+		const anchorInstallment = findInstallmentByDueDate(
+			periods,
+			rescheduleFromDate,
+		);
 		if (!anchorInstallment) {
 			issues.push({
 				field: "rescheduleFromDate",
@@ -433,7 +445,8 @@ export function validateRescheduleCreateRules(
 		if (!anchorByInstallment) {
 			issues.push({
 				field: "rescheduleFromInstallment",
-				message: "rescheduleFromInstallment must reference an existing installment.",
+				message:
+					"rescheduleFromInstallment must reference an existing installment.",
 				code: "RESCHEDULE_ANCHOR_INSTALLMENT_NUMBER_NOT_FOUND",
 			});
 		} else if (readInstallmentOutstanding(anchorByInstallment) <= 0) {
@@ -762,7 +775,8 @@ export function validateRescheduleDecisionRules(
 		if (loan?.chargedOff) {
 			issues.push({
 				field: "loanId",
-				message: "Charged-off loans cannot be approved/rejected for restructure.",
+				message:
+					"Charged-off loans cannot be approved/rejected for restructure.",
 				code: "RESCHEDULE_LOAN_CHARGED_OFF_AT_DECISION",
 			});
 		}

@@ -6,15 +6,11 @@ import {
 	ArrowLeft,
 	Banknote,
 	CheckCircle,
-	ChevronDown,
 	DollarSign,
-	Download,
-	FileSpreadsheet,
 	FileText,
 	GitBranch,
 	History,
 	Info,
-	Loader2,
 	Package,
 	Pencil,
 	Percent,
@@ -35,14 +31,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -82,18 +70,6 @@ const INITIAL_MOUNTED_TABS: Record<TabValue, boolean> = {
 	guarantors: false,
 	documents: false,
 	audit: false,
-};
-
-type LoanDownloadType = "schedule" | "statement";
-type LoanDownloadFormat = "pdf" | "xlsx" | "csv";
-
-const LOAN_REPORT_NAMES: Record<LoanDownloadType, string> = {
-	schedule:
-		process.env.NEXT_PUBLIC_LOAN_SCHEDULE_REPORT_NAME ||
-		"Loan Repayment Schedule",
-	statement:
-		process.env.NEXT_PUBLIC_LOAN_STATEMENT_REPORT_NAME ||
-		"Loan Transaction Statement",
 };
 
 function LoanTabPanelSkeleton() {
@@ -215,12 +191,6 @@ const LoanApplicationEditSheet = dynamic(
 	},
 );
 
-function getOutputType(format: LoanDownloadFormat): "PDF" | "XLSX" | "CSV" {
-	if (format === "pdf") return "PDF";
-	if (format === "xlsx") return "XLSX";
-	return "CSV";
-}
-
 type LoanDetailAction =
 	| "edit"
 	| "approve"
@@ -269,8 +239,6 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 	const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
 	const [transactionCommand, setTransactionCommand] =
 		useState<LoanTransactionCommand>("repayment");
-
-	const [isDownloading, setIsDownloading] = useState(false);
 
 	// Base loan query (no associations for fast initial load)
 	const loanQuery = useQuery({
@@ -366,6 +334,10 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 	const currency = loan?.currency?.displaySymbol || "KES";
 	const availableActions = getAvailableActions(loan);
 	const isOverpaid = loan?.status?.overpaid === true;
+	const isDisbursed =
+		loan?.status?.active === true ||
+		loan?.status?.overpaid === true ||
+		loan?.status?.closedObligationsMet === true;
 	const isSettledLoan =
 		loan?.status?.overpaid === true ||
 		loan?.status?.closedObligationsMet === true;
@@ -412,55 +384,6 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		setTransactionSheetOpen(true);
 	};
 
-	const handleDownloadExport = async (
-		exportType: LoanDownloadType,
-		format: LoanDownloadFormat,
-	) => {
-		if (!loan) return;
-
-		setIsDownloading(true);
-		try {
-			const reportName = LOAN_REPORT_NAMES[exportType];
-			const params = new URLSearchParams({
-				"output-type": getOutputType(format),
-				R_loanId: loanId,
-			});
-
-			if (format === "csv") {
-				params.set("exportCSV", "true");
-			}
-
-			const url = `${BFF_ROUTES.runReport(reportName)}?${params.toString()}`;
-
-			const response = await fetch(url, {
-				headers: { "fineract-platform-tenantid": tenantId },
-			});
-
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(
-					error.message || error.error || "Failed to download report",
-				);
-			}
-
-			// Get the blob and download
-			const blob = await response.blob();
-			const downloadUrl = window.URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = downloadUrl;
-			a.download = `Loan_${loan.accountNo || loanId}_${exportType}_${new Date().toISOString().split("T")[0]}.${format}`;
-			document.body.appendChild(a);
-			a.click();
-			window.URL.revokeObjectURL(downloadUrl);
-			document.body.removeChild(a);
-		} catch (error) {
-			console.error("Download failed:", error);
-			// Could add toast notification here
-		} finally {
-			setIsDownloading(false);
-		}
-	};
-
 	// Calculate total outstanding
 	const totalOutstanding =
 		(summary?.principalOutstanding || 0) +
@@ -473,12 +396,6 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 		loan,
 		transactionsQuery.data?.transactions,
 	);
-
-	// Check if loan is disbursed
-	const isDisbursed =
-		loan?.status?.active ||
-		loan?.status?.closedObligationsMet ||
-		loan?.status?.overpaid;
 
 	if (loanQuery.isLoading) {
 		return (
@@ -493,64 +410,6 @@ export default function LoanDetailPage({ params }: LoanDetailPageProps) {
 
 	const headerActions = (
 		<div className="flex items-center gap-2">
-			{/* Download Statement Dropdown */}
-			{isDisbursed && (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="outline" disabled={isDownloading}>
-							{isDownloading ? (
-								<Loader2 className="mr-2 h-4 w-4" />
-							) : (
-								<Download className="w-4 h-4 mr-2" />
-							)}
-							Download
-							<ChevronDown className="w-4 h-4 ml-2" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-56">
-						<DropdownMenuLabel>Loan Schedule</DropdownMenuLabel>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("schedule", "pdf")}
-						>
-							<FileText className="w-4 h-4 mr-2" />
-							Download as PDF
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("schedule", "xlsx")}
-						>
-							<FileSpreadsheet className="w-4 h-4 mr-2" />
-							Download as Excel
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("schedule", "csv")}
-						>
-							<FileText className="w-4 h-4 mr-2" />
-							Download as CSV
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuLabel>Transaction Statement</DropdownMenuLabel>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("statement", "pdf")}
-						>
-							<FileText className="w-4 h-4 mr-2" />
-							Download as PDF
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("statement", "xlsx")}
-						>
-							<FileSpreadsheet className="w-4 h-4 mr-2" />
-							Download as Excel
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={() => handleDownloadExport("statement", "csv")}
-						>
-							<FileText className="w-4 h-4 mr-2" />
-							Download as CSV
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			)}
-
 			{loan?.status?.pendingApproval && (
 				<Button variant="outline" onClick={() => setEditSheetOpen(true)}>
 					<Pencil className="w-4 h-4 mr-2" />

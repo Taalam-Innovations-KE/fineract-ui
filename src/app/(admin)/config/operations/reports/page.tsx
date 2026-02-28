@@ -9,7 +9,6 @@ import {
 import { Download, FileBarChart2, Play, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
-import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,8 +19,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,13 +29,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -47,15 +38,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type {
-	GetReportsResponse,
-	GetReportsTemplateResponse,
-	GetRolesResponse,
-	ReportExportType,
-	RunReportsResponse,
-} from "@/lib/fineract/generated/types.gen";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	discoverTablePentahoPairs,
 	normalizeReportName,
@@ -262,67 +245,21 @@ function readArrayField(
 	return [];
 }
 
-function readBooleanField(
-	record: Record<string, unknown>,
-	keys: readonly string[],
-): boolean {
-	for (const key of keys) {
-		const value = record[key];
-		if (typeof value === "boolean") {
-			return value;
-		}
-		if (typeof value === "string") {
-			const normalized = value.trim().toLowerCase();
-			if (normalized === "true") return true;
-			if (normalized === "false") return false;
-		}
-		if (typeof value === "number") {
-			if (value === 1) return true;
-			if (value === 0) return false;
-		}
-	}
-	return false;
+type VisibilityFilter = "runnable" | "all";
+
+function formatDateInput(date: Date) {
+	return date.toISOString().split("T")[0] || "";
 }
 
-function toTitleLabel(value: string): string {
-	const clean = value
-		.replace(/^R_/, "")
-		.replace(/[_\-]+/g, " ")
-		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.trim();
-	if (!clean) return value;
-	return clean
-		.split(" ")
-		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-		.join(" ");
-}
+function getDefaultParameterValue(metadata: ReportParameterMetadata) {
+	const today = new Date();
 
-function toQueryParameterKey(rawKey: string): string {
-	const key = rawKey.trim();
-	if (!key) return rawKey;
-	if (key.startsWith("R_")) return key;
-
-	const override = PARAMETER_KEY_OVERRIDES[key];
-	if (override) {
-		return override;
+	if (metadata.allowAll && metadata.allValue) {
+		return metadata.allValue;
 	}
 
-	const stripped = key
-		.replace(/Select(All|One)?$/i, "")
-		.replace(/^Select/i, "");
-	const normalized = stripped.charAt(0).toLowerCase() + stripped.slice(1);
-	return `R_${normalized}`;
-}
-
-function toOptionValue(value: unknown): string | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	if (typeof value === "string" && value.trim()) {
-		return value.trim();
-	}
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
+	if (metadata.requestKey === "endDate" || metadata.requestKey === "toDate") {
+		return formatDateInput(today);
 	}
 	return null;
 }
@@ -585,145 +522,76 @@ function extractReportParameters(
 function normalizeOutputType(value: string): ReportOutputType | null {
 	const upper = value.toUpperCase();
 	if (
-		upper === "PDF" ||
-		upper === "XLS" ||
-		upper === "XLSX" ||
-		upper === "CSV" ||
-		upper === "HTML"
+		metadata.requestKey === "startDate" ||
+		metadata.requestKey === "fromDate"
 	) {
-		return upper as ReportOutputType;
+		const start = new Date(today);
+		start.setDate(start.getDate() - 30);
+		return formatDateInput(start);
 	}
-	return null;
+
+	if (metadata.requestKey === "ondate") {
+		return formatDateInput(today);
+	}
+
+	return "";
 }
 
-function inferOutputFromText(
-	value: string | undefined,
-): ReportOutputType | null {
-	if (!value) return null;
-	const upper = value.toUpperCase();
-	if (upper.includes("XLSX")) return "XLSX";
-	if (upper.includes("XLS")) return "XLS";
-	if (upper.includes("CSV")) return "CSV";
-	if (upper.includes("PDF")) return "PDF";
-	if (upper.includes("HTML")) return "HTML";
-	return null;
+function groupReportsByCategory(reports: ReportDefinition[]) {
+	const grouped = new Map<string, ReportDefinition[]>();
+
+	for (const report of reports) {
+		const category = report.reportCategory?.trim() || "Uncategorized";
+		const existing = grouped.get(category) || [];
+		existing.push(report);
+		grouped.set(category, existing);
+	}
+
+	return Array.from(grouped.entries())
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([category, items]) => ({
+			category,
+			items: items.sort((left, right) =>
+				(left.reportName || "").localeCompare(right.reportName || ""),
+			),
+		}));
 }
 
-function outputFromExport(
-	exportType: ReportExportType,
-): ReportOutputType | null {
-	const outputFromKey = inferOutputFromText(exportType.key);
+function triggerBrowserDownload(
+	result: Extract<ReportExecutionResponse, { kind: "file" }>,
+	reportName: string,
+	exportTarget: ReportExportTarget,
+) {
+	const extension =
+		exportTarget === "CSV" ? "csv" : exportTarget === "PDF" ? "pdf" : "bin";
+	const fallbackName = `${reportName.replaceAll(/\s+/gu, "-").toLowerCase()}.${extension}`;
+	const url = URL.createObjectURL(result.blob);
+	const link = document.createElement("a");
 
-	const query = (exportType.queryParameter || "").trim();
-	if (!query) return outputFromKey;
+	link.href = url;
+	link.download = result.filename || fallbackName;
+	document.body.append(link);
+	link.click();
+	link.remove();
 
-	const search = new URLSearchParams(
-		query.startsWith("?") ? query.slice(1) : query,
-	);
-	const explicitOutput = search.get("output-type");
-	if (explicitOutput) {
-		return normalizeOutputType(explicitOutput) || outputFromKey;
-	}
-	if (search.get("exportCSV")?.toLowerCase() === "true") {
-		return "CSV";
-	}
-
-	return outputFromKey;
+	window.setTimeout(() => {
+		URL.revokeObjectURL(url);
+	}, 0);
 }
 
-function buildOutputOptions(
-	exports: ReportExportType[] | undefined,
-): OutputOption[] {
-	const options: OutputOption[] = [
-		{
-			value: "JSON",
-			label: OUTPUT_LABELS.JSON,
-		},
-	];
-	const seen = new Set<ReportOutputType>(["JSON"]);
-
-	for (const exportType of exports || []) {
-		const value = outputFromExport(exportType);
-		if (!value || seen.has(value)) continue;
-		options.push({ value, label: OUTPUT_LABELS[value] });
-		seen.add(value);
+function getExportLabel(exportTarget: ReportExportTarget) {
+	switch (exportTarget) {
+		case "JSON":
+			return "JSON";
+		case "PRETTY_JSON":
+			return "Pretty JSON";
+		case "CSV":
+			return "CSV";
+		case "PDF":
+			return "PDF";
+		case "S3":
+			return "S3";
 	}
-
-	return options;
-}
-
-function parseAdditionalParams(input: string): Array<[string, string]> {
-	const entries: Array<[string, string]> = [];
-	for (const token of input.split(/[\n&]/)) {
-		const cleaned = token.trim();
-		if (!cleaned) continue;
-		const equalIndex = cleaned.indexOf("=");
-		if (equalIndex <= 0) continue;
-
-		const key = cleaned.slice(0, equalIndex).trim();
-		const value = cleaned.slice(equalIndex + 1).trim();
-		if (key) {
-			entries.push([key, value]);
-		}
-	}
-	return entries;
-}
-
-function getFilenameFromContentDisposition(
-	contentDisposition: string | null,
-	fallback: string,
-): string {
-	if (!contentDisposition) return fallback;
-	const match = contentDisposition.match(
-		/filename\*?=(?:UTF-8'')?"?([^\";]+)"?/i,
-	);
-	if (!match?.[1]) return fallback;
-	return decodeURIComponent(match[1]);
-}
-
-function getPreviewColumns(result: RunResult | null): string[] {
-	if (!result) return [];
-
-	const headers = Array.isArray(result.columnHeaders)
-		? result.columnHeaders
-				.map((header) => header?.columnName?.trim())
-				.filter((header): header is string => Boolean(header))
-		: [];
-	if (headers.length > 0) return headers;
-
-	const firstRow = Array.isArray(result.data) ? result.data[0] : null;
-	if (Array.isArray(firstRow)) {
-		return firstRow.map((_, index) => `Column ${index + 1}`);
-	}
-
-	const firstRecord = asRecord(firstRow);
-	if (firstRecord) {
-		return Object.keys(firstRecord);
-	}
-
-	return [];
-}
-
-function formatPreviewValue(value: unknown): string {
-	if (value === undefined || value === null) return "—";
-	if (typeof value === "string") return value;
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-	return JSON.stringify(value);
-}
-
-function getPreviewCellValue(
-	row: unknown,
-	column: string,
-	columnIndex: number,
-): string {
-	if (Array.isArray(row)) {
-		return formatPreviewValue(row[columnIndex]);
-	}
-	const record = asRecord(row);
-	if (!record) return "—";
-	return formatPreviewValue(record[column]);
 }
 
 function parseOptionRow(row: unknown): ReportParameterOption | null {
@@ -844,119 +712,64 @@ function getParameterInputType(dataType: string): "text" | "number" | "date" {
 	) {
 		return "date";
 	}
-	if (
-		normalized.includes("number") ||
-		normalized.includes("int") ||
-		normalized.includes("decimal") ||
-		normalized.includes("long")
-	) {
-		return "number";
-	}
-	return "text";
 }
 
-function getFieldErrorMap(
-	error: SubmitActionError | null,
-): Record<string, string> {
-	if (!error?.fieldErrors?.length) {
-		return {};
-	}
+function buildParameterValueMap(
+	parameters: ReportParameter[],
+	formValues: Record<string, string>,
+) {
+	const values: Record<string, string> = {};
 
-	const fieldErrorMap: Record<string, string> = {};
-	for (const fieldError of error.fieldErrors) {
-		const field = fieldError.field?.trim();
-		if (!field || fieldErrorMap[field]) {
+	for (const parameter of parameters) {
+		const parameterName = parameter.parameterName || "";
+		if (!parameterName) {
 			continue;
 		}
-		fieldErrorMap[field] = fieldError.message;
-		const lowerField = field.toLowerCase();
-		if (!fieldErrorMap[lowerField]) {
-			fieldErrorMap[lowerField] = fieldError.message;
-		}
+
+		const metadata = getReportParameterMetadata(parameter);
+		values[metadata.requestKey] = formValues[parameterName] || "";
 	}
 
-	return fieldErrorMap;
+	return values;
 }
 
-function getParameterFieldError(
-	field: ReportParameterField,
-	fieldErrorMap: Record<string, string>,
-): string | undefined {
-	const bareQueryKey = field.queryKey.replace(/^R_/, "");
-	const bareKey = field.key.replace(/^R_/, "");
-	const candidates = [
-		field.queryKey,
-		field.key,
-		bareQueryKey,
-		bareKey,
-		field.queryKey.toLowerCase(),
-		field.key.toLowerCase(),
-		bareQueryKey.toLowerCase(),
-		bareKey.toLowerCase(),
-	];
-
-	for (const candidate of candidates) {
-		const message = fieldErrorMap[candidate];
-		if (message) {
-			return message;
-		}
-	}
-
-	return undefined;
-}
-
-async function fetchReports(tenantId: string): Promise<ReportData[]> {
-	const response = await fetch(BFF_ROUTES.reports, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch reports");
-	}
-
-	return response.json();
-}
-
-async function fetchReportTemplate(
-	tenantId: string,
-): Promise<ReportTemplateData | null> {
-	const response = await fetch(BFF_ROUTES.reportsTemplate, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch report template metadata");
-	}
-
-	const payload = (await response.json()) as GetReportsTemplateResponse;
-	return payload as ReportTemplateData;
-}
-
-async function fetchReportExports(
-	tenantId: string,
-	reportName: string,
-): Promise<ReportExportType[]> {
-	const response = await fetch(
-		BFF_ROUTES.runReportAvailableExports(reportName),
-		{
-			headers: {
-				"x-tenant-id": tenantId,
-			},
-		},
+function ResultsSkeleton() {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<Skeleton className="h-5 w-36" />
+				</CardTitle>
+				<CardDescription>
+					<Skeleton className="h-4 w-72" />
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				<div className="rounded-sm border border-border/60">
+					<div className="grid grid-cols-4 gap-3 border-b border-border/60 bg-muted/40 px-3 py-2">
+						{Array.from({ length: 4 }).map((_, index) => (
+							<Skeleton key={`header-${index}`} className="h-4 w-20" />
+						))}
+					</div>
+					<div className="divide-y divide-border/60">
+						{Array.from({ length: 8 }).map((_, rowIndex) => (
+							<div
+								key={`row-${rowIndex}`}
+								className="grid grid-cols-4 gap-3 px-3 py-3"
+							>
+								{Array.from({ length: 4 }).map((_, columnIndex) => (
+									<Skeleton
+										key={`cell-${rowIndex}-${columnIndex}`}
+										className="h-4 w-full"
+									/>
+								))}
+							</div>
+						))}
+					</div>
+				</div>
+			</CardContent>
+		</Card>
 	);
-
-	if (!response.ok) {
-		if (response.status === 400 || response.status === 404) {
-			return [];
-		}
-		throw new Error("Failed to fetch available report exports");
-	}
-
-	return response.json();
 }
 
 async function fetchReportParameterOptions(
@@ -1029,137 +842,127 @@ async function applyPentahoEnforcement(
 		throw errorPayload;
 	}
 
-	return response.json();
-}
-
-function ReportsTableSkeleton() {
-	return (
-		<div className="space-y-2">
-			<Card className="rounded-sm border border-border/60">
-				<Table>
-					<TableHeader className="border-b border-border/60 bg-muted/40">
-						<TableRow>
-							{[
-								"Report",
-								"Category",
-								"Type",
-								"Parameters",
-								"Status",
-								"Run",
-							].map((key) => (
-								<TableHead key={key} className="px-3 py-2">
-									<Skeleton className="h-4 w-20" />
-								</TableHead>
-							))}
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{Array.from({ length: 8 }).map((_, index) => (
-							<TableRow key={index}>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-4 w-40" />
-								</TableCell>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-4 w-20" />
-								</TableCell>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-4 w-16" />
-								</TableCell>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-4 w-10" />
-								</TableCell>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-6 w-24" />
-								</TableCell>
-								<TableCell className="px-3 py-2">
-									<Skeleton className="h-8 w-20" />
-								</TableCell>
-							</TableRow>
+			<div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
+				<Card>
+					<CardHeader>
+						<CardTitle>
+							<Skeleton className="h-5 w-36" />
+						</CardTitle>
+						<CardDescription>
+							<Skeleton className="h-4 w-48" />
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-10 w-full" />
+						<Skeleton className="h-10 w-full" />
+						{Array.from({ length: 6 }).map((_, index) => (
+							<Card key={`report-${index}`}>
+								<CardContent className="space-y-3 pt-4">
+									<Skeleton className="h-4 w-48" />
+									<Skeleton className="h-3 w-full" />
+									<Skeleton className="h-3 w-40" />
+								</CardContent>
+							</Card>
 						))}
-					</TableBody>
-				</Table>
-			</Card>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>
+							<Skeleton className="h-5 w-40" />
+						</CardTitle>
+						<CardDescription>
+							<Skeleton className="h-4 w-64" />
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						{Array.from({ length: 4 }).map((_, index) => (
+							<div key={`field-${index}`} className="space-y-2">
+								<Skeleton className="h-4 w-28" />
+								<Skeleton className="h-10 w-full" />
+							</div>
+						))}
+						<Skeleton className="h-10 w-40" />
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }
 
 export default function ReportsPage() {
 	const { tenantId } = useTenantStore();
-	const queryClient = useQueryClient();
 	const [searchTerm, setSearchTerm] = useState("");
-	const [categoryFilter, setCategoryFilter] = useState("all");
-	const [selectedReport, setSelectedReport] = useState<ReportData | null>(null);
-	const [isRunnerOpen, setIsRunnerOpen] = useState(false);
-	const [parameterValues, setParameterValues] = useState<
-		Record<string, string>
-	>({});
-	const [additionalParams, setAdditionalParams] = useState("");
-	const [selectedOutput, setSelectedOutput] =
-		useState<ReportOutputType>("JSON");
-	const [runResult, setRunResult] = useState<RunResult | null>(null);
-	const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-	const [strictEnforcement, setStrictEnforcement] = useState(true);
-	const [verifyRunReports, setVerifyRunReports] = useState(false);
-	const [enforcementResult, setEnforcementResult] =
-		useState<PentahoEnforcementResponse | null>(null);
+	const [categoryFilter, setCategoryFilter] = useState(ALL_FILTER);
+	const [typeFilter, setTypeFilter] = useState(ALL_FILTER);
+	const [visibilityFilter, setVisibilityFilter] =
+		useState<VisibilityFilter>("runnable");
+	const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
+	const [formValues, setFormValues] = useState<Record<string, string>>({});
+	const [selectedExport, setSelectedExport] =
+		useState<ReportExportTarget>(DEFAULT_EXPORT);
+	const [executionResult, setExecutionResult] =
+		useState<ReportExecutionResponse | null>(null);
+	const deferredSearchTerm = useDeferredValue(searchTerm);
 
 	const reportsQuery = useQuery({
 		queryKey: ["reports", tenantId],
 		queryFn: () => fetchReports(tenantId),
+		enabled: Boolean(tenantId),
 	});
-	const rolesQuery = useQuery({
-		queryKey: ["roles", tenantId],
-		queryFn: () => fetchRoles(tenantId),
+
+	const templateQuery = useQuery({
+		queryKey: ["reports-template", tenantId],
+		queryFn: () => fetchReportsTemplate(tenantId),
+		enabled: Boolean(tenantId),
 	});
-	const reportTemplateQuery = useQuery({
-		queryKey: ["report-template", tenantId],
-		queryFn: () => fetchReportTemplate(tenantId),
-		enabled: isRunnerOpen,
-		staleTime: 5 * 60 * 1000,
+
+	const branchQuery = useQuery({
+		queryKey: ["reports-branch-metadata", tenantId],
+		queryFn: () => fetchReportsBranchMetadata(tenantId),
+		enabled: Boolean(tenantId),
 	});
+
+	const reports = reportsQuery.data || [];
+	const template = templateQuery.data;
+
+	const selectedReport =
+		reports.find((report) => report.id === selectedReportId) || null;
+	const selectedParameters = selectedReport?.reportParameters || [];
+	const parameterValueMap = buildParameterValueMap(
+		selectedParameters,
+		formValues,
+	);
 
 	const availableExportsQuery = useQuery({
-		queryKey: ["report-exports", tenantId, selectedReport?.reportName],
+		queryKey: [
+			"report-available-exports",
+			tenantId,
+			selectedReport?.reportName,
+		],
 		queryFn: () =>
-			fetchReportExports(tenantId, selectedReport?.reportName || ""),
-		enabled: isRunnerOpen && Boolean(selectedReport?.reportName),
+			fetchReportAvailableExports(tenantId, selectedReport?.reportName || ""),
+		enabled: Boolean(tenantId && selectedReport?.reportName),
 	});
 
-	const applicableReports = useMemo(
-		() =>
-			(reportsQuery.data || []).filter((report) => {
-				const enabled = report.useReport !== false;
-				const isMailingReport =
-					(report.reportType || "").toLowerCase() === "email";
-				return enabled && !isMailingReport;
-			}),
-		[reportsQuery.data],
-	);
-	const tablePentahoPairs = useMemo(
-		() =>
-			discoverTablePentahoPairs(toReportCatalogItems(reportsQuery.data || [])),
-		[reportsQuery.data],
-	);
-	const alreadyDisabledTablePairCount = useMemo(
-		() =>
-			tablePentahoPairs.filter((pair) => pair.tableReport.useReport === false)
-				.length,
-		[tablePentahoPairs],
-	);
-	const roleOptions = useMemo(
-		() =>
-			(rolesQuery.data || []).filter(
-				(role): role is RoleData & { id: number } =>
-					typeof role.id === "number" &&
-					Number.isInteger(role.id) &&
-					role.id > 0,
-			),
-		[rolesQuery.data],
-	);
-	const allRoleIds = useMemo(
-		() => roleOptions.map((role) => String(role.id)),
-		[roleOptions],
-	);
+	const parameterOptionsQuery = useQuery({
+		queryKey: [
+			"report-parameter-options",
+			tenantId,
+			selectedReport?.id,
+			parameterValueMap,
+		],
+		queryFn: async () => {
+			const optionEntries = await Promise.all(
+				selectedParameters.map(async (parameter) => {
+					const parameterName = parameter.parameterName || "";
+					const metadata = getReportParameterMetadata(parameter);
+
+					if (!parameterName || metadata.optionSource !== "parameterType") {
+						return [parameterName, []] as const;
+					}
 
 	const categories = useMemo(() => {
 		const values = new Set<string>();
@@ -1297,11 +1100,26 @@ export default function ReportsPage() {
 			}
 		}
 
-		for (const [key, value] of additionalParameterEntries) {
-			if (value.trim()) {
-				providedParameterKeys.add(key);
+	const runMutation = useMutation({
+		mutationFn: (input: {
+			reportName: string;
+			values: Record<string, string>;
+			exportTarget: ReportExportTarget;
+		}) =>
+			runReport(tenantId, input.reportName, input.values, input.exportTarget),
+		onSuccess: (result, variables) => {
+			if (result.kind === "file") {
+				triggerBrowserDownload(
+					result,
+					variables.reportName,
+					variables.exportTarget,
+				);
+				setExecutionResult(null);
+				toast.success(
+					`${variables.reportName} exported as ${getExportLabel(variables.exportTarget)}.`,
+				);
+				return;
 			}
-		}
 
 		return visibleParameterFields.filter(
 			(field) => field.required && !providedParameterKeys.has(field.queryKey),
@@ -1312,144 +1130,57 @@ export default function ReportsPage() {
 		[missingRequiredFields],
 	);
 
-	const outputOptions = useMemo(
-		() => buildOutputOptions(availableExportsQuery.data),
-		[availableExportsQuery.data],
-	);
-	const outputOptionValues = useMemo(
-		() => outputOptions.map((option) => option.value),
-		[outputOptions],
-	);
+	useEffect(() => {
+		if (selectedReportId || reports.length === 0) {
+			return;
+		}
+
+		const defaultReport =
+			reports.find((report) => report.useReport !== false) ||
+			reports[0] ||
+			null;
+		setSelectedReportId(defaultReport?.id || null);
+	}, [reports, selectedReportId]);
 
 	useEffect(() => {
-		const available = outputOptionValues;
-		if (!available.includes(selectedOutput)) {
-			setSelectedOutput(available[0] || "JSON");
+		if (!selectedReport) {
+			return;
 		}
-	}, [outputOptionValues, selectedOutput]);
 
-	const toggleRoleSelection = (roleId: string, checked: boolean) => {
-		setSelectedRoleIds((current) => {
-			if (checked) {
-				if (current.includes(roleId)) {
-					return current;
-				}
-				return [...current, roleId].sort((a, b) => Number(a) - Number(b));
+		const defaults: Record<string, string> = {};
+
+		for (const parameter of selectedParameters) {
+			const parameterName = parameter.parameterName || "";
+			if (!parameterName) {
+				continue;
 			}
-			return current.filter((candidate) => candidate !== roleId);
-		});
-	};
 
-	const selectAllRoles = () => {
-		setSelectedRoleIds(allRoleIds);
-	};
+			defaults[parameterName] = getDefaultParameterValue(
+				getReportParameterMetadata(parameter),
+			);
+		}
 
-	const clearRoleSelection = () => {
-		setSelectedRoleIds([]);
-	};
+		setFormValues(defaults);
+		setExecutionResult(null);
+	}, [selectedReport, selectedParameters]);
 
-	const enforceReportsMutation = useMutation({
-		mutationFn: async () => {
-			try {
-				const roleIds = selectedRoleIds
-					.map((value) => Number(value))
-					.filter(
-						(roleId) => Number.isInteger(roleId) && Number.isFinite(roleId),
-					);
+	useEffect(() => {
+		const allowedExports = availableExportsQuery.data;
+		if (!allowedExports || allowedExports.length === 0) {
+			setSelectedExport(DEFAULT_EXPORT);
+			return;
+		}
 
-				if (roleIds.length === 0) {
-					throw toSubmitActionError(
-						{
-							code: "INVALID_REQUEST",
-							message: "Select at least one role to apply report enforcement.",
-							status: 400,
-							fieldErrors: [
-								{
-									field: "roleIds",
-									message: "At least one role is required.",
-								},
-							],
-						},
-						{
-							action: "applyPentahoEnforcement",
-							endpoint: BFF_ROUTES.reportsPentahoEnforcement,
-							method: "POST",
-							tenantId,
-						},
-					);
-				}
+		if (!allowedExports.includes(selectedExport)) {
+			setSelectedExport(allowedExports[0] || DEFAULT_EXPORT);
+		}
+	}, [availableExportsQuery.data, selectedExport]);
 
-				return await applyPentahoEnforcement(tenantId, {
-					roleIds,
-					strictEnforcement,
-					verifyRunReports,
-				});
-			} catch (error) {
-				throw toSubmitActionError(error, {
-					action: "applyPentahoEnforcement",
-					endpoint: BFF_ROUTES.reportsPentahoEnforcement,
-					method: "POST",
-					tenantId,
-				});
-			}
-		},
-		onMutate: () => {
-			setEnforcementResult(null);
-		},
-		onSuccess: (response) => {
-			setEnforcementResult(response);
-			queryClient.invalidateQueries({ queryKey: ["reports", tenantId] });
-		},
-	});
-	const enforceReportsError =
-		enforceReportsMutation.error as SubmitActionError | null;
-
-	const runReportMutation = useMutation({
-		mutationFn: async () => {
-			try {
-				if (!selectedReport?.reportName) {
-					throw toSubmitActionError(
-						{
-							code: "INVALID_REQUEST",
-							message: "Report name is missing",
-							status: 400,
-						},
-						{
-							action: "runReport",
-							endpoint: "/api/fineract/reports/run/[reportName]",
-							method: "POST",
-							tenantId,
-						},
-					);
-				}
-
-				if (missingRequiredFields.length > 0) {
-					const fieldErrors: ValidationFieldError[] = missingRequiredFields.map(
-						(field) => ({
-							field: field.queryKey,
-							message: `${field.label} is required.`,
-						}),
-					);
-					throw toSubmitActionError(
-						{
-							code: "MISSING_REQUIRED_PARAMETERS",
-							message:
-								missingRequiredFields.length === 1
-									? "A required report parameter is missing."
-									: `${missingRequiredFields.length} required report parameters are missing.`,
-							status: 400,
-							fieldErrors,
-						},
-						{
-							action: "runReport",
-							endpoint: "/api/fineract/reports/run/[reportName]",
-							method: "POST",
-							tenantId,
-						},
-					);
-				}
-
-				const params = new URLSearchParams();
+	const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
+	const filteredReports = reports.filter((report) => {
+		if (visibilityFilter === "runnable" && report.useReport === false) {
+			return false;
+		}
 
 				for (const field of visibleParameterFields) {
 					const value = serializeParameterValue(
@@ -1461,77 +1192,30 @@ export default function ReportsPage() {
 					}
 				}
 
-				for (const [key, value] of additionalParameterEntries) {
-					params.append(key, value);
-				}
+		if (
+			typeFilter !== ALL_FILTER &&
+			(report.reportType?.trim() || "Unknown") !== typeFilter
+		) {
+			return false;
+		}
 
-				if (selectedOutput !== "JSON") {
-					params.set("output-type", selectedOutput);
-					if (selectedOutput === "CSV") {
-						params.set("exportCSV", "true");
-					}
-				}
+		if (!normalizedSearch) {
+			return true;
+		}
 
-				const endpoint = BFF_ROUTES.runReport(selectedReport.reportName);
-				const url = `${endpoint}?${params.toString()}`;
-				const response = await fetch(url, {
-					headers: {
-						"x-tenant-id": tenantId,
-					},
-				});
+		const haystack = [
+			report.reportName,
+			report.reportCategory,
+			report.reportType,
+			report.reportSubType,
+			report.description,
+		]
+			.filter(Boolean)
+			.join(" ")
+			.toLowerCase();
 
-				if (!response.ok) {
-					const payload = await response
-						.json()
-						.catch(() => ({ message: "Failed to execute report on backend" }));
-					throw toSubmitActionError(
-						{
-							...(payload as Record<string, unknown>),
-							statusCode: response.status,
-							statusText: response.statusText,
-						},
-						{
-							action: "runReport",
-							endpoint,
-							method: "POST",
-							tenantId,
-						},
-					);
-				}
-
-				if (selectedOutput === "JSON") {
-					const payload = (await response.json()) as RunReportsResponse;
-					setRunResult(payload);
-					return;
-				}
-
-				const blob = await response.blob();
-				const blobUrl = window.URL.createObjectURL(blob);
-				const anchor = document.createElement("a");
-				anchor.href = blobUrl;
-				anchor.download = getFilenameFromContentDisposition(
-					response.headers.get("Content-Disposition"),
-					`${selectedReport.reportName}_${Date.now()}.${selectedOutput.toLowerCase()}`,
-				);
-				document.body.appendChild(anchor);
-				anchor.click();
-				window.URL.revokeObjectURL(blobUrl);
-				document.body.removeChild(anchor);
-			} catch (error) {
-				throw toSubmitActionError(error, {
-					action: "runReport",
-					endpoint: "/api/fineract/reports/run/[reportName]",
-					method: "POST",
-					tenantId,
-				});
-			}
-		},
+		return haystack.includes(normalizedSearch);
 	});
-	const runReportError = runReportMutation.error as SubmitActionError | null;
-	const runReportFieldErrors = useMemo(
-		() => getFieldErrorMap(runReportError),
-		[runReportError],
-	);
 
 	const previewColumns = useMemo(
 		() => getPreviewColumns(runResult),
@@ -1640,509 +1324,581 @@ export default function ReportsPage() {
 		},
 	];
 
-	if (reportsQuery.isLoading) {
-		return (
-			<PageShell
-				title="Backend Reports"
-				subtitle="Run report outputs directly from backend report endpoints"
-			>
-				<ReportsTableSkeleton />
-			</PageShell>
-		);
-	}
+		runMutation.mutate({
+			reportName: selectedReport.reportName,
+			values: parameterValueMap,
+			exportTarget: selectedExport,
+		});
+	};
 
-	if (reportsQuery.error) {
+	if (
+		(reportsQuery.isLoading || templateQuery.isLoading) &&
+		reports.length === 0
+	) {
 		return (
 			<PageShell
-				title="Backend Reports"
-				subtitle="Run report outputs directly from backend report endpoints"
+				title="Reports"
+				subtitle="Discover report definitions, fill parameter contracts, and execute exports using the branch-safe datatable report service."
 			>
-				<Alert>
-					<AlertTitle>Failed To Load Reports</AlertTitle>
-					<AlertDescription>
-						{reportsQuery.error instanceof Error
-							? reportsQuery.error.message
-							: "Could not fetch reports from backend"}
-					</AlertDescription>
-				</Alert>
+				<ReportsPageSkeleton />
 			</PageShell>
 		);
 	}
 
 	return (
 		<PageShell
-			title="Backend Reports"
-			subtitle="Run report outputs directly from backend report endpoints"
+			title="Reports"
+			subtitle="Discover report definitions, fill parameter contracts, and execute exports using the branch-safe datatable report service."
+			actions={
+				<Button
+					type="button"
+					variant="outline"
+					onClick={() => {
+						reportsQuery.refetch();
+						templateQuery.refetch();
+						if (selectedReport?.reportName) {
+							availableExportsQuery.refetch();
+						}
+						if (selectedReport?.id) {
+							parameterOptionsQuery.refetch();
+						}
+					}}
+				>
+					<RefreshCw className="mr-2 h-4 w-4" />
+					Refresh Catalog
+				</Button>
+			}
 		>
 			<div className="space-y-6">
-				<div className="grid gap-4 md:grid-cols-3">
+				<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 					<Card>
 						<CardContent className="pt-6">
-							<div className="flex items-center justify-between">
-								<span className="text-sm text-muted-foreground">
-									Applicable Reports
-								</span>
-								<span className="text-2xl font-bold">
-									{applicableReports.length.toLocaleString()}
-								</span>
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+									<FileText className="h-5 w-5 text-primary" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{reports.length}</div>
+									<div className="text-sm text-muted-foreground">
+										Report definitions
+									</div>
+								</div>
 							</div>
 						</CardContent>
 					</Card>
 					<Card>
 						<CardContent className="pt-6">
-							<div className="flex items-center justify-between">
-								<span className="text-sm text-muted-foreground">
-									Categories
-								</span>
-								<span className="text-2xl font-bold">
-									{categories.length.toLocaleString()}
-								</span>
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+									<Play className="h-5 w-5 text-success" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{runnableCount}</div>
+									<div className="text-sm text-muted-foreground">
+										Runnable reports
+									</div>
+								</div>
 							</div>
 						</CardContent>
 					</Card>
 					<Card>
 						<CardContent className="pt-6">
-							<div className="flex items-center justify-between">
-								<span className="text-sm text-muted-foreground">Filtered</span>
-								<span className="text-2xl font-bold">
-									{filteredReports.length.toLocaleString()}
-								</span>
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
+									<Filter className="h-5 w-5 text-info" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">{parameterizedCount}</div>
+									<div className="text-sm text-muted-foreground">
+										Parameterized reports
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardContent className="pt-6">
+							<div className="flex items-center gap-3">
+								<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-warning/10">
+									<FileJson className="h-5 w-5 text-warning" />
+								</div>
+								<div>
+									<div className="text-2xl font-bold">
+										{parameterCatalogCount}
+									</div>
+									<div className="text-sm text-muted-foreground">
+										Allowed parameters across {allowedTypes} report types
+									</div>
+								</div>
 							</div>
 						</CardContent>
 					</Card>
 				</div>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>Table/Pentaho Enforcement</CardTitle>
-						<CardDescription>
-							Disable Table report variants that have Pentaho counterparts and
-							update READ permissions for selected roles.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<Alert>
-							<AlertTitle>API-Only Enforcement Flow</AlertTitle>
-							<AlertDescription>
-								This action discovers report pairs from <code>/v1/reports</code>
-								, disables Table entries with <code>useReport=false</code>, then
-								updates each selected role through{" "}
-								<code>/v1/roles/{`{roleId}`}/permissions</code>.
-							</AlertDescription>
-						</Alert>
+				{branchMetadata?.legacyOutputTypeSupported === false && (
+					<Alert>
+						<AlertTitle>Branch export behavior</AlertTitle>
+						<AlertDescription>
+							{branchMetadata.note ||
+								"This branch uses datatable export flags only. JSON is default; PRETTY_JSON maps to pretty=true; CSV, PDF, and optional S3 use their dedicated export flags."}
+						</AlertDescription>
+					</Alert>
+				)}
 
-						<div className="grid gap-4 md:grid-cols-3">
-							<Card>
-								<CardContent className="pt-6">
-									<div className="flex items-center justify-between">
-										<span className="text-sm text-muted-foreground">Pairs</span>
-										<span className="text-2xl font-bold">
-											{tablePentahoPairs.length.toLocaleString()}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
-							<Card>
-								<CardContent className="pt-6">
-									<div className="flex items-center justify-between">
-										<span className="text-sm text-muted-foreground">
-											Table Disabled
-										</span>
-										<span className="text-2xl font-bold">
-											{alreadyDisabledTablePairCount.toLocaleString()}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
-							<Card>
-								<CardContent className="pt-6">
-									<div className="flex items-center justify-between">
-										<span className="text-sm text-muted-foreground">
-											Selected Roles
-										</span>
-										<span className="text-2xl font-bold">
-											{selectedRoleIds.length.toLocaleString()}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
-						</div>
+				{reportLoadError && (
+					<Alert variant="destructive">
+						<AlertTitle>Unable to load reports</AlertTitle>
+						<AlertDescription>{reportLoadError.message}</AlertDescription>
+					</Alert>
+				)}
 
-						<div className="grid gap-4 lg:grid-cols-2">
-							<div className="space-y-2">
-								<div className="flex items-center justify-between">
-									<Label>Target Roles</Label>
-									<div className="flex items-center gap-2">
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											onClick={selectAllRoles}
-											disabled={
-												enforceReportsMutation.isPending ||
-												roleOptions.length === 0
-											}
-										>
-											Select All
-										</Button>
-										<Button
-											type="button"
-											size="sm"
-											variant="outline"
-											onClick={clearRoleSelection}
-											disabled={
-												enforceReportsMutation.isPending ||
-												selectedRoleIds.length === 0
-											}
-										>
-											Clear
-										</Button>
-									</div>
-								</div>
-								{rolesQuery.isLoading ? (
-									<div className="space-y-2 rounded-sm border border-border/60 p-3">
-										{Array.from({ length: 5 }).map((_, index) => (
-											<div
-												key={`role-skeleton-${index}`}
-												className="flex items-center gap-2"
-											>
-												<Skeleton className="h-4 w-4" />
-												<Skeleton className="h-4 w-44" />
-											</div>
-										))}
-									</div>
-								) : rolesQuery.error ? (
-									<Alert variant="destructive">
-										<AlertTitle>Failed To Load Roles</AlertTitle>
-										<AlertDescription>
-											{rolesQuery.error instanceof Error
-												? rolesQuery.error.message
-												: "Could not fetch roles for permissions updates."}
-										</AlertDescription>
-									</Alert>
-								) : (
-									<div className="max-h-56 space-y-2 overflow-y-auto rounded-sm border border-border/60 p-3">
-										{roleOptions.length === 0 ? (
-											<p className="text-sm text-muted-foreground">
-												No roles are available for permission updates.
-											</p>
-										) : (
-											roleOptions.map((role) => {
-												const roleId = String(role.id);
-												const checked = selectedRoleIds.includes(roleId);
+				{templateLoadError && (
+					<Alert variant="destructive">
+						<AlertTitle>Unable to load report template</AlertTitle>
+						<AlertDescription>{templateLoadError.message}</AlertDescription>
+					</Alert>
+				)}
 
-												return (
-													<label
-														key={roleId}
-														className="flex cursor-pointer items-center gap-2 rounded-sm border border-border/40 px-2 py-1.5"
-													>
-														<Checkbox
-															checked={checked}
-															onCheckedChange={(value) =>
-																toggleRoleSelection(roleId, value === true)
-															}
-														/>
-														<span className="text-sm">
-															{role.name || `Role ${roleId}`}
-														</span>
-														<span className="ml-auto text-xs text-muted-foreground">
-															#{roleId}
-														</span>
-													</label>
-												);
-											})
-										)}
-									</div>
-								)}
-							</div>
-
-							<div className="space-y-2">
-								<Label>Enforcement Options</Label>
-								<div className="space-y-2 rounded-sm border border-border/60 p-3">
-									<label className="flex cursor-pointer items-start gap-2">
-										<Checkbox
-											checked={strictEnforcement}
-											onCheckedChange={(value) =>
-												setStrictEnforcement(value === true)
-											}
-											disabled={enforceReportsMutation.isPending}
-										/>
-										<div>
-											<p className="text-sm font-medium">
-												Strict role enforcement
-											</p>
-											<p className="text-xs text-muted-foreground">
-												Also sets ALL_FUNCTIONS, ALL_FUNCTIONS_READ and
-												REPORTING_SUPER_USER to false when those permissions
-												exist on the role.
-											</p>
-										</div>
-									</label>
-									<label className="flex cursor-pointer items-start gap-2">
-										<Checkbox
-											checked={verifyRunReports}
-											onCheckedChange={(value) =>
-												setVerifyRunReports(value === true)
-											}
-											disabled={enforceReportsMutation.isPending}
-										/>
-										<div>
-											<p className="text-sm font-medium">
-												Verify with /v1/runreports
-											</p>
-											<p className="text-xs text-muted-foreground">
-												Runs best-effort permission checks after updates.
-												Reports requiring parameters may return indeterminate
-												results.
-											</p>
-										</div>
-									</label>
-								</div>
-								<div className="rounded-sm border border-border/60">
-									<Table>
-										<TableHeader className="bg-muted/40">
-											<TableRow>
-												<TableHead>Table</TableHead>
-												<TableHead>Pentaho</TableHead>
-												<TableHead className="text-right">State</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{tablePentahoPairs.slice(0, 6).map((pair, index) => {
-												const tableReportName = normalizeReportName(
-													pair.tableReport.reportName,
-												);
-												const pentahoReportName = normalizeReportName(
-													pair.pentahoReport.reportName,
-												);
-
-												return (
-													<TableRow
-														key={`${tableReportName}-${pentahoReportName}-${index}`}
-													>
-														<TableCell className="text-sm">
-															{tableReportName || "Unnamed"}
-														</TableCell>
-														<TableCell className="text-sm">
-															{pentahoReportName || "Unnamed"}
-														</TableCell>
-														<TableCell className="text-right">
-															<Badge
-																variant={
-																	pair.tableReport.useReport === false
-																		? "destructive"
-																		: "success"
-																}
-															>
-																{pair.tableReport.useReport === false
-																	? "Disabled"
-																	: "Enabled"}
-															</Badge>
-														</TableCell>
-													</TableRow>
-												);
-											})}
-											{tablePentahoPairs.length === 0 && (
-												<TableRow>
-													<TableCell
-														colSpan={3}
-														className="text-center text-sm text-muted-foreground"
-													>
-														No Table/Pentaho pairs were detected.
-													</TableCell>
-												</TableRow>
-											)}
-										</TableBody>
-									</Table>
-								</div>
-							</div>
-						</div>
-
-						<div className="flex items-center justify-end gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									enforceReportsMutation.reset();
-									setEnforcementResult(null);
-								}}
-								disabled={
-									enforceReportsMutation.isPending && enforcementResult === null
-								}
-							>
-								Reset Result
-							</Button>
-							<Button
-								type="button"
-								onClick={() => enforceReportsMutation.mutate()}
-								disabled={
-									enforceReportsMutation.isPending ||
-									selectedRoleIds.length === 0 ||
-									tablePentahoPairs.length === 0
-								}
-							>
-								{enforceReportsMutation.isPending
-									? "Applying..."
-									: "Apply Enforcement"}
-							</Button>
-						</div>
-
-						<SubmitErrorAlert
-							error={enforceReportsError}
-							title="Report Enforcement Failed"
-						/>
-
-						{enforcementResult && (
-							<Card className="rounded-sm border border-border/60">
-								<CardHeader>
-									<CardTitle className="text-base">
-										Enforcement Summary
-									</CardTitle>
-									<CardDescription>
-										{enforcementResult.summary.disabledTableCount.toLocaleString()}{" "}
-										table reports disabled,{" "}
-										{enforcementResult.summary.updatedRoleCount.toLocaleString()}{" "}
-										roles updated.
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-3">
-									<div className="grid gap-3 md:grid-cols-3">
-										<div className="rounded-sm border border-border/50 p-3">
-											<div className="text-xs text-muted-foreground">
-												Disable Failures
-											</div>
-											<div className="text-lg font-semibold">
-												{enforcementResult.summary.failedTableDisableCount.toLocaleString()}
-											</div>
-										</div>
-										<div className="rounded-sm border border-border/50 p-3">
-											<div className="text-xs text-muted-foreground">
-												Role Failures
-											</div>
-											<div className="text-lg font-semibold">
-												{enforcementResult.summary.failedRoleCount.toLocaleString()}
-											</div>
-										</div>
-										<div className="rounded-sm border border-border/50 p-3">
-											<div className="text-xs text-muted-foreground">
-												No Match Roles
-											</div>
-											<div className="text-lg font-semibold">
-												{enforcementResult.summary.roleNoMatchCount.toLocaleString()}
-											</div>
-										</div>
-									</div>
-									{enforcementResult.notes &&
-										enforcementResult.notes.length > 0 && (
-											<div className="space-y-1 rounded-sm border border-border/50 bg-muted/30 p-3">
-												{enforcementResult.notes.map((note) => (
-													<p
-														key={note}
-														className="text-xs text-muted-foreground"
-													>
-														{note}
-													</p>
-												))}
-											</div>
-										)}
-								</CardContent>
-							</Card>
-						)}
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle className="flex items-center gap-2">
-							<FileBarChart2 className="h-5 w-5" />
-							Report Catalog
-						</CardTitle>
-						<CardDescription>
-							Select a report and execute it through backend report endpoints.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="grid gap-4 md:grid-cols-2">
-							<div className="space-y-2">
-								<Label htmlFor="report-search">Search Reports</Label>
-								<div className="relative">
-									<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-									<Input
-										id="report-search"
-										placeholder="Search by name or category..."
-										value={searchTerm}
-										onChange={(event) => setSearchTerm(event.target.value)}
-										className="pl-8"
-									/>
-								</div>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="category-filter">Category</Label>
-								<Select
-									value={categoryFilter}
-									onValueChange={setCategoryFilter}
+				<div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
+					<div className="space-y-6">
+						<Card>
+							<CardHeader>
+								<CardTitle className="flex items-center gap-2">
+									<Filter className="h-5 w-5" />
+									Catalog Filters
+								</CardTitle>
+								<CardDescription>
+									Search the report registry by name, category, or delivery
+									type.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<Tabs
+									value={visibilityFilter}
+									onValueChange={(value) =>
+										setVisibilityFilter(value as VisibilityFilter)
+									}
 								>
-									<SelectTrigger id="category-filter">
-										<SelectValue placeholder="All Categories" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All Categories</SelectItem>
-										{categories.map((category) => (
-											<SelectItem key={category} value={category}>
-												{category}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
+									<TabsList className="grid w-full grid-cols-2">
+										<TabsTrigger value="runnable">Runnable</TabsTrigger>
+										<TabsTrigger value="all">All Definitions</TabsTrigger>
+									</TabsList>
+								</Tabs>
 
-						<DataTable
-							data={filteredReports}
-							columns={reportColumns}
-							getRowId={(report) =>
-								String(
-									report.id ||
-										`${report.reportCategory || "report"}-${report.reportType || "type"}-${report.reportName || "name"}`,
-								)
-							}
-							emptyMessage="No applicable backend reports found."
-						/>
-					</CardContent>
-				</Card>
-			</div>
-
-			<Sheet open={isRunnerOpen} onOpenChange={setIsRunnerOpen}>
-				<SheetContent
-					side="right"
-					className="w-full overflow-y-auto sm:max-w-2xl"
-				>
-					{selectedReport && (
-						<div className="space-y-6">
-							<SheetHeader>
-								<SheetTitle>{selectedReport.reportName}</SheetTitle>
-								<SheetDescription>
-									Execute report output directly from backend endpoint.
-								</SheetDescription>
-							</SheetHeader>
-
-							<div className="space-y-4">
-								<div className="grid gap-3 rounded-sm border border-border/60 p-3 text-sm md:grid-cols-2">
-									<div>
-										<div className="text-xs text-muted-foreground">
-											Category
-										</div>
-										<div className="font-medium">
-											{selectedReport.reportCategory || "Uncategorized"}
-										</div>
-									</div>
-									<div>
-										<div className="text-xs text-muted-foreground">Type</div>
-										<div className="font-medium">
-											{selectedReport.reportType || "Unknown"}
-										</div>
+								<div className="space-y-2">
+									<Label htmlFor="report-search">Search</Label>
+									<div className="relative">
+										<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+										<Input
+											id="report-search"
+											value={searchTerm}
+											onChange={(event) => setSearchTerm(event.target.value)}
+											placeholder="Search reports, categories, and descriptions"
+											className="pl-8"
+										/>
 									</div>
 								</div>
+
+								<div className="grid gap-4 md:grid-cols-2">
+									<div className="space-y-2">
+										<Label>Category</Label>
+										<Select
+											value={categoryFilter}
+											onValueChange={setCategoryFilter}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="All categories" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={ALL_FILTER}>
+													All categories
+												</SelectItem>
+												{categories.map((category) => (
+													<SelectItem key={category} value={category}>
+														{category}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+
+									<div className="space-y-2">
+										<Label>Report Type</Label>
+										<Select value={typeFilter} onValueChange={setTypeFilter}>
+											<SelectTrigger>
+												<SelectValue placeholder="All report types" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={ALL_FILTER}>
+													All report types
+												</SelectItem>
+												{reportTypes.map((reportType) => (
+													<SelectItem key={reportType} value={reportType}>
+														{reportType}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardHeader>
+								<CardTitle>Report Catalog</CardTitle>
+								<CardDescription>
+									{filteredReports.length} reports match the current filters.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								{groupedReports.length === 0 ? (
+									<div className="rounded-sm border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
+										No reports match the current filters.
+									</div>
+								) : (
+									groupedReports.map((group) => (
+										<div key={group.category} className="space-y-3">
+											<div className="flex items-center justify-between">
+												<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+													{group.category}
+												</h3>
+												<Badge variant="outline">{group.items.length}</Badge>
+											</div>
+											<div className="space-y-3">
+												{group.items.map((report) => {
+													const isSelected = report.id === selectedReport?.id;
+													return (
+														<Card
+															key={report.id || report.reportName}
+															role="button"
+															tabIndex={0}
+															onClick={() =>
+																setSelectedReportId(report.id || null)
+															}
+															onKeyDown={(event) => {
+																if (
+																	event.key === "Enter" ||
+																	event.key === " "
+																) {
+																	event.preventDefault();
+																	setSelectedReportId(report.id || null);
+																}
+															}}
+															className={
+																isSelected
+																	? "border-primary shadow-sm"
+																	: "border-border/60"
+															}
+														>
+															<CardContent className="space-y-3 pt-4">
+																<div className="flex flex-wrap items-start justify-between gap-3">
+																	<div className="space-y-1">
+																		<div className="font-medium">
+																			{report.reportName || "Unnamed report"}
+																		</div>
+																		<div className="text-xs text-muted-foreground">
+																			ID {report.id || "—"}
+																		</div>
+																	</div>
+																	<div className="flex flex-wrap gap-2">
+																		<Badge variant="secondary">
+																			{report.reportType || "Unknown"}
+																		</Badge>
+																		<Badge
+																			variant={
+																				report.useReport === false
+																					? "warning"
+																					: "success"
+																			}
+																		>
+																			{report.useReport === false
+																				? "Disabled"
+																				: "Runnable"}
+																		</Badge>
+																		{report.coreReport ? (
+																			<Badge variant="outline">Core</Badge>
+																		) : null}
+																	</div>
+																</div>
+
+																<div className="text-sm text-muted-foreground">
+																	{report.description?.trim()
+																		? report.description
+																		: "No description provided for this report definition."}
+																</div>
+
+																<div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+																	<span>
+																		Parameters:{" "}
+																		{report.reportParameters?.length || 0}
+																	</span>
+																	{report.reportSubType ? (
+																		<span>Subtype: {report.reportSubType}</span>
+																	) : null}
+																</div>
+															</CardContent>
+														</Card>
+													);
+												})}
+											</div>
+										</div>
+									))
+								)}
+							</CardContent>
+						</Card>
+					</div>
+
+					<div className="space-y-6">
+						{selectedReport ? (
+							<>
+								<Card>
+									<CardHeader>
+										<CardTitle>
+											{selectedReport.reportName || "Report details"}
+										</CardTitle>
+										<CardDescription>
+											{selectedReport.description?.trim()
+												? selectedReport.description
+												: "No description provided. Use the parameter contract below to run the report safely."}
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="flex flex-wrap gap-2">
+											<Badge variant="secondary">
+												{selectedReport.reportType || "Unknown"}
+											</Badge>
+											<Badge variant="outline">
+												{selectedReport.reportCategory?.trim() ||
+													"Uncategorized"}
+											</Badge>
+											{selectedReport.reportSubType ? (
+												<Badge variant="outline">
+													{selectedReport.reportSubType}
+												</Badge>
+											) : null}
+											<Badge
+												variant={
+													selectedReport.useReport === false
+														? "warning"
+														: "success"
+												}
+											>
+												{selectedReport.useReport === false
+													? "Disabled in service"
+													: "Ready to run"}
+											</Badge>
+										</div>
+
+										{selectedReport.reportType === "Pentaho" && (
+											<Alert>
+												<AlertTitle>Pentaho note</AlertTitle>
+												<AlertDescription>
+													Legacy `output-type` values are intentionally ignored
+													on this branch. This page uses datatable export flags
+													only.
+												</AlertDescription>
+											</Alert>
+										)}
+
+										<div className="grid gap-4 md:grid-cols-3">
+											<div className="rounded-sm border border-border/60 p-3">
+												<div className="text-xs uppercase tracking-wide text-muted-foreground">
+													Report ID
+												</div>
+												<div className="mt-1 text-base font-medium">
+													{selectedReport.id || "—"}
+												</div>
+											</div>
+											<div className="rounded-sm border border-border/60 p-3">
+												<div className="text-xs uppercase tracking-wide text-muted-foreground">
+													Parameters
+												</div>
+												<div className="mt-1 text-base font-medium">
+													{selectedParameters.length}
+												</div>
+											</div>
+											<div className="rounded-sm border border-border/60 p-3">
+												<div className="text-xs uppercase tracking-wide text-muted-foreground">
+													Available Exports
+												</div>
+												<div className="mt-1 flex flex-wrap gap-2">
+													{availableExports.map((exportTarget) => (
+														<Badge key={exportTarget} variant="outline">
+															{getExportLabel(exportTarget)}
+														</Badge>
+													))}
+												</div>
+											</div>
+										</div>
+									</CardContent>
+								</Card>
+
+								<Card>
+									<CardHeader>
+										<CardTitle>Run Report</CardTitle>
+										<CardDescription>
+											Each field maps directly to the report service&apos;s `R_`
+											parameter contract.
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-6">
+										<div className="space-y-2">
+											<Label>Export target</Label>
+											<Select
+												value={selectedExport}
+												onValueChange={(value) =>
+													setSelectedExport(value as ReportExportTarget)
+												}
+											>
+												<SelectTrigger>
+													<SelectValue placeholder="Select export target" />
+												</SelectTrigger>
+												<SelectContent>
+													{availableExports.map((exportTarget) => (
+														<SelectItem key={exportTarget} value={exportTarget}>
+															{getExportLabel(exportTarget)}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</div>
+
+										{selectedParameters.length === 0 ? (
+											<div className="rounded-sm border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+												This report does not declare any runtime parameters.
+											</div>
+										) : (
+											<div className="grid gap-4 md:grid-cols-2">
+												{selectedParameters.map((parameter) => {
+													const parameterName = parameter.parameterName || "";
+													const metadata =
+														getReportParameterMetadata(parameter);
+													const options = parameterOptions[parameterName] || [];
+													const showFallbackInput =
+														metadata.control === "select" &&
+														!parameterOptionsQuery.isLoading &&
+														options.length === 0;
+
+													return (
+														<div key={parameterName} className="space-y-2">
+															<Label htmlFor={parameterName}>
+																{metadata.label}
+															</Label>
+
+															{metadata.control === "select" &&
+															!showFallbackInput ? (
+																parameterOptionsQuery.isLoading &&
+																metadata.optionSource === "parameterType" ? (
+																	<Skeleton className="h-10 w-full" />
+																) : (
+																	<Select
+																		value={formValues[parameterName] || ""}
+																		onValueChange={(value) =>
+																			setFormValues((current) => ({
+																				...current,
+																				[parameterName]: value,
+																			}))
+																		}
+																	>
+																		<SelectTrigger id={parameterName}>
+																			<SelectValue
+																				placeholder={`Select ${metadata.label.toLowerCase()}`}
+																			/>
+																		</SelectTrigger>
+																		<SelectContent>
+																			{metadata.allowAll &&
+																			metadata.allValue ? (
+																				<SelectItem value={metadata.allValue}>
+																					All
+																				</SelectItem>
+																			) : null}
+																			{options.map((option) => (
+																				<SelectItem
+																					key={`${parameterName}-${option.value}`}
+																					value={option.value}
+																				>
+																					{option.label}
+																				</SelectItem>
+																			))}
+																		</SelectContent>
+																	</Select>
+																)
+															) : (
+																<Input
+																	id={parameterName}
+																	type={
+																		metadata.control === "number"
+																			? "number"
+																			: metadata.control === "date"
+																				? "date"
+																				: "text"
+																	}
+																	value={formValues[parameterName] || ""}
+																	onChange={(event) =>
+																		setFormValues((current) => ({
+																			...current,
+																			[parameterName]: event.target.value,
+																		}))
+																	}
+																	placeholder={
+																		metadata.placeholder || metadata.description
+																	}
+																/>
+															)}
+
+															<div className="text-xs text-muted-foreground">
+																{metadata.description}
+															</div>
+															<div className="text-[11px] text-muted-foreground">
+																Request key:{" "}
+																<code>R_{metadata.requestKey}</code>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										)}
+
+										{parameterOptionsQuery.error && (
+											<Alert>
+												<AlertTitle>Parameter lookup fallback</AlertTitle>
+												<AlertDescription>
+													Some lookup lists could not be resolved automatically.
+													Manual input is still available for affected
+													parameters.
+												</AlertDescription>
+											</Alert>
+										)}
+
+										{runError ? (
+											<Alert variant="destructive">
+												<AlertTitle>Report execution failed</AlertTitle>
+												<AlertDescription className="space-y-2">
+													<div>{runError.message}</div>
+													{getErrorMessages(runError).length > 0 ? (
+														<ul className="list-disc pl-5 text-sm">
+															{getErrorMessages(runError).map((message) => (
+																<li key={message}>{message}</li>
+															))}
+														</ul>
+													) : null}
+												</AlertDescription>
+											</Alert>
+										) : null}
+
+										<div className="flex flex-wrap items-center justify-end gap-2">
+											<Button
+												type="button"
+												variant="outline"
+												onClick={() => {
+													const resetValues: Record<string, string> = {};
+
+													for (const parameter of selectedParameters) {
+														const parameterName = parameter.parameterName || "";
+														if (!parameterName) {
+															continue;
+														}
 
 								<div className="rounded-sm border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
 									{selectedParameterFields.length === 0 ? (
@@ -2181,34 +1937,18 @@ export default function ReportsPage() {
 									</p>
 								)}
 
-								<div className="space-y-2">
-									<Label>Output</Label>
-									<Select
-										value={selectedOutput}
-										onValueChange={(value) => {
-											setSelectedOutput(value as ReportOutputType);
-											runReportMutation.reset();
-										}}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select output type" />
-										</SelectTrigger>
-										<SelectContent>
-											{outputOptions.map((option) => (
-												<SelectItem key={option.value} value={option.value}>
-													{option.label}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<div className="flex flex-wrap gap-1">
-										{outputOptionValues.map((outputValue) => (
-											<Badge
-												key={outputValue}
-												variant={
-													selectedOutput === outputValue
-														? "secondary"
-														: "outline"
+													setFormValues(resetValues);
+													setExecutionResult(null);
+												}}
+											>
+												Reset Parameters
+											</Button>
+											<Button
+												type="button"
+												onClick={executeSelectedReport}
+												disabled={
+													runMutation.isPending ||
+													selectedReport.useReport === false
 												}
 											>
 												{outputValue}
@@ -2344,117 +2084,119 @@ export default function ReportsPage() {
 													</p>
 												)}
 											</div>
-										);
-									})}
-
-									<div className="space-y-2">
-										<Label htmlFor="additional-params">
-											Additional Query Parameters
-										</Label>
-										<Textarea
-											id="additional-params"
-											value={additionalParams}
-											onChange={(event) => {
-												setAdditionalParams(event.target.value);
-												runReportMutation.reset();
-											}}
-											placeholder="R_officeId=1&#10;R_fromDate=2026-01-01&#10;R_toDate=2026-01-31"
-											className="min-h-28"
-										/>
-										<p className="text-xs text-muted-foreground">
-											Use one key=value pair per line for parameters that are
-											not listed in report metadata.
-										</p>
-									</div>
-								</div>
-
-								<div className="flex items-center justify-end gap-2 pt-2">
-									<Button
-										variant="outline"
-										onClick={() => setIsRunnerOpen(false)}
-										disabled={runReportMutation.isPending}
-									>
-										Cancel
-									</Button>
-									<Button
-										onClick={() => runReportMutation.mutate()}
-										disabled={runReportMutation.isPending}
-									>
-										{selectedOutput === "JSON" ? (
-											<Play className="mr-2 h-4 w-4" />
 										) : (
-											<Download className="mr-2 h-4 w-4" />
+											<div className="rounded-sm border border-border/60">
+												<Table>
+													<TableHeader>
+														<TableRow>
+															<TableHead>Parameter</TableHead>
+															<TableHead>Request Key</TableHead>
+															<TableHead>Control</TableHead>
+															<TableHead>Notes</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{selectedParameters.map((parameter) => {
+															const metadata =
+																getReportParameterMetadata(parameter);
+															return (
+																<TableRow
+																	key={`definition-${parameter.parameterName}`}
+																>
+																	<TableCell>
+																		<div className="space-y-1">
+																			<div className="font-medium">
+																				{metadata.label}
+																			</div>
+																			<div className="text-xs text-muted-foreground">
+																				{parameter.parameterName}
+																			</div>
+																		</div>
+																	</TableCell>
+																	<TableCell>
+																		<code>R_{metadata.requestKey}</code>
+																	</TableCell>
+																	<TableCell>
+																		<Badge variant="outline">
+																			{metadata.control}
+																		</Badge>
+																	</TableCell>
+																	<TableCell className="text-sm text-muted-foreground">
+																		{metadata.description}
+																	</TableCell>
+																</TableRow>
+															);
+														})}
+													</TableBody>
+												</Table>
+											</div>
 										)}
-										{runReportMutation.isPending
-											? "Running..."
-											: selectedOutput === "JSON"
-												? "Run Preview"
-												: "Run & Download"}
-									</Button>
-								</div>
-								{missingRequiredFields.length > 0 && (
-									<p className="text-right text-xs text-muted-foreground">
-										{missingRequiredFields.length.toLocaleString()} required
-										parameter
-										{missingRequiredFields.length === 1 ? "" : "s"} still
-										missing.
-									</p>
-								)}
+									</CardContent>
+								</Card>
 
-								<SubmitErrorAlert
-									error={runReportError}
-									title="Report Execution Failed"
-								/>
-
-								{selectedOutput === "JSON" && runResult && (
+								{runMutation.isPending ? (
+									<ResultsSkeleton />
+								) : executionResult ? (
 									<Card>
 										<CardHeader>
-											<CardTitle className="text-base">JSON Preview</CardTitle>
+											<CardTitle>Latest Result</CardTitle>
 											<CardDescription>
-												{previewRows.length.toLocaleString()} rows
+												{selectedExport === "PRETTY_JSON"
+													? "Formatted JSON payload returned by the report service."
+													: "Most recent successful report response for the current selection."}
 											</CardDescription>
 										</CardHeader>
-										<CardContent className="space-y-3">
-											{previewColumns.length === 0 ? (
-												<pre className="max-h-72 overflow-auto rounded-sm border border-border/60 bg-muted/30 p-3 text-xs">
-													{JSON.stringify(runResult, null, 2)}
-												</pre>
+										<CardContent>
+											{executionResult.kind === "structured" &&
+											selectedExport !== "PRETTY_JSON" &&
+											isStructuredReportPayload(executionResult.data) &&
+											(executionResult.data.columnHeaders?.length || 0) > 0 ? (
+												<DataTable
+													data={normalizeResultsetRows(executionResult.data)}
+													columns={(
+														executionResult.data.columnHeaders || []
+													).map((header) => ({
+														header: header.columnName || "Column",
+														cell: (row: {
+															id: string;
+															values: Record<string, unknown>;
+														}) => {
+															const key = header.columnName || "Column";
+															const value = row.values[key];
+															return value === null || value === undefined
+																? "—"
+																: String(value);
+														},
+													}))}
+													getRowId={(row) => row.id}
+													emptyMessage="The report completed successfully but returned no rows."
+												/>
 											) : (
-												<div className="rounded-sm border border-border/60">
-													<Table>
-														<TableHeader className="bg-muted/40">
-															<TableRow>
-																{previewColumns.map((column) => (
-																	<TableHead key={column}>{column}</TableHead>
-																))}
-															</TableRow>
-														</TableHeader>
-														<TableBody>
-															{previewRows.map((row, rowIndex) => (
-																<TableRow key={`${rowIndex}`}>
-																	{previewColumns.map((column, columnIndex) => (
-																		<TableCell key={`${column}-${rowIndex}`}>
-																			{getPreviewCellValue(
-																				row,
-																				column,
-																				columnIndex,
-																			)}
-																		</TableCell>
-																	))}
-																</TableRow>
-															))}
-														</TableBody>
-													</Table>
-												</div>
+												<pre className="max-h-[32rem] overflow-auto rounded-sm border border-border/60 bg-muted/30 p-4 text-xs leading-6">
+													{executionResult.kind === "structured"
+														? executionResult.rawText ||
+															JSON.stringify(executionResult.data, null, 2)
+														: executionResult.text}
+												</pre>
 											)}
 										</CardContent>
 									</Card>
-								)}
-							</div>
-						</div>
-					)}
-				</SheetContent>
-			</Sheet>
+								) : null}
+							</>
+						) : (
+							<Card>
+								<CardHeader>
+									<CardTitle>Select a report</CardTitle>
+									<CardDescription>
+										Choose a report from the catalog to inspect its parameter
+										contract and execute it.
+									</CardDescription>
+								</CardHeader>
+							</Card>
+						)}
+					</div>
+				</div>
+			</div>
 		</PageShell>
 	);
 }

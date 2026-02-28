@@ -1,7 +1,11 @@
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
+	DeleteReportsResponse,
 	GetReportsResponse,
 	GetReportsTemplateResponse,
+	PostReportsResponse,
+	PostRepostRequest,
+	PutReportResponse,
 	ResultsetColumnHeaderData,
 	RunReportsResponse,
 } from "@/lib/fineract/generated/types.gen";
@@ -18,6 +22,14 @@ export type ReportParameter = {
 
 export type ReportDefinition = Omit<GetReportsResponse, "reportParameters"> & {
 	reportParameters?: Array<ReportParameter>;
+};
+
+export type ReportUpsertPayload = Omit<
+	PostRepostRequest,
+	"reportParameters"
+> & {
+	reportParameters?: Array<ReportParameter>;
+	useReport?: boolean;
 };
 
 export type ReportsTemplate = Omit<
@@ -529,6 +541,16 @@ export function isStructuredReportPayload(
 	return isRecord(payload) && ("columnHeaders" in payload || "data" in payload);
 }
 
+async function parseSubmitResponse<T>(
+	response: Response,
+): Promise<T> {
+	if (!response.ok) {
+		throw await normalizeFailedResponse(response);
+	}
+
+	return (await parseJsonSafely(response)) as T;
+}
+
 export async function fetchReports(
 	tenantId: string,
 ): Promise<ReportDefinition[]> {
@@ -543,6 +565,77 @@ export async function fetchReports(
 	}
 
 	return (await parseJsonSafely(response)) as ReportDefinition[];
+}
+
+export async function fetchReportById(
+	tenantId: string,
+	reportId: number,
+	options?: {
+		includeTemplate?: boolean;
+	},
+): Promise<ReportDefinition> {
+	const url = options?.includeTemplate
+		? `${BFF_ROUTES.reportById(reportId)}?template=true`
+		: BFF_ROUTES.reportById(reportId);
+
+	const response = await fetch(url, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw await normalizeFailedResponse(response);
+	}
+
+	return (await parseJsonSafely(response)) as ReportDefinition;
+}
+
+export async function createReportDefinition(
+	tenantId: string,
+	payload: ReportUpsertPayload,
+): Promise<PostReportsResponse> {
+	const response = await fetch(BFF_ROUTES.reports, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	return parseSubmitResponse<PostReportsResponse>(response);
+}
+
+export async function updateReportDefinition(
+	tenantId: string,
+	reportId: number,
+	payload: ReportUpsertPayload,
+): Promise<PutReportResponse> {
+	const response = await fetch(BFF_ROUTES.reportById(reportId), {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	return parseSubmitResponse<PutReportResponse>(response);
+}
+
+export async function deleteReportDefinition(
+	tenantId: string,
+	reportId: number,
+): Promise<DeleteReportsResponse> {
+	const response = await fetch(BFF_ROUTES.reportById(reportId), {
+		method: "DELETE",
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	return parseSubmitResponse<DeleteReportsResponse>(response);
 }
 
 export async function fetchReportsTemplate(

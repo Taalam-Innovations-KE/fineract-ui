@@ -1,19 +1,33 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Download,
 	FileJson,
 	FileSpreadsheet,
 	FileText,
 	Filter,
+	Pencil,
 	Play,
+	Plus,
 	RefreshCw,
 	Search,
+	Trash2,
 } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
+import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +38,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +49,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -44,7 +66,12 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import {
+	createReportDefinition,
+	deleteReportDefinition,
+	fetchReportById,
 	fetchReportAvailableExports,
 	fetchReportParameterOptions,
 	fetchReports,
@@ -59,8 +86,15 @@ import {
 	type ReportParameter,
 	type ReportParameterMetadata,
 	type ReportParameterOption,
+	type ReportUpsertPayload,
 	runReport,
+	updateReportDefinition,
 } from "@/lib/fineract/reports";
+import type { SubmitActionError } from "@/lib/fineract/submit-error";
+import {
+	getSubmitFieldError,
+	toSubmitActionError,
+} from "@/lib/fineract/submit-error";
 import {
 	getErrorMessages,
 	normalizeApiError,
@@ -69,6 +103,8 @@ import { useTenantStore } from "@/store/tenant";
 
 const ALL_FILTER = "__ALL__";
 const DEFAULT_EXPORT: ReportExportTarget = "JSON";
+const EMPTY_REPORT_TYPES: string[] = [];
+const EMPTY_TEMPLATE_PARAMETERS: ReportParameter[] = [];
 
 type VisibilityFilter = "runnable" | "all";
 
@@ -192,6 +228,95 @@ function buildParameterValueMap(
 	return values;
 }
 
+type ReportEditorValues = {
+	reportName: string;
+	reportType: string;
+	reportSubType: string;
+	reportCategory: string;
+	description: string;
+	reportSql: string;
+	useReport: boolean;
+	reportParameterIds: number[];
+};
+
+const REPORT_TYPES_REQUIRING_SQL = new Set(["Table", "Chart"]);
+const CHART_SUBTYPES = ["Bar", "Pie"];
+
+function getParameterId(parameter: ReportParameter) {
+	if (typeof parameter.parameterId === "number") {
+		return parameter.parameterId;
+	}
+
+	return typeof parameter.id === "number" ? parameter.id : undefined;
+}
+
+function createEmptyReportEditorValues(
+	templateReportType?: string,
+): ReportEditorValues {
+	return {
+		reportName: "",
+		reportType: templateReportType || "",
+		reportSubType: "",
+		reportCategory: "",
+		description: "",
+		reportSql: "",
+		useReport: true,
+		reportParameterIds: [],
+	};
+}
+
+function createReportEditorValues(
+	report: ReportDefinition | null | undefined,
+	defaultReportType?: string,
+): ReportEditorValues {
+	if (!report) {
+		return createEmptyReportEditorValues(defaultReportType);
+	}
+
+	return {
+		reportName: report.reportName || "",
+		reportType: report.reportType || defaultReportType || "",
+		reportSubType: report.reportSubType || "",
+		reportCategory: report.reportCategory || "",
+		description: report.description || "",
+		reportSql: report.reportSql || "",
+		useReport: report.useReport !== false,
+		reportParameterIds: (report.reportParameters || [])
+			.map((parameter) => getParameterId(parameter))
+			.filter((parameterId): parameterId is number => typeof parameterId === "number"),
+	};
+}
+
+function buildReportDefinitionPayload(
+	values: ReportEditorValues,
+	isCoreReport: boolean,
+): ReportUpsertPayload {
+	if (isCoreReport) {
+		return {
+			useReport: values.useReport,
+		};
+	}
+
+	const trimmedReportType = values.reportType.trim();
+	const isChartReport = trimmedReportType === "Chart";
+	const requiresSql = REPORT_TYPES_REQUIRING_SQL.has(trimmedReportType);
+
+	return {
+		reportName: values.reportName.trim(),
+		reportType: trimmedReportType || undefined,
+		reportSubType: isChartReport
+			? values.reportSubType.trim() || undefined
+			: undefined,
+		reportCategory: values.reportCategory.trim() || undefined,
+		description: values.description.trim() || undefined,
+		reportSql: requiresSql ? values.reportSql.trim() || undefined : undefined,
+		useReport: values.useReport,
+		reportParameters: values.reportParameterIds.map((parameterId) => ({
+			parameterId,
+		})),
+	};
+}
+
 function ResultsSkeleton() {
 	return (
 		<Card>
@@ -300,6 +425,7 @@ function ReportsPageSkeleton() {
 
 export default function ReportsPage() {
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
 	const [searchTerm, setSearchTerm] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState(ALL_FILTER);
 	const [typeFilter, setTypeFilter] = useState(ALL_FILTER);
@@ -311,6 +437,13 @@ export default function ReportsPage() {
 		useState<ReportExportTarget>(DEFAULT_EXPORT);
 	const [executionResult, setExecutionResult] =
 		useState<ReportExecutionResponse | null>(null);
+	const [isEditorOpen, setIsEditorOpen] = useState(false);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const [editingReportId, setEditingReportId] = useState<number | null>(null);
+	const [reportEditorValues, setReportEditorValues] = useState<ReportEditorValues>(
+		createEmptyReportEditorValues(),
+	);
+	const [submitError, setSubmitError] = useState<SubmitActionError | null>(null);
 	const deferredSearchTerm = useDeferredValue(searchTerm);
 
 	const reportsQuery = useQuery({
@@ -333,6 +466,16 @@ export default function ReportsPage() {
 
 	const reports = reportsQuery.data || [];
 	const template = templateQuery.data;
+	const allowedReportTypes =
+		template?.allowedReportTypes ?? EMPTY_REPORT_TYPES;
+	const allowedTemplateParameters =
+		template?.allowedParameters ?? EMPTY_TEMPLATE_PARAMETERS;
+
+	const editingReportDetailQuery = useQuery({
+		queryKey: ["report-detail", tenantId, editingReportId],
+		queryFn: () => fetchReportById(tenantId, Number(editingReportId)),
+		enabled: Boolean(tenantId && isEditorOpen && editingReportId !== null),
+	});
 
 	const selectedReport =
 		reports.find((report) => report.id === selectedReportId) || null;
@@ -426,6 +569,88 @@ export default function ReportsPage() {
 		},
 	});
 
+	const createMutation = useMutation({
+		mutationFn: (payload: ReportUpsertPayload) =>
+			createReportDefinition(tenantId, payload),
+		onSuccess: async (result) => {
+			await queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			await queryClient.invalidateQueries({
+				queryKey: ["reports-template", tenantId],
+			});
+			setSubmitError(null);
+			setIsEditorOpen(false);
+			if (typeof result.resourceId === "number") {
+				setSelectedReportId(result.resourceId);
+			}
+			toast.success("Report created successfully.");
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "createReport",
+					endpoint: BFF_ROUTES.reports,
+					method: "POST",
+					tenantId,
+				}),
+			);
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (payload: ReportUpsertPayload) =>
+			updateReportDefinition(tenantId, Number(editingReportId), payload),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			await queryClient.invalidateQueries({
+				queryKey: ["report-detail", tenantId, editingReportId],
+			});
+			setSubmitError(null);
+			setIsEditorOpen(false);
+			toast.success("Report updated successfully.");
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "updateReport",
+					endpoint: BFF_ROUTES.reportById(editingReportId || 0),
+					method: "PUT",
+					tenantId,
+				}),
+			);
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: () => deleteReportDefinition(tenantId, Number(editingReportId)),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			setSubmitError(null);
+			setIsDeleteDialogOpen(false);
+			setIsEditorOpen(false);
+			if (selectedReportId === editingReportId) {
+				setSelectedReportId(null);
+			}
+			toast.success("Report deleted successfully.");
+		},
+		onError: (error) => {
+			setSubmitError(
+				toSubmitActionError(error, {
+					action: "deleteReport",
+					endpoint: BFF_ROUTES.reportById(editingReportId || 0),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
+			setIsDeleteDialogOpen(false);
+		},
+	});
+
 	useEffect(() => {
 		if (selectedReportId || reports.length === 0) {
 			return;
@@ -471,6 +696,105 @@ export default function ReportsPage() {
 			setSelectedExport(allowedExports[0] || DEFAULT_EXPORT);
 		}
 	}, [availableExportsQuery.data, selectedExport]);
+
+	useEffect(() => {
+		if (!isEditorOpen || editingReportId === null || !editingReportDetailQuery.data) {
+			return;
+		}
+
+		setReportEditorValues(
+			createReportEditorValues(
+				editingReportDetailQuery.data,
+				allowedReportTypes[0],
+			),
+		);
+	}, [
+		allowedReportTypes,
+		editingReportDetailQuery.data,
+		editingReportId,
+		isEditorOpen,
+	]);
+
+	const handleEditorOpenChange = (open: boolean) => {
+		setIsEditorOpen(open);
+		if (!open) {
+			setEditingReportId(null);
+			setSubmitError(null);
+			setIsDeleteDialogOpen(false);
+			setReportEditorValues(createEmptyReportEditorValues(allowedReportTypes[0]));
+		}
+	};
+
+	const updateEditorField = <Field extends keyof ReportEditorValues>(
+		field: Field,
+		value: ReportEditorValues[Field],
+	) => {
+		setReportEditorValues((current) => {
+			const next = {
+				...current,
+				[field]: value,
+			};
+
+			if (field === "reportType") {
+				const reportType = String(value).trim();
+				if (reportType !== "Chart") {
+					next.reportSubType = "";
+				}
+				if (!REPORT_TYPES_REQUIRING_SQL.has(reportType)) {
+					next.reportSql = "";
+				}
+			}
+
+			return next;
+		});
+	};
+
+	const toggleReportParameter = (parameterId: number, checked: boolean) => {
+		setReportEditorValues((current) => ({
+			...current,
+			reportParameterIds: checked
+				? [...new Set([...current.reportParameterIds, parameterId])]
+				: current.reportParameterIds.filter((item) => item !== parameterId),
+		}));
+	};
+
+	const handleOpenCreateEditor = () => {
+		setEditingReportId(null);
+		setSubmitError(null);
+		setIsDeleteDialogOpen(false);
+		setReportEditorValues(createEmptyReportEditorValues(allowedReportTypes[0]));
+		setIsEditorOpen(true);
+	};
+
+	const handleOpenEditEditor = () => {
+		if (selectedReport?.id === undefined) {
+			return;
+		}
+
+		setEditingReportId(selectedReport.id);
+		setSubmitError(null);
+		setIsDeleteDialogOpen(false);
+		setReportEditorValues(
+			createReportEditorValues(selectedReport, allowedReportTypes[0]),
+		);
+		setIsEditorOpen(true);
+	};
+
+	const handleSubmitReportDefinition = () => {
+		setSubmitError(null);
+
+		const payload = buildReportDefinitionPayload(
+			reportEditorValues,
+			Boolean(editingReportDetailQuery.data?.coreReport),
+		);
+
+		if (editingReportId === null) {
+			createMutation.mutate(payload);
+			return;
+		}
+
+		updateMutation.mutate(payload);
+	};
 
 	const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
 	const filteredReports = reports.filter((report) => {
@@ -546,6 +870,33 @@ export default function ReportsPage() {
 	const templateLoadError = templateQuery.error
 		? normalizeApiError(templateQuery.error)
 		: null;
+	const isEditingReport = editingReportId !== null;
+	const editingReport = editingReportDetailQuery.data || selectedReport;
+	const isCoreEditingReport = Boolean(editingReport?.coreReport);
+	const isSavingReport =
+		createMutation.isPending ||
+		updateMutation.isPending ||
+		deleteMutation.isPending;
+	const selectedDefinitionPayload = buildReportDefinitionPayload(
+		reportEditorValues,
+		isCoreEditingReport,
+	);
+	const reportNameFieldError = getSubmitFieldError(submitError, "reportName");
+	const reportTypeFieldError = getSubmitFieldError(submitError, "reportType");
+	const reportSubTypeFieldError = getSubmitFieldError(
+		submitError,
+		"reportSubType",
+	);
+	const reportCategoryFieldError = getSubmitFieldError(
+		submitError,
+		"reportCategory",
+	);
+	const descriptionFieldError = getSubmitFieldError(submitError, "description");
+	const reportSqlFieldError = getSubmitFieldError(submitError, "reportSql");
+	const reportParametersFieldError = getSubmitFieldError(
+		submitError,
+		"reportParameters",
+	);
 
 	const executeSelectedReport = () => {
 		if (!selectedReport?.reportName) {
@@ -578,23 +929,29 @@ export default function ReportsPage() {
 			title="Reports"
 			subtitle="Discover report definitions, fill parameter contracts, and execute exports using the branch-safe datatable report service."
 			actions={
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => {
-						reportsQuery.refetch();
-						templateQuery.refetch();
-						if (selectedReport?.reportName) {
-							availableExportsQuery.refetch();
-						}
-						if (selectedReport?.id) {
-							parameterOptionsQuery.refetch();
-						}
-					}}
-				>
-					<RefreshCw className="mr-2 h-4 w-4" />
-					Refresh Catalog
-				</Button>
+				<div className="flex flex-wrap items-center gap-2">
+					<Button type="button" onClick={handleOpenCreateEditor}>
+						<Plus className="mr-2 h-4 w-4" />
+						Create Report
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => {
+							reportsQuery.refetch();
+							templateQuery.refetch();
+							if (selectedReport?.reportName) {
+								availableExportsQuery.refetch();
+							}
+							if (selectedReport?.id) {
+								parameterOptionsQuery.refetch();
+							}
+						}}
+					>
+						<RefreshCw className="mr-2 h-4 w-4" />
+						Refresh Catalog
+					</Button>
+				</div>
 			}
 		>
 			<div className="space-y-6">
@@ -918,6 +1275,18 @@ export default function ReportsPage() {
 											</Badge>
 										</div>
 
+										<div className="flex flex-wrap items-center justify-end gap-2">
+											<Button
+												type="button"
+												variant="outline"
+												onClick={handleOpenEditEditor}
+												disabled={selectedReport.id === undefined}
+											>
+												<Pencil className="mr-2 h-4 w-4" />
+												Manage Definition
+											</Button>
+										</div>
+
 										{selectedReport.reportType === "Pentaho" && (
 											<Alert>
 												<AlertTitle>Pentaho note</AlertTitle>
@@ -959,6 +1328,28 @@ export default function ReportsPage() {
 												</div>
 											</div>
 										</div>
+
+										{selectedReport.reportSql?.trim() ? (
+											<div className="space-y-2">
+												<div className="text-xs uppercase tracking-wide text-muted-foreground">
+													Stored SQL
+												</div>
+												<pre className="max-h-48 overflow-auto rounded-sm border border-border/60 bg-muted/30 p-3 text-xs leading-5">
+													{selectedReport.reportSql}
+												</pre>
+											</div>
+										) : null}
+
+										{selectedReport.coreReport ? (
+											<Alert>
+												<AlertTitle>Core report protection</AlertTitle>
+												<AlertDescription>
+													This report is marked as core. Only the
+													<code className="mx-1">useReport</code>
+													flag can be updated, and deletion is blocked.
+												</AlertDescription>
+											</Alert>
+										) : null}
 									</CardContent>
 								</Card>
 
@@ -1299,6 +1690,387 @@ export default function ReportsPage() {
 					</div>
 				</div>
 			</div>
+
+			<Sheet open={isEditorOpen} onOpenChange={handleEditorOpenChange}>
+				<SheetContent
+					side="right"
+					className="w-full overflow-y-auto sm:max-w-2xl"
+				>
+					<SheetHeader>
+						<SheetTitle>
+							{isEditingReport ? "Manage Report" : "Create Report"}
+						</SheetTitle>
+						<SheetDescription>
+							Inspect the template contract, bind valid parameters, and persist
+							only supported report fields.
+						</SheetDescription>
+					</SheetHeader>
+
+					{isEditingReport && editingReportDetailQuery.isLoading ? (
+						<div className="mt-6 space-y-4">
+							{Array.from({ length: 6 }).map((_, index) => (
+								<div key={`report-editor-skeleton-${index}`} className="space-y-2">
+									<Skeleton className="h-4 w-24" />
+									<Skeleton className="h-10 w-full" />
+								</div>
+							))}
+						</div>
+					) : isEditingReport && editingReportDetailQuery.error ? (
+						<Alert variant="destructive" className="mt-6">
+							<AlertTitle>Unable to load report details</AlertTitle>
+							<AlertDescription>
+								Open the report again after refreshing the catalog.
+							</AlertDescription>
+						</Alert>
+					) : (
+						<div className="mt-6 space-y-6">
+							<SubmitErrorAlert
+								error={submitError}
+								title={
+									isEditingReport
+										? "Unable to update report"
+										: "Unable to create report"
+								}
+							/>
+
+							{isCoreEditingReport ? (
+								<Alert>
+									<AlertTitle>Core report</AlertTitle>
+									<AlertDescription>
+										Fineract only allows
+										<code className="mx-1">useReport</code>
+										changes for core reports. All other fields are read-only
+										here.
+									</AlertDescription>
+								</Alert>
+							) : null}
+
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="report-name">
+										Report Name <span className="text-destructive">*</span>
+									</Label>
+									<Input
+										id="report-name"
+										value={reportEditorValues.reportName}
+										onChange={(event) =>
+											updateEditorField("reportName", event.target.value)
+										}
+										disabled={isSavingReport || isCoreEditingReport}
+										placeholder="e.g. Branch Collection Summary"
+									/>
+									{reportNameFieldError ? (
+										<p className="text-sm text-destructive">
+											{reportNameFieldError}
+										</p>
+									) : null}
+								</div>
+
+								<div className="space-y-2">
+									<Label>
+										Report Type <span className="text-destructive">*</span>
+									</Label>
+									<Select
+										value={reportEditorValues.reportType}
+										onValueChange={(value) =>
+											updateEditorField("reportType", value)
+										}
+										disabled={isSavingReport || isCoreEditingReport}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select report type" />
+										</SelectTrigger>
+										<SelectContent>
+											{allowedReportTypes.map((reportType) => (
+												<SelectItem key={reportType} value={reportType}>
+													{reportType}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{reportTypeFieldError ? (
+										<p className="text-sm text-destructive">
+											{reportTypeFieldError}
+										</p>
+									) : null}
+								</div>
+							</div>
+
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="report-sub-type">Report Sub-Type</Label>
+									{reportEditorValues.reportType === "Chart" ? (
+										<Select
+											value={reportEditorValues.reportSubType}
+											onValueChange={(value) =>
+												updateEditorField("reportSubType", value)
+											}
+											disabled={isSavingReport || isCoreEditingReport}
+										>
+											<SelectTrigger id="report-sub-type">
+												<SelectValue placeholder="Select chart sub-type" />
+											</SelectTrigger>
+											<SelectContent>
+												{CHART_SUBTYPES.map((subType) => (
+													<SelectItem key={subType} value={subType}>
+														{subType}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									) : (
+										<Input
+											id="report-sub-type"
+											value={reportEditorValues.reportSubType}
+											onChange={(event) =>
+												updateEditorField("reportSubType", event.target.value)
+											}
+											disabled
+											placeholder="Only required for chart reports"
+										/>
+									)}
+									{reportSubTypeFieldError ? (
+										<p className="text-sm text-destructive">
+											{reportSubTypeFieldError}
+										</p>
+									) : null}
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="report-category">Category</Label>
+									<Input
+										id="report-category"
+										value={reportEditorValues.reportCategory}
+										onChange={(event) =>
+											updateEditorField("reportCategory", event.target.value)
+										}
+										disabled={isSavingReport || isCoreEditingReport}
+										placeholder="e.g. Portfolio"
+									/>
+									{reportCategoryFieldError ? (
+										<p className="text-sm text-destructive">
+											{reportCategoryFieldError}
+										</p>
+									) : null}
+								</div>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="report-description">Description</Label>
+								<Textarea
+									id="report-description"
+									rows={3}
+									value={reportEditorValues.description}
+									onChange={(event) =>
+										updateEditorField("description", event.target.value)
+									}
+									disabled={isSavingReport || isCoreEditingReport}
+									placeholder="Describe how this report should be used"
+								/>
+								{descriptionFieldError ? (
+									<p className="text-sm text-destructive">
+										{descriptionFieldError}
+									</p>
+								) : null}
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="report-sql">Report SQL</Label>
+								<Textarea
+									id="report-sql"
+									rows={8}
+									value={reportEditorValues.reportSql}
+									onChange={(event) =>
+										updateEditorField("reportSql", event.target.value)
+									}
+									disabled={
+										isSavingReport ||
+										isCoreEditingReport ||
+										!REPORT_TYPES_REQUIRING_SQL.has(
+											reportEditorValues.reportType.trim(),
+										)
+									}
+									placeholder={
+										REPORT_TYPES_REQUIRING_SQL.has(
+											reportEditorValues.reportType.trim(),
+										)
+											? "SELECT ... FROM ..."
+											: "SQL is only used for Table and Chart report types"
+									}
+								/>
+								{reportSqlFieldError ? (
+									<p className="text-sm text-destructive">{reportSqlFieldError}</p>
+								) : (
+									<p className="text-xs text-muted-foreground">
+										Table and Chart reports require SQL. Non-SQL report types
+										must leave this blank.
+									</p>
+								)}
+							</div>
+
+							<div className="space-y-3">
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<Label>Report Parameters</Label>
+										<p className="text-xs text-muted-foreground">
+											Choose only parameters exposed by the report template.
+										</p>
+									</div>
+									<Badge variant="outline">
+										{reportEditorValues.reportParameterIds.length} selected
+									</Badge>
+								</div>
+								<div className="grid max-h-64 gap-2 overflow-y-auto rounded-sm border border-border/60 p-3">
+									{allowedTemplateParameters.length === 0 ? (
+										<div className="text-sm text-muted-foreground">
+											No allowed parameters were returned by the template.
+										</div>
+									) : (
+										allowedTemplateParameters.map((parameter) => {
+											const parameterId = getParameterId(parameter);
+											if (parameterId === undefined) {
+												return null;
+											}
+
+											const metadata = getReportParameterMetadata(parameter);
+											const fieldId = `report-parameter-${parameterId}`;
+											return (
+												<label
+													key={fieldId}
+													htmlFor={fieldId}
+													className="flex cursor-pointer items-start gap-3 rounded-sm border border-border/60 p-3"
+												>
+													<Checkbox
+														id={fieldId}
+														checked={reportEditorValues.reportParameterIds.includes(
+															parameterId,
+														)}
+														onCheckedChange={(value) =>
+															toggleReportParameter(
+																parameterId,
+																Boolean(value),
+															)
+														}
+														disabled={isSavingReport || isCoreEditingReport}
+													/>
+													<div className="space-y-1">
+														<div className="text-sm font-medium">
+															{metadata.label}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{parameter.parameterName}
+														</div>
+														<div className="text-xs text-muted-foreground">
+															{metadata.description}
+														</div>
+													</div>
+												</label>
+											);
+										})
+									)}
+								</div>
+								{reportParametersFieldError ? (
+									<p className="text-sm text-destructive">
+										{reportParametersFieldError}
+									</p>
+								) : null}
+							</div>
+
+							<div className="rounded-sm border border-border/60 p-3">
+								<div className="flex items-start gap-3">
+									<Checkbox
+										id="report-use-report"
+										checked={reportEditorValues.useReport}
+										onCheckedChange={(value) =>
+											updateEditorField("useReport", Boolean(value))
+										}
+										disabled={isSavingReport}
+									/>
+									<div className="space-y-1">
+										<Label htmlFor="report-use-report">Enable report</Label>
+										<p className="text-xs text-muted-foreground">
+											Controls whether this definition is available for
+											execution.
+										</p>
+									</div>
+								</div>
+							</div>
+
+							<div className="rounded-sm border border-border/60 bg-muted/20 p-3">
+								<div className="text-xs uppercase tracking-wide text-muted-foreground">
+									Payload Preview
+								</div>
+								<pre className="mt-2 max-h-48 overflow-auto text-xs leading-5">
+									{JSON.stringify(selectedDefinitionPayload, null, 2)}
+								</pre>
+							</div>
+
+							<div className="flex items-center justify-between gap-2 pt-2">
+								<div>
+									{isEditingReport && !isCoreEditingReport ? (
+										<Button
+											type="button"
+											variant="destructive"
+											onClick={() => setIsDeleteDialogOpen(true)}
+											disabled={isSavingReport}
+										>
+											<Trash2 className="mr-2 h-4 w-4" />
+											Delete Report
+										</Button>
+									) : null}
+								</div>
+								<div className="flex items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => handleEditorOpenChange(false)}
+										disabled={isSavingReport}
+									>
+										Cancel
+									</Button>
+									<Button
+										type="button"
+										onClick={handleSubmitReportDefinition}
+										disabled={isSavingReport}
+									>
+										{isEditingReport ? "Save Changes" : "Create Report"}
+									</Button>
+								</div>
+							</div>
+						</div>
+					)}
+				</SheetContent>
+			</Sheet>
+
+			<AlertDialog
+				open={isDeleteDialogOpen}
+				onOpenChange={setIsDeleteDialogOpen}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete report definition?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This removes the non-core report and its generated
+							<code className="mx-1">READ_{editingReport?.reportName || "report"}</code>
+							permission from Fineract.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleteMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={(event) => {
+								event.preventDefault();
+								deleteMutation.mutate();
+							}}
+							disabled={deleteMutation.isPending}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
@@ -9,7 +10,6 @@ import type {
 	GetLoansLoanIdResponse,
 	PostUpdateRescheduleLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
-import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import { validateRescheduleDecisionRules } from "@/lib/fineract/loan-rule-validations";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
@@ -29,13 +29,11 @@ export async function GET(
 			? `${FINERACT_ENDPOINTS.rescheduleLoanById(scheduleId)}?${queryString}`
 			: FINERACT_ENDPOINTS.rescheduleLoanById(scheduleId);
 
-		const rescheduleRequest = await fineractFetch<GetLoanRescheduleRequestResponse>(
-			path,
-			{
+		const rescheduleRequest =
+			await fineractFetch<GetLoanRescheduleRequestResponse>(path, {
 				method: "GET",
 				tenantId,
-			},
-		);
+			});
 
 		return NextResponse.json(rescheduleRequest);
 	} catch (error) {

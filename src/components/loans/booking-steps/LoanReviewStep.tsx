@@ -272,56 +272,56 @@ export function LoanReviewStep({
 					)}
 				</Section>
 
-					<Separator />
+				<Separator />
 
-					{/* Advanced Features */}
-					<Section title="Advanced Features" stepIndex={4} onEdit={onEditStep}>
-						<div className="grid grid-cols-2 gap-3">
-							<div>
-								<span className="text-muted-foreground">Top-up:</span>
-								<br />
-								<Badge variant={values.isTopup ? "default" : "secondary"}>
-									{values.isTopup ? "Enabled" : "Disabled"}
-								</Badge>
-							</div>
-							{values.isTopup && (
-								<div>
-									<span className="text-muted-foreground">Loan to Close:</span>
-									<br />
-									<span className="font-medium">
-										{values.loanIdToClose
-											? `Loan #${values.loanIdToClose}`
-											: "Not selected"}
-									</span>
-								</div>
-							)}
-							<div>
-								<span className="text-muted-foreground">
-									Down Payment Enabled:
-								</span>
-								<br />
-								<Badge
-									variant={values.enableDownPayment ? "default" : "secondary"}
-								>
-									{values.enableDownPayment ? "Yes" : "No"}
-								</Badge>
-							</div>
-							<div>
-								<span className="text-muted-foreground">Multi-Tranche:</span>
-								<br />
-								<Badge
-									variant={values.isMultiTrancheEnabled ? "default" : "secondary"}
-								>
-									{values.isMultiTrancheEnabled ? "Enabled" : "Disabled"}
-								</Badge>
-							</div>
+				{/* Advanced Features */}
+				<Section title="Advanced Features" stepIndex={4} onEdit={onEditStep}>
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<span className="text-muted-foreground">Top-up:</span>
+							<br />
+							<Badge variant={values.isTopup ? "default" : "secondary"}>
+								{values.isTopup ? "Enabled" : "Disabled"}
+							</Badge>
 						</div>
-					</Section>
+						{values.isTopup && (
+							<div>
+								<span className="text-muted-foreground">Loan to Close:</span>
+								<br />
+								<span className="font-medium">
+									{values.loanIdToClose
+										? `Loan #${values.loanIdToClose}`
+										: "Not selected"}
+								</span>
+							</div>
+						)}
+						<div>
+							<span className="text-muted-foreground">
+								Down Payment Enabled:
+							</span>
+							<br />
+							<Badge
+								variant={values.enableDownPayment ? "default" : "secondary"}
+							>
+								{values.enableDownPayment ? "Yes" : "No"}
+							</Badge>
+						</div>
+						<div>
+							<span className="text-muted-foreground">Multi-Tranche:</span>
+							<br />
+							<Badge
+								variant={values.isMultiTrancheEnabled ? "default" : "secondary"}
+							>
+								{values.isMultiTrancheEnabled ? "Enabled" : "Disabled"}
+							</Badge>
+						</div>
+					</div>
+				</Section>
 
-					<Separator />
+				<Separator />
 
-					{/* Dates */}
-					<Section title="Dates & Reference" stepIndex={5} onEdit={onEditStep}>
+				{/* Dates */}
+				<Section title="Dates & Reference" stepIndex={5} onEdit={onEditStep}>
 					<div className="grid grid-cols-2 gap-3">
 						<div>
 							<span className="text-muted-foreground">Submitted On:</span>

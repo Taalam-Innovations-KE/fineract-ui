@@ -54,35 +54,37 @@ export const loanGracePeriodsSchema = z.object({
  * Step 5: Advanced Features
  * Only relevant if product enables these features
  */
-export const loanAdvancedSchema = z.object({
-	enableDownPayment: z.boolean().optional(),
-	disbursedAmountPercentageForDownPayment: z
-		.number()
-		.min(0)
-		.max(100)
-		.optional(),
-	enableAutoRepaymentForDownPayment: z.boolean().optional(),
-	isMultiTrancheEnabled: z.boolean().optional(),
-	maxOutstandingLoanBalance: z.number().positive().optional(),
-	disbursementData: z
-		.array(
-			z.object({
-				principal: z.number().positive(),
-				expectedDisbursementDate: z.string(),
-			}),
-		)
-		.optional(),
-	isTopup: z.boolean().optional(),
-	loanIdToClose: z.number().int().positive().optional(),
-}).superRefine((data, ctx) => {
-	if (data.isTopup && !data.loanIdToClose) {
-		ctx.addIssue({
-			code: z.ZodIssueCode.custom,
-			path: ["loanIdToClose"],
-			message: "Select the active loan to close for top-up",
-		});
-	}
-});
+export const loanAdvancedSchema = z
+	.object({
+		enableDownPayment: z.boolean().optional(),
+		disbursedAmountPercentageForDownPayment: z
+			.number()
+			.min(0)
+			.max(100)
+			.optional(),
+		enableAutoRepaymentForDownPayment: z.boolean().optional(),
+		isMultiTrancheEnabled: z.boolean().optional(),
+		maxOutstandingLoanBalance: z.number().positive().optional(),
+		disbursementData: z
+			.array(
+				z.object({
+					principal: z.number().positive(),
+					expectedDisbursementDate: z.string(),
+				}),
+			)
+			.optional(),
+		isTopup: z.boolean().optional(),
+		loanIdToClose: z.number().int().positive().optional(),
+	})
+	.superRefine((data, ctx) => {
+		if (data.isTopup && !data.loanIdToClose) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["loanIdToClose"],
+				message: "Select the active loan to close for top-up",
+			});
+		}
+	});
 
 /**
  * Step 6: Dates & External Reference

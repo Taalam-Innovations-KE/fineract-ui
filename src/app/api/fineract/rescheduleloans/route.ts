@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import {
 	fineractFetch,
 	getTenantFromRequest,
@@ -10,16 +11,16 @@ import type {
 	GetLoansLoanIdResponse,
 	PostCreateRescheduleLoansRequest,
 } from "@/lib/fineract/generated/types.gen";
-import { validationErrorResponse } from "@/lib/fineract/api-error-response";
 import { validateRescheduleCreateRules } from "@/lib/fineract/loan-rule-validations";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
-type PostCreateRescheduleLoansRequestExtended = PostCreateRescheduleLoansRequest & {
-	emi?: number;
-	endDate?: string;
-	recalculateInterest?: boolean;
-	rescheduleFromInstallment?: number;
-};
+type PostCreateRescheduleLoansRequestExtended =
+	PostCreateRescheduleLoansRequest & {
+		emi?: number;
+		endDate?: string;
+		recalculateInterest?: boolean;
+		rescheduleFromInstallment?: number;
+	};
 
 /**
  * GET /api/fineract/rescheduleloans

@@ -14,14 +14,13 @@ import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 export async function GET(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const template =
-			await fineractFetch<GetRescheduleReasonsTemplateResponse>(
-				FINERACT_ENDPOINTS.rescheduleLoansTemplate,
-				{
-					method: "GET",
-					tenantId,
-				},
-			);
+		const template = await fineractFetch<GetRescheduleReasonsTemplateResponse>(
+			FINERACT_ENDPOINTS.rescheduleLoansTemplate,
+			{
+				method: "GET",
+				tenantId,
+			},
+		);
 
 		return NextResponse.json(template);
 	} catch (error) {

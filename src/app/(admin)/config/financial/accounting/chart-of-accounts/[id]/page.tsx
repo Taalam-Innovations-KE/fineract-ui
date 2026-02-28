@@ -11,13 +11,7 @@ import {
 	Workflow,
 } from "lucide-react";
 import Link from "next/link";
-import {
-	type ComponentType,
-	use,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type ComponentType, use, useEffect, useMemo, useState } from "react";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +121,9 @@ async function fetchGlAccountById(
 	};
 
 	// First try with running balance for richer detail.
-	const withBalanceParams = new URLSearchParams({ fetchRunningBalance: "true" });
+	const withBalanceParams = new URLSearchParams({
+		fetchRunningBalance: "true",
+	});
 	const withBalanceResponse = await fetch(
 		`${BFF_ROUTES.glAccountById(glAccountId)}?${withBalanceParams.toString()}`,
 		{
@@ -152,7 +148,10 @@ async function fetchGlAccountById(
 	}
 
 	throw new Error(
-		await getResponseErrorMessage(fallbackResponse, "Failed to fetch GL account"),
+		await getResponseErrorMessage(
+			fallbackResponse,
+			"Failed to fetch GL account",
+		),
 	);
 }
 
@@ -168,7 +167,10 @@ async function fetchGlAccountsIndex(
 
 	if (!response.ok) {
 		throw new Error(
-			await getResponseErrorMessage(response, "Failed to fetch GL accounts index"),
+			await getResponseErrorMessage(
+				response,
+				"Failed to fetch GL accounts index",
+			),
 		);
 	}
 
@@ -180,11 +182,14 @@ async function searchGlAccounts(
 	searchParam: string,
 ): Promise<GetGlAccountsResponse[]> {
 	const params = new URLSearchParams({ searchParam });
-	const response = await fetch(`${BFF_ROUTES.glaccounts}?${params.toString()}`, {
-		headers: {
-			"x-tenant-id": tenantId,
+	const response = await fetch(
+		`${BFF_ROUTES.glaccounts}?${params.toString()}`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
 		},
-	});
+	);
 
 	if (!response.ok) {
 		return [];
@@ -225,7 +230,9 @@ async function resolveGlAccountId(
 	const index = await fetchGlAccountsIndex(tenantId);
 	const numericIdentifier = Number(normalized);
 	if (Number.isFinite(numericIdentifier) && numericIdentifier > 0) {
-		const existsById = index.some((account) => account.id === numericIdentifier);
+		const existsById = index.some(
+			(account) => account.id === numericIdentifier,
+		);
 		if (existsById) {
 			return numericIdentifier;
 		}
@@ -278,11 +285,14 @@ async function fetchLedgerLines(
 		}
 	}
 
-	const response = await fetch(`${BFF_ROUTES.journalEntries}?${params.toString()}`, {
-		headers: {
-			"x-tenant-id": tenantId,
+	const response = await fetch(
+		`${BFF_ROUTES.journalEntries}?${params.toString()}`,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
 		},
-	});
+	);
 
 	if (!response.ok) {
 		throw new Error(
@@ -329,7 +339,9 @@ async function fetchJournalLineById(
 	return response.json();
 }
 
-async function fetchClosures(tenantId: string): Promise<GetGlClosureResponse[]> {
+async function fetchClosures(
+	tenantId: string,
+): Promise<GetGlClosureResponse[]> {
 	const response = await fetch(BFF_ROUTES.glClosures, {
 		headers: {
 			"x-tenant-id": tenantId,
@@ -451,7 +463,9 @@ function normalizeDetailValue(value: unknown): string {
 	return String(value);
 }
 
-function getDetailPairs(details: unknown): Array<{ label: string; value: string }> {
+function getDetailPairs(
+	details: unknown,
+): Array<{ label: string; value: string }> {
 	const record = toRecord(details);
 	if (!record) {
 		return [];
@@ -564,7 +578,10 @@ export default function LedgerDetailsPage({
 	const hasIdentifier = requestedIdentifier.length > 0;
 
 	const { tenantId } = useTenantStore();
-	const effectiveTenantId = useMemo(() => resolveTenantId(tenantId), [tenantId]);
+	const effectiveTenantId = useMemo(
+		() => resolveTenantId(tenantId),
+		[tenantId],
+	);
 
 	const [filters, setFilters] = useState<LedgerFilters>(DEFAULT_FILTERS);
 	const [pageIndex, setPageIndex] = useState(0);
@@ -575,7 +592,11 @@ export default function LedgerDetailsPage({
 	}, [filters]);
 
 	const resolvedAccountIdQuery = useQuery({
-		queryKey: ["glaccount-ledger-resolve", effectiveTenantId, requestedIdentifier],
+		queryKey: [
+			"glaccount-ledger-resolve",
+			effectiveTenantId,
+			requestedIdentifier,
+		],
 		queryFn: () => resolveGlAccountId(effectiveTenantId, requestedIdentifier),
 		enabled: Boolean(effectiveTenantId && hasIdentifier),
 		retry: false,
@@ -599,7 +620,12 @@ export default function LedgerDetailsPage({
 			pageIndex,
 		],
 		queryFn: () =>
-			fetchLedgerLines(effectiveTenantId, resolvedLedgerId || 0, filters, pageIndex),
+			fetchLedgerLines(
+				effectiveTenantId,
+				resolvedLedgerId || 0,
+				filters,
+				pageIndex,
+			),
 		enabled: Boolean(effectiveTenantId && resolvedLedgerId && account?.id),
 		retry: false,
 	});
@@ -621,7 +647,8 @@ export default function LedgerDetailsPage({
 		}
 
 		const hasSelection =
-			selectedRowId !== null && lines.some((line) => getRowId(line) === selectedRowId);
+			selectedRowId !== null &&
+			lines.some((line) => getRowId(line) === selectedRowId);
 
 		if (!hasSelection) {
 			setSelectedRowId(getRowId(lines[0]));
@@ -642,7 +669,8 @@ export default function LedgerDetailsPage({
 	});
 
 	const selectedLineDetails = getDetailPairs(
-		selectedLineQuery.data?.transactionDetails || selectedLine?.transactionDetails,
+		selectedLineQuery.data?.transactionDetails ||
+			selectedLine?.transactionDetails,
 	);
 
 	const sortedClosures = useMemo(
@@ -678,7 +706,9 @@ export default function LedgerDetailsPage({
 				header: "Posting Date",
 				cell: (line) => (
 					<div>
-						<div className="font-medium">{formatDate(line.transactionDate)}</div>
+						<div className="font-medium">
+							{formatDate(line.transactionDate)}
+						</div>
 						<div className="text-xs text-muted-foreground">
 							Submitted: {formatDateTime(line.submittedOnDate)}
 						</div>
@@ -947,13 +977,22 @@ export default function LedgerDetailsPage({
 								<CardTitle className="text-base">Classification</CardTitle>
 							</CardHeader>
 							<CardContent className="divide-y">
-								<DetailRow label="Type" value={formatText(account.type?.value)} />
-								<DetailRow label="Usage" value={formatText(account.usage?.value)} />
+								<DetailRow
+									label="Type"
+									value={formatText(account.type?.value)}
+								/>
+								<DetailRow
+									label="Usage"
+									value={formatText(account.usage?.value)}
+								/>
 								<DetailRow
 									label="Parent ID"
 									value={formatText(account.parentId)}
 								/>
-								<DetailRow label="Tag" value={formatText(account.tagId?.name)} />
+								<DetailRow
+									label="Tag"
+									value={formatText(account.tagId?.name)}
+								/>
 							</CardContent>
 						</Card>
 
@@ -1063,8 +1102,8 @@ export default function LedgerDetailsPage({
 					<CardHeader>
 						<CardTitle>Ledger Transactions</CardTitle>
 						<CardDescription>
-							Posting lines for {account.glCode || "this account"} with audit and
-							context dimensions.
+							Posting lines for {account.glCode || "this account"} with audit
+							and context dimensions.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -1196,9 +1235,12 @@ export default function LedgerDetailsPage({
 
 							<Card className="border border-border/60">
 								<CardHeader>
-									<CardTitle className="text-base">Transaction Details</CardTitle>
+									<CardTitle className="text-base">
+										Transaction Details
+									</CardTitle>
 									<CardDescription>
-										Expanded transactionDetails payload for deeper audit context.
+										Expanded transactionDetails payload for deeper audit
+										context.
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-2">
@@ -1213,7 +1255,9 @@ export default function LedgerDetailsPage({
 												<div className="text-xs text-muted-foreground">
 													{detail.label}
 												</div>
-												<div className="text-sm font-medium">{detail.value}</div>
+												<div className="text-sm font-medium">
+													{detail.value}
+												</div>
 											</div>
 										))
 									) : (
@@ -1255,14 +1299,15 @@ export default function LedgerDetailsPage({
 								>
 									<div className="flex flex-wrap items-center justify-between gap-2">
 										<div className="text-sm font-medium">
-											{closure.officeName || `Office #${closure.officeId || "N/A"}`}
+											{closure.officeName ||
+												`Office #${closure.officeId || "N/A"}`}
 										</div>
 										<Badge variant="outline">
 											Closed: {formatDate(closure.closingDate)}
 										</Badge>
 									</div>
 									<div className="text-xs text-muted-foreground mt-1">
-										By: {closure.createdByUsername || "N/A"} • Comments: {" "}
+										By: {closure.createdByUsername || "N/A"} • Comments:{" "}
 										{closure.comments || "N/A"}
 									</div>
 								</div>

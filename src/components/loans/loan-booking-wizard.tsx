@@ -394,8 +394,8 @@ export function LoanBookingWizard({
 					JSON.stringify(initialFormValues[field]);
 
 			// Build the payload
-				const payload: LoanApplicationSubmitPayload =
-					mode === "edit" ? { ...(basePayload || {}) } : {};
+			const payload: LoanApplicationSubmitPayload =
+				mode === "edit" ? { ...(basePayload || {}) } : {};
 
 			if (isFieldChanged("clientId")) {
 				payload.clientId = formData.clientId;
@@ -511,20 +511,20 @@ export function LoanBookingWizard({
 				payload.enableAutoRepaymentForDownPayment =
 					formData.enableAutoRepaymentForDownPayment;
 			}
-				if (isFieldChanged("maxOutstandingLoanBalance")) {
-					payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
-				}
-				if (isFieldChanged("isTopup")) {
-					payload.isTopup = Boolean(formData.isTopup);
-				}
-				if (isFieldChanged("loanIdToClose")) {
-					payload.loanIdToClose = formData.isTopup
-						? formData.loanIdToClose
-						: undefined;
-				}
-				if (
-					isFieldChanged("disbursementData") &&
-					formData.disbursementData &&
+			if (isFieldChanged("maxOutstandingLoanBalance")) {
+				payload.maxOutstandingLoanBalance = formData.maxOutstandingLoanBalance;
+			}
+			if (isFieldChanged("isTopup")) {
+				payload.isTopup = Boolean(formData.isTopup);
+			}
+			if (isFieldChanged("loanIdToClose")) {
+				payload.loanIdToClose = formData.isTopup
+					? formData.loanIdToClose
+					: undefined;
+			}
+			if (
+				isFieldChanged("disbursementData") &&
+				formData.disbursementData &&
 				formData.disbursementData.length > 0
 			) {
 				payload.disbursementData = formData.disbursementData.map((item) => ({
@@ -649,13 +649,13 @@ export function LoanBookingWizard({
 						/>
 					)}
 					{currentStep === 3 && <LoanGracePeriodsStep />}
-						{currentStep === 4 && (
-							<LoanAdvancedStep
-								product={selectedProduct}
-								currency={currency}
-								selectedClientId={selectedClientId}
-							/>
-						)}
+					{currentStep === 4 && (
+						<LoanAdvancedStep
+							product={selectedProduct}
+							currency={currency}
+							selectedClientId={selectedClientId}
+						/>
+					)}
 					{currentStep === 5 && <LoanDatesStep />}
 					{currentStep === 6 && (
 						<LoanReviewStep

@@ -71,6 +71,7 @@ export const FINERACT_ENDPOINTS = {
 	loansOldestCOB: "/v1/loans/oldest-cob-closed",
 	reports: "/v1/reports",
 	reportsTemplate: "/v1/reports/template",
+	reportById: (id: number | string) => `/v1/reports/${id}`,
 	reportAvailableExports: (reportName: string) =>
 		`/v1/runreports/availableExports/${encodeURIComponent(reportName)}`,
 	runReport: (reportName: string) =>
@@ -192,6 +193,7 @@ export const BFF_ROUTES = {
 	loansOldestCOB: "/api/fineract/loans/oldest-cob-closed",
 	reports: "/api/fineract/reports",
 	reportsTemplate: "/api/fineract/reports/template",
+	reportById: (id: number | string) => `/api/fineract/reports/${id}`,
 	reportsPentahoEnforcement: "/api/fineract/reports/pentaho-enforcement",
 	reportAvailableExports: (reportName: string) =>
 		`/api/fineract/reports/available-exports/${encodeURIComponent(reportName)}`,

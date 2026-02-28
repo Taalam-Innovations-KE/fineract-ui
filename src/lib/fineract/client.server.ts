@@ -1,9 +1,5 @@
 import "server-only";
-import {
-	getAccessToken,
-	getSession,
-	getUserCredentials,
-} from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 /**
@@ -25,44 +21,35 @@ interface FineractRequestOptions {
 	useBasicAuth?: boolean; // Optional flag to use basic auth instead of bearer token
 }
 
-/**
- * Makes authenticated requests to Fineract API
- * Automatically detects authentication method based on session:
- * - For Keycloak provider: Uses Bearer token
- * - For Credentials provider: Uses Basic auth with user's credentials
- * - Fallback: Uses service-level basic auth from environment variables
- */
-export async function fineractFetch<T = unknown>(
-	path: string,
+type ResolvedRequestContext = {
+	authHeader: string;
+	tenantId: string;
+};
+
+async function resolveRequestContext(
 	options: FineractRequestOptions,
-): Promise<T> {
-	const { method = "GET", body, headers = {}, useBasicAuth = false } = options;
+): Promise<ResolvedRequestContext> {
+	const { tenantId: providedTenantId, useBasicAuth = false } = options;
 
 	let authHeader: string;
-	let tenantId = options.tenantId;
+	let tenantId = providedTenantId;
 
 	if (useBasicAuth) {
-		// Use Basic Auth for service-level operations
 		const basicAuth = Buffer.from(
 			`${FINERACT_USERNAME}:${FINERACT_PASSWORD}`,
 		).toString("base64");
 		authHeader = `Basic ${basicAuth}`;
 		tenantId = tenantId || "default";
 	} else {
-		// Get session to determine authentication method
 		const session = await getSession();
 
 		if (session?.provider === "keycloak" && session?.accessToken) {
-			// Use Keycloak Bearer token
 			authHeader = `Bearer ${session.accessToken}`;
 			tenantId = tenantId || session.tenantId || "default";
 		} else if (session?.provider === "credentials" && session?.credentials) {
-			// Use user's credentials with Basic Auth
-			// The credentials are stored as base64-encoded username:password in the JWT
 			authHeader = `Basic ${session.credentials}`;
 			tenantId = tenantId || session.tenantId || "default";
 		} else {
-			// Fallback to service-level basic auth
 			console.warn(
 				"No session found or unknown provider, using service-level auth",
 			);
@@ -74,26 +61,72 @@ export async function fineractFetch<T = unknown>(
 		}
 	}
 
-	const requestHeaders: HeadersInit = {
-		"Content-Type": "application/json",
+	return {
+		authHeader,
+		tenantId: tenantId || "default",
+	};
+}
+
+function buildRequestInit(
+	method: string,
+	authHeader: string,
+	tenantId: string,
+	headers: Record<string, string>,
+	body: unknown,
+): RequestInit {
+	const requestHeaders: Record<string, string> = {
 		Authorization: authHeader,
 		"fineract-platform-tenantid": tenantId,
 		...headers,
 	};
 
+	if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
+		requestHeaders["Content-Type"] =
+			requestHeaders["Content-Type"] || "application/json";
+	}
+
 	const requestInit: RequestInit = {
 		method,
 		headers: requestHeaders,
-		cache: "no-store", // Always fetch fresh data for admin operations
+		cache: "no-store",
 	};
 
 	if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
 		requestInit.body = JSON.stringify(body);
 	}
 
-	const url = `${FINERACT_BASE_URL}${path}`;
+	return requestInit;
+}
 
-	const response = await fetch(url, requestInit);
+export async function fineractFetchResponse(
+	path: string,
+	options: FineractRequestOptions,
+): Promise<Response> {
+	const { method = "GET", body, headers = {} } = options;
+	const { authHeader, tenantId } = await resolveRequestContext(options);
+	const requestInit = buildRequestInit(
+		method,
+		authHeader,
+		tenantId,
+		headers,
+		body,
+	);
+
+	return fetch(`${FINERACT_BASE_URL}${path}`, requestInit);
+}
+
+/**
+ * Makes authenticated requests to Fineract API
+ * Automatically detects authentication method based on session:
+ * - For Keycloak provider: Uses Bearer token
+ * - For Credentials provider: Uses Basic auth with user's credentials
+ * - Fallback: Uses service-level basic auth from environment variables
+ */
+export async function fineractFetch<T = unknown>(
+	path: string,
+	options: FineractRequestOptions,
+): Promise<T> {
+	const response = await fineractFetchResponse(path, options);
 
 	// Handle non-JSON and empty responses safely.
 	if (response.status === 204) {

@@ -10,7 +10,6 @@ import {
 	Clock,
 	CreditCard,
 	DollarSign,
-	FileBarChart2,
 	FileText,
 	Globe,
 	Hash,
@@ -64,6 +63,11 @@ const navItems: NavItem[] = [
 				href: "/config/operations/transactions",
 				icon: Receipt,
 			},
+			{
+				title: "Reports",
+				href: "/config/operations/reports",
+				icon: FileText,
+			},
 		],
 	},
 	{
@@ -85,11 +89,6 @@ const navItems: NavItem[] = [
 				title: "Audit Trail",
 				href: "/config/operations/audits",
 				icon: FileText,
-			},
-			{
-				title: "Reports",
-				href: "/config/operations/reports",
-				icon: FileBarChart2,
 			},
 			{
 				title: "Working Days",

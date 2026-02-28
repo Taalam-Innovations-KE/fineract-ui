@@ -70,9 +70,9 @@ const configModules = [
 			"Clients",
 			"Loans",
 			"Transactions",
+			"Reports",
 			"Batch Operations",
 			"Audit Trail",
-			"Reports",
 		],
 	},
 ];

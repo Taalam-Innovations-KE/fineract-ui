@@ -100,64 +100,69 @@ export function DataTable<T>({
 	return (
 		<div className={cn("space-y-2", className)}>
 			<div className="rounded-sm border border-border/60">
-				<table className="w-full text-left text-sm">
-					<thead className="border-b border-border/60 bg-muted/40">
-						<tr>
-							{columnsWithActions.map((column) => (
-								<th
-									key={column.header}
-									scope="col"
-									className={cn(
-										"px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
-										column.headerClassName,
-									)}
-								>
-									{column.header}
-								</th>
-							))}
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-border/60">
-						{pageRows.length === 0 ? (
+				<div className="w-full overflow-x-auto">
+					<table className="min-w-max w-full text-left text-sm">
+						<thead className="border-b border-border/60 bg-muted/40">
 							<tr>
-								<td
-									colSpan={columnsWithActions.length}
-									className="px-3 py-6 text-center text-sm text-muted-foreground"
-								>
-									{emptyMessage}
-								</td>
+								{columnsWithActions.map((column) => (
+									<th
+										key={column.header}
+										scope="col"
+										className={cn(
+											"whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+											column.headerClassName,
+										)}
+									>
+										{column.header}
+									</th>
+								))}
 							</tr>
-						) : (
-							pageRows.map((row) => (
-								<tr
-									key={getRowId(row)}
-									className={cn(
-										"hover:bg-accent/40",
-										onRowClick && "cursor-pointer",
-									)}
-									onClick={() => onRowClick?.(row)}
-								>
-									{columnsWithActions.map((column) => (
-										<td
-											key={column.header}
-											className={cn("px-3 py-2 align-middle", column.className)}
-										>
-											{column.cell(row)}
-										</td>
-									))}
+						</thead>
+						<tbody className="divide-y divide-border/60">
+							{pageRows.length === 0 ? (
+								<tr>
+									<td
+										colSpan={columnsWithActions.length}
+										className="px-3 py-6 text-center text-sm text-muted-foreground"
+									>
+										{emptyMessage}
+									</td>
 								</tr>
-							))
-						)}
-					</tbody>
-				</table>
+							) : (
+								pageRows.map((row) => (
+									<tr
+										key={getRowId(row)}
+										className={cn(
+											"hover:bg-accent/40",
+											onRowClick && "cursor-pointer",
+										)}
+										onClick={() => onRowClick?.(row)}
+									>
+										{columnsWithActions.map((column) => (
+											<td
+												key={column.header}
+												className={cn(
+													"whitespace-nowrap px-3 py-2 align-middle",
+													column.className,
+												)}
+											>
+												{column.cell(row)}
+											</td>
+										))}
+									</tr>
+								))
+							)}
+						</tbody>
+					</table>
+				</div>
 			</div>
 
-			<div className="flex items-center justify-between text-xs text-muted-foreground">
+			<div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
 				<span>
 					Showing {resolvedTotalRows === 0 ? 0 : start + 1}–{end} of{" "}
 					{resolvedTotalRows}
 				</span>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2 sm:justify-end">
 					<Button
 						type="button"
 						variant="outline"
@@ -165,10 +170,10 @@ export function DataTable<T>({
 						onClick={() => goToPage(Math.max(clampedPageIndex - 1, 0))}
 						disabled={clampedPageIndex === 0}
 					>
-						<ChevronLeft className="w-4 h-4 mr-2" />
+						<ChevronLeft className="mr-2 h-4 w-4" />
 						Previous
 					</Button>
-					<span>
+					<span className="min-w-fit">
 						Page {clampedPageIndex + 1} of {pageCount}
 					</span>
 					<Button
@@ -180,7 +185,7 @@ export function DataTable<T>({
 						}
 						disabled={clampedPageIndex >= pageCount - 1}
 					>
-						<ChevronRight className="w-4 h-4 mr-2" />
+						<ChevronRight className="mr-2 h-4 w-4" />
 						Next
 					</Button>
 				</div>

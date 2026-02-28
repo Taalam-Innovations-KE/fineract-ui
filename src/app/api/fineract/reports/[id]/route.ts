@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 	}
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
 		const { id } = await context.params;

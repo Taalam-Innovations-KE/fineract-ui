@@ -55,6 +55,7 @@ export type ReportParameterMetadata = {
 	control: ReportParameterControl;
 	requestKey: string;
 	optionSource?: "parameterType";
+	dependsOn?: string[];
 	allowAll?: boolean;
 	allValue?: string;
 	placeholder?: string;
@@ -125,6 +126,7 @@ const PARAMETER_METADATA: Record<string, ReportParameterMetadata> = {
 		control: "select",
 		requestKey: "loanOfficerId",
 		optionSource: "parameterType",
+		dependsOn: ["officeId"],
 		allowAll: true,
 		allValue: "-1",
 	},
@@ -365,6 +367,22 @@ export function getReportParameterMetadata(
 		...base,
 		requestKey: parameter.reportParameterName || base.requestKey,
 	};
+}
+
+export function getMissingReportParameterDependencies(
+	metadata: ReportParameterMetadata,
+	values: Record<string, string>,
+) {
+	const dependencies = metadata.dependsOn || [];
+
+	return dependencies.filter((dependency) => {
+		if (!Object.prototype.hasOwnProperty.call(values, dependency)) {
+			return false;
+		}
+
+		const value = values[dependency];
+		return typeof value !== "string" || value.trim().length === 0;
+	});
 }
 
 export function normalizeAvailableExportTargets(
@@ -688,12 +706,19 @@ export async function fetchReportParameterOptions(
 	tenantId: string,
 	parameterName: string,
 	values: Record<string, string>,
+	options?: {
+		excludeRequestKey?: string;
+	},
 ): Promise<ReportParameterOption[]> {
 	const params = new URLSearchParams();
 	params.set("parameterType", "true");
 	params.set("exportJSON", "true");
 
 	for (const [requestKey, value] of Object.entries(values)) {
+		if (requestKey === options?.excludeRequestKey) {
+			continue;
+		}
+
 		if (value.trim().length === 0) {
 			continue;
 		}

@@ -541,9 +541,7 @@ export function isStructuredReportPayload(
 	return isRecord(payload) && ("columnHeaders" in payload || "data" in payload);
 }
 
-async function parseSubmitResponse<T>(
-	response: Response,
-): Promise<T> {
+async function parseSubmitResponse<T>(response: Response): Promise<T> {
 	if (!response.ok) {
 		throw await normalizeFailedResponse(response);
 	}

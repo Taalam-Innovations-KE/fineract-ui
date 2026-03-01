@@ -1,18 +1,36 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	Eye,
 	FileJson,
 	FileText,
 	Filter,
 	Play,
+	Plus,
+	Power,
+	PowerOff,
 	RefreshCw,
 	Search,
+	Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
+import { ReportUpsertSheet } from "@/components/reports/report-upsert-sheet";
 import { ReportsCatalogSkeleton } from "@/components/reports/reports-catalog-skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +50,15 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { getReportRouteId } from "@/lib/fineract/report-route";
-import { fetchReports, type ReportDefinition } from "@/lib/fineract/reports";
+import {
+	deleteReportDefinition,
+	fetchReports,
+	type ReportDefinition,
+	updateReportDefinition,
+} from "@/lib/fineract/reports";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
 
@@ -45,6 +70,7 @@ type VisibilityFilter = "runnable" | "all";
 
 export default function ReportsPage() {
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
 	const [searchTerm, setSearchTerm] = useState("");
 	const [categoryFilter, setCategoryFilter] = useState(ALL_FILTER);
 	const [typeFilter, setTypeFilter] = useState(ALL_FILTER);
@@ -52,6 +78,10 @@ export default function ReportsPage() {
 		useState<VisibilityFilter>("runnable");
 	const [pageIndex, setPageIndex] = useState(0);
 	const deferredSearchTerm = useDeferredValue(searchTerm);
+	const [showCreateSheet, setShowCreateSheet] = useState(false);
+	const [deleteTarget, setDeleteTarget] = useState<ReportDefinition | null>(
+		null,
+	);
 
 	const reportsQuery = useQuery({
 		queryKey: ["reports", tenantId],
@@ -59,6 +89,67 @@ export default function ReportsPage() {
 		enabled: Boolean(tenantId),
 		staleTime: DEFAULT_STALE_TIME,
 		refetchOnWindowFocus: false,
+	});
+
+	const toggleMutation = useMutation({
+		mutationFn: (report: ReportDefinition) =>
+			updateReportDefinition(tenantId, report.id!, {
+				reportName: report.reportName,
+				reportType: report.reportType,
+				reportSubType: report.reportSubType,
+				reportCategory: report.reportCategory,
+				description: report.description,
+				reportSql: report.reportSql,
+				reportParameters: report.reportParameters,
+				useReport: !report.useReport,
+			}),
+		onSuccess: (_, report) => {
+			void queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			toast.success(
+				report.useReport
+					? `"${report.reportName}" disabled.`
+					: `"${report.reportName}" enabled.`,
+			);
+		},
+		onError: (error, report) => {
+			console.error(
+				"submit-error",
+				toSubmitActionError(error, {
+					action: "toggleReport",
+					endpoint: BFF_ROUTES.reportById(report.id!),
+					method: "PUT",
+					tenantId,
+				}),
+			);
+			toast.error("Failed to update report availability.");
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (report: ReportDefinition) =>
+			deleteReportDefinition(tenantId, report.id!),
+		onSuccess: (_, report) => {
+			void queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			toast.success(`"${report.reportName}" deleted.`);
+			setDeleteTarget(null);
+		},
+		onError: (error, report) => {
+			console.error(
+				"submit-error",
+				toSubmitActionError(error, {
+					action: "deleteReport",
+					endpoint: BFF_ROUTES.reportById(report.id!),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
+			toast.error("Failed to delete report.");
+			setDeleteTarget(null);
+		},
 	});
 
 	const reports = reportsQuery.data || [];
@@ -203,8 +294,55 @@ export default function ReportsPage() {
 					</div>
 				),
 			},
+			{
+				header: "Actions",
+				headerClassName: "text-right",
+				className: "text-right",
+				cell: (report: ReportDefinition) => (
+					<div className="flex items-center justify-end gap-1.5">
+						<Button variant="outline" size="sm" asChild>
+							<Link
+								href={`/config/operations/reports/${getReportRouteId(report)}`}
+							>
+								<Eye className="mr-1 h-3 w-3" />
+								View
+							</Link>
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								if (report.id != null) {
+									toggleMutation.mutate(report);
+								}
+							}}
+							disabled={report.id == null || toggleMutation.isPending}
+							title={
+								report.useReport === false ? "Enable report" : "Disable report"
+							}
+						>
+							{report.useReport === false ? (
+								<Power className="h-3.5 w-3.5" />
+							) : (
+								<PowerOff className="h-3.5 w-3.5" />
+							)}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => setDeleteTarget(report)}
+							disabled={report.id == null}
+							title="Delete report"
+						>
+							<Trash2 className="h-3.5 w-3.5 text-destructive" />
+						</Button>
+					</div>
+				),
+			},
 		],
-		[],
+		[toggleMutation],
 	);
 
 	if (reportsQuery.isLoading && reports.length === 0) {
@@ -223,16 +361,22 @@ export default function ReportsPage() {
 			title="Reports"
 			subtitle="Browse report definitions and open dedicated detail pages for execution and output review."
 			actions={
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => {
-						void reportsQuery.refetch();
-					}}
-				>
-					<RefreshCw className="mr-2 h-4 w-4" />
-					Refresh Catalog
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => {
+							void reportsQuery.refetch();
+						}}
+					>
+						<RefreshCw className="mr-2 h-4 w-4" />
+						Refresh
+					</Button>
+					<Button type="button" onClick={() => setShowCreateSheet(true)}>
+						<Plus className="mr-2 h-4 w-4" />
+						New Report
+					</Button>
+				</div>
 			}
 		>
 			<div className="space-y-6">
@@ -423,14 +567,52 @@ export default function ReportsPage() {
 								String(report.id ?? report.reportName ?? "report-row")
 							}
 							emptyMessage={emptyMessage}
-							enableActions={true}
-							getViewUrl={(report) =>
-								`/config/operations/reports/${getReportRouteId(report)}`
-							}
 						/>
 					</CardContent>
 				</Card>
 			</div>
+
+			<ReportUpsertSheet
+				mode="create"
+				open={showCreateSheet}
+				onOpenChange={setShowCreateSheet}
+			/>
+
+			<AlertDialog
+				open={deleteTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDeleteTarget(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete report?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently remove{" "}
+							<strong>{deleteTarget?.reportName}</strong> from the catalog. This
+							action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleteMutation.isPending}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (deleteTarget) {
+									deleteMutation.mutate(deleteTarget);
+								}
+							}}
+							disabled={deleteMutation.isPending}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{deleteMutation.isPending ? "Deleting…" : "Delete Report"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }

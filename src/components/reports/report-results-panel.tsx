@@ -1,5 +1,7 @@
 "use client";
 
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -19,7 +21,9 @@ import {
 interface ReportResultsPanelProps {
 	isPending: boolean;
 	result: ReportExecutionResponse | null;
-	selectedExport: ReportExportTarget;
+	onDownloadExport?: (
+		exportTarget: Exclude<ReportExportTarget, "JSON">,
+	) => void;
 }
 
 export function ReportResultSkeleton() {
@@ -64,9 +68,9 @@ export function ReportResultSkeleton() {
 export function ReportResultsPanel({
 	isPending,
 	result,
-	selectedExport,
+	onDownloadExport,
 }: ReportResultsPanelProps) {
-	if (isPending) {
+	if (isPending && !result) {
 		return <ReportResultSkeleton />;
 	}
 
@@ -84,6 +88,11 @@ export function ReportResultsPanel({
 		);
 	}
 
+	const showDataTable =
+		result.kind === "structured" &&
+		isStructuredReportPayload(result.data) &&
+		(result.data.columnHeaders?.length || 0) > 0;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -92,10 +101,32 @@ export function ReportResultsPanel({
 					Most recent successful report response for the current selection.
 				</CardDescription>
 			</CardHeader>
-			<CardContent>
-				{result.kind === "structured" &&
-				isStructuredReportPayload(result.data) &&
-				(result.data.columnHeaders?.length || 0) > 0 ? (
+			<CardContent className="space-y-4">
+				{showDataTable && onDownloadExport ? (
+					<div className="flex flex-wrap items-center justify-end gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => onDownloadExport("CSV")}
+							disabled={isPending}
+						>
+							<Download className="mr-2 h-4 w-4" />
+							Download CSV
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => onDownloadExport("PDF")}
+							disabled={isPending}
+						>
+							<Download className="mr-2 h-4 w-4" />
+							Download PDF
+						</Button>
+					</div>
+				) : null}
+				{showDataTable ? (
 					<DataTable
 						data={normalizeResultsetRows(result.data)}
 						columns={(result.data.columnHeaders || []).map((header) => ({

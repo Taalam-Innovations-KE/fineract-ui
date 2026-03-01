@@ -88,10 +88,12 @@ export function ReportResultsPanel({
 		);
 	}
 
-	const showDataTable =
+	const structuredPayload =
 		result.kind === "structured" &&
 		isStructuredReportPayload(result.data) &&
-		(result.data.columnHeaders?.length || 0) > 0;
+		(result.data.columnHeaders?.length || 0) > 0
+			? result.data
+			: null;
 
 	return (
 		<Card>
@@ -102,7 +104,7 @@ export function ReportResultsPanel({
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				{showDataTable && onDownloadExport ? (
+				{structuredPayload && onDownloadExport ? (
 					<div className="flex flex-wrap items-center justify-end gap-2">
 						<Button
 							type="button"
@@ -126,10 +128,10 @@ export function ReportResultsPanel({
 						</Button>
 					</div>
 				) : null}
-				{showDataTable ? (
+				{structuredPayload ? (
 					<DataTable
-						data={normalizeResultsetRows(result.data)}
-						columns={(result.data.columnHeaders || []).map((header) => ({
+						data={normalizeResultsetRows(structuredPayload)}
+						columns={(structuredPayload.columnHeaders || []).map((header) => ({
 							header: header.columnName || "Column",
 							cell: (row: { id: string; values: Record<string, unknown> }) => {
 								const key = header.columnName || "Column";

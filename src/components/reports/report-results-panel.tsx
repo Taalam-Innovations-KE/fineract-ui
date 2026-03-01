@@ -1,5 +1,6 @@
 "use client";
 
+import { format, parseISO } from "date-fns";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,12 +12,64 @@ import {
 } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { ResultsetColumnHeaderData } from "@/lib/fineract/generated/types.gen";
 import {
 	isStructuredReportPayload,
 	normalizeResultsetRows,
 	type ReportExecutionResponse,
 	type ReportExportTarget,
 } from "@/lib/fineract/reports";
+
+function isDateColumn(header: ResultsetColumnHeaderData): boolean {
+	const displayType = header.columnDisplayType;
+	if (
+		displayType === "DATE" ||
+		displayType === "DATETIME" ||
+		displayType === "TIME"
+	) {
+		return true;
+	}
+
+	if (header.dateDisplayType || header.dateTimeDisplayType) {
+		return true;
+	}
+
+	const columnType = header.columnType;
+	return (
+		columnType === "DATE" ||
+		columnType === "DATETIME" ||
+		columnType === "TIMESTAMP" ||
+		columnType === "TIMESTAMP_WITH_TIMEZONE"
+	);
+}
+
+function formatCellDate(
+	value: unknown,
+	header: ResultsetColumnHeaderData,
+): string {
+	if (value === null || value === undefined || value === "") {
+		return "—";
+	}
+
+	const raw = String(value).trim();
+
+	try {
+		// ISO format: "2024-01-31" or "2024-01-31T..."
+		if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+			const date = parseISO(raw);
+			if (!isNaN(date.getTime())) {
+				return header.dateTimeDisplayType || header.columnDisplayType === "DATETIME"
+					? format(date, "dd MMM yyyy, HH:mm")
+					: format(date, "dd MMM yyyy");
+			}
+		}
+
+		// Already readable — just return as-is
+		return raw;
+	} catch {
+		return raw;
+	}
+}
 
 interface ReportResultsPanelProps {
 	isPending: boolean;
@@ -136,9 +189,15 @@ export function ReportResultsPanel({
 							cell: (row: { id: string; values: Record<string, unknown> }) => {
 								const key = header.columnName || "Column";
 								const value = row.values[key];
-								return value === null || value === undefined
-									? "—"
-									: String(value);
+								if (value === null || value === undefined) {
+									return "\u2014";
+								}
+
+								if (isDateColumn(header)) {
+									return formatCellDate(value, header);
+								}
+
+								return String(value);
 							},
 						}))}
 						getRowId={(row) => row.id}

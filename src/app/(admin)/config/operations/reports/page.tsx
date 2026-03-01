@@ -15,7 +15,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { ReportUpsertSheet } from "@/components/reports/report-upsert-sheet";
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Card,
 	CardContent,
@@ -82,6 +83,7 @@ export default function ReportsPage() {
 	const [deleteTarget, setDeleteTarget] = useState<ReportDefinition | null>(
 		null,
 	);
+	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
 	const reportsQuery = useQuery({
 		queryKey: ["reports", tenantId],
@@ -151,6 +153,52 @@ export default function ReportsPage() {
 			setDeleteTarget(null);
 		},
 	});
+
+	const batchToggleMutation = useMutation({
+		mutationFn: ({
+			targets,
+			enable,
+		}: {
+			targets: ReportDefinition[];
+			enable: boolean;
+		}) =>
+			Promise.all(
+				targets.map((report) =>
+					updateReportDefinition(tenantId, report.id!, {
+						reportName: report.reportName,
+						reportType: report.reportType,
+						reportSubType: report.reportSubType,
+						reportCategory: report.reportCategory,
+						description: report.description,
+						reportSql: report.reportSql,
+						reportParameters: report.reportParameters,
+						useReport: enable,
+					}),
+				),
+			),
+		onSuccess: (_, { targets, enable }) => {
+			void queryClient.invalidateQueries({ queryKey: ["reports", tenantId] });
+			setSelectedIds(new Set());
+			toast.success(
+				`${targets.length} report${targets.length === 1 ? "" : "s"} ${enable ? "enabled" : "disabled"}.`,
+			);
+		},
+		onError: () => {
+			toast.error("Batch update failed. Some reports may not have changed.");
+		},
+	});
+
+	const toggleRowSelection = useCallback((id: number) => {
+		setSelectedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) {
+				next.delete(id);
+			} else {
+				next.add(id);
+			}
+			return next;
+		});
+	}, []);
 
 	const reports = reportsQuery.data || [];
 	const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
@@ -240,6 +288,19 @@ export default function ReportsPage() {
 
 	const reportColumns = useMemo(
 		() => [
+			{
+				header: "",
+				className: "w-px align-middle",
+				cell: (report: ReportDefinition) =>
+					report.id != null ? (
+						<Checkbox
+							checked={selectedIds.has(report.id)}
+							onCheckedChange={() => toggleRowSelection(report.id!)}
+							aria-label={`Select ${report.reportName}`}
+							onClick={(e) => e.stopPropagation()}
+						/>
+					) : null,
+			},
 			{
 				header: "Report",
 				className: "align-top whitespace-normal",
@@ -342,7 +403,7 @@ export default function ReportsPage() {
 				),
 			},
 		],
-		[toggleMutation],
+		[toggleMutation, selectedIds, toggleRowSelection],
 	);
 
 	if (reportsQuery.isLoading && reports.length === 0) {
@@ -544,6 +605,71 @@ export default function ReportsPage() {
 						</div>
 					</CardContent>
 				</Card>
+
+				{selectedIds.size > 0 ? (
+					<div className="flex flex-wrap items-center gap-2 rounded-sm border border-border/60 bg-muted/40 px-4 py-3">
+						<span className="text-sm font-medium">
+							{selectedIds.size} report{selectedIds.size === 1 ? "" : "s"}{" "}
+							selected
+						</span>
+						<div className="ml-auto flex flex-wrap items-center gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => {
+									const pageIds = pagedReports
+										.map((r) => r.id)
+										.filter((id): id is number => id != null);
+									setSelectedIds((prev) => {
+										const next = new Set(prev);
+										pageIds.forEach((id) => next.add(id));
+										return next;
+									});
+								}}
+							>
+								Select page
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setSelectedIds(new Set())}
+							>
+								Clear
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								onClick={() => {
+									const targets = reports.filter(
+										(r) => r.id != null && selectedIds.has(r.id),
+									);
+									batchToggleMutation.mutate({ targets, enable: true });
+								}}
+								disabled={batchToggleMutation.isPending}
+							>
+								<Power className="mr-1.5 h-3.5 w-3.5" />
+								Enable
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => {
+									const targets = reports.filter(
+										(r) => r.id != null && selectedIds.has(r.id),
+									);
+									batchToggleMutation.mutate({ targets, enable: false });
+								}}
+								disabled={batchToggleMutation.isPending}
+							>
+								<PowerOff className="mr-1.5 h-3.5 w-3.5" />
+								Disable
+							</Button>
+						</div>
+					</div>
+				) : null}
 
 				<Card>
 					<CardHeader>

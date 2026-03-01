@@ -1,18 +1,23 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	ArrowLeft,
 	Download,
 	FileJson,
 	FileSpreadsheet,
 	FileText,
+	Pencil,
 	Play,
+	Power,
+	PowerOff,
 	RefreshCw,
 	Settings2,
 	TableProperties,
+	Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
@@ -20,7 +25,18 @@ import { ReportContractTable } from "@/components/reports/report-contract-table"
 import { ReportDetailSkeleton } from "@/components/reports/report-detail-skeleton";
 import { ReportParameterFields } from "@/components/reports/report-parameter-fields";
 import { ReportResultsPanel } from "@/components/reports/report-results-panel";
+import { ReportUpsertSheet } from "@/components/reports/report-upsert-sheet";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,13 +54,16 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	FINERACT_DATE_FORMAT,
 	formatDateStringToFormat,
 } from "@/lib/date-utils";
+import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import { findReportByRouteId } from "@/lib/fineract/report-route";
 import {
+	deleteReportDefinition,
 	fetchReportAvailableExports,
 	fetchReportParameterOptions,
 	fetchReports,
@@ -57,7 +76,9 @@ import {
 	type ReportParameterMetadata,
 	type ReportParameterOption,
 	runReport,
+	updateReportDefinition,
 } from "@/lib/fineract/reports";
+import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
 	getErrorMessages,
 	normalizeApiError,
@@ -207,12 +228,17 @@ function triggerBrowserDownload(
 export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 	const { reportId } = use(params);
 	const { tenantId } = useTenantStore();
+	const router = useRouter();
+	const queryClient = useQueryClient();
+
 	const [activeTab, setActiveTab] = useState<ReportTabValue>("overview");
 	const [formValues, setFormValues] = useState<Record<string, string>>({});
 	const [selectedExport, setSelectedExport] =
 		useState<ReportExportTarget>(DEFAULT_EXPORT);
 	const [executionResult, setExecutionResult] =
 		useState<ReportExecutionResponse | null>(null);
+	const [showEditSheet, setShowEditSheet] = useState(false);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	const reportsQuery = useQuery({
 		queryKey: ["reports", tenantId],
@@ -235,6 +261,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 	);
 	const selectedParameters = selectedReport?.reportParameters || [];
 	const isPentahoReport = selectedReport?.reportType?.trim() === "Pentaho";
+	const isEnabled = selectedReport?.useReport !== false;
 
 	const parameterValueMap = useMemo(
 		() =>
@@ -315,6 +342,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			exportTarget: ReportExportTarget;
 			includeLocale?: boolean;
 			includeDateFormat?: boolean;
+			preserveResult?: boolean;
+			stayOnResults?: boolean;
 		}) =>
 			runReport(tenantId, input.reportName, input.values, input.exportTarget, {
 				includeLocale: input.includeLocale,
@@ -327,7 +356,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 					variables.reportName,
 					variables.exportTarget,
 				);
-				setExecutionResult(null);
+				if (!variables.preserveResult) {
+					setExecutionResult(null);
+				}
 				toast.success(
 					`${variables.reportName} exported as ${getExportLabel(variables.exportTarget)}.`,
 				);
@@ -338,10 +369,85 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			setActiveTab("results");
 			toast.success(`${variables.reportName} completed.`);
 		},
-		onError: (error) => {
-			setExecutionResult(null);
-			setActiveTab("run");
+		onError: (error, variables) => {
+			if (!variables.preserveResult) {
+				setExecutionResult(null);
+			}
+			if (!variables.stayOnResults) {
+				setActiveTab("run");
+			}
 			console.error("report-run-error", normalizeApiError(error));
+		},
+	});
+
+	const toggleMutation = useMutation({
+		mutationFn: () => {
+			if (!selectedReport?.id) {
+				throw new Error("Report ID is required");
+			}
+
+			return updateReportDefinition(tenantId, selectedReport.id, {
+				reportName: selectedReport.reportName,
+				reportType: selectedReport.reportType,
+				reportSubType: selectedReport.reportSubType,
+				reportCategory: selectedReport.reportCategory,
+				description: selectedReport.description,
+				reportSql: selectedReport.reportSql,
+				reportParameters: selectedReport.reportParameters,
+				useReport: !isEnabled,
+			});
+		},
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			toast.success(
+				isEnabled
+					? `"${selectedReport?.reportName}" disabled.`
+					: `"${selectedReport?.reportName}" enabled.`,
+			);
+		},
+		onError: (error) => {
+			console.error(
+				"submit-error",
+				toSubmitActionError(error, {
+					action: "toggleReport",
+					endpoint: BFF_ROUTES.reportById(selectedReport?.id ?? ""),
+					method: "PUT",
+					tenantId,
+				}),
+			);
+			toast.error("Failed to update report availability.");
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: () => {
+			if (!selectedReport?.id) {
+				throw new Error("Report ID is required");
+			}
+
+			return deleteReportDefinition(tenantId, selectedReport.id);
+		},
+		onSuccess: () => {
+			void queryClient.invalidateQueries({
+				queryKey: ["reports", tenantId],
+			});
+			toast.success(`"${selectedReport?.reportName}" deleted.`);
+			router.push("/config/operations/reports");
+		},
+		onError: (error) => {
+			console.error(
+				"submit-error",
+				toSubmitActionError(error, {
+					action: "deleteReport",
+					endpoint: BFF_ROUTES.reportById(selectedReport?.id ?? ""),
+					method: "DELETE",
+					tenantId,
+				}),
+			);
+			toast.error("Failed to delete report.");
+			setShowDeleteDialog(false);
 		},
 	});
 
@@ -426,6 +532,24 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		});
 	};
 
+	const downloadResultExport = (
+		exportTarget: Exclude<ReportExportTarget, "JSON">,
+	) => {
+		if (!selectedReport?.reportName) {
+			return;
+		}
+
+		runMutation.mutate({
+			reportName: selectedReport.reportName,
+			values: parameterValueMap,
+			exportTarget,
+			includeLocale: isPentahoReport,
+			includeDateFormat: isPentahoReport,
+			preserveResult: true,
+			stayOnResults: true,
+		});
+	};
+
 	if (reportsQuery.isLoading && reports.length === 0) {
 		return (
 			<PageShell
@@ -448,14 +572,64 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 	return (
 		<PageShell
 			title={selectedReport?.reportName || "Report Details"}
-			subtitle="Inspect the report definition, run exports, and review the latest result."
+			subtitle={
+				selectedReport?.reportCategory?.trim()
+					? `${selectedReport.reportCategory.trim()} · ${selectedReport.reportType?.trim() || "Report"}`
+					: "Inspect the report definition, run exports, and review the latest result."
+			}
 			actions={
-				<Button variant="outline" asChild>
-					<Link href="/config/operations/reports">
-						<ArrowLeft className="mr-2 h-4 w-4" />
-						Back to Reports
-					</Link>
-				</Button>
+				<div className="flex flex-wrap items-center gap-2">
+					{selectedReport ? (
+						<>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setShowEditSheet(true)}
+							>
+								<Pencil className="mr-1.5 h-3.5 w-3.5" />
+								Edit
+							</Button>
+							<Button
+								type="button"
+								variant={isEnabled ? "outline" : "default"}
+								size="sm"
+								onClick={() => toggleMutation.mutate()}
+								disabled={toggleMutation.isPending || !selectedReport.id}
+							>
+								{isEnabled ? (
+									<>
+										<PowerOff className="mr-1.5 h-3.5 w-3.5" />
+										Disable
+									</>
+								) : (
+									<>
+										<Power className="mr-1.5 h-3.5 w-3.5" />
+										Enable
+									</>
+								)}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setShowDeleteDialog(true)}
+								disabled={!selectedReport.id}
+								className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+							>
+								<Trash2 className="mr-1.5 h-3.5 w-3.5" />
+								Delete
+							</Button>
+							<Separator orientation="vertical" className="h-6" />
+						</>
+					) : null}
+					<Button variant="outline" size="sm" asChild>
+						<Link href="/config/operations/reports">
+							<ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+							Back to Reports
+						</Link>
+					</Button>
+				</div>
 			}
 		>
 			<div className="space-y-6">
@@ -533,14 +707,20 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 							<Card>
 								<CardContent className="pt-6">
 									<div className="flex items-center gap-3">
-										<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-warning/10">
-											<Play className="h-5 w-5 text-warning" />
+										<div
+											className={`flex h-10 w-10 items-center justify-center rounded-sm ${isEnabled ? "bg-success/10" : "bg-destructive/10"}`}
+										>
+											{isEnabled ? (
+												<Play className="h-5 w-5 text-success" />
+											) : (
+												<PowerOff className="h-5 w-5 text-destructive" />
+											)}
 										</div>
 										<div>
-											<div className="text-sm font-semibold">
-												{selectedReport.useReport === false
-													? "Disabled"
-													: "Ready to run"}
+											<div
+												className={`text-sm font-semibold ${isEnabled ? "text-success" : "text-destructive"}`}
+											>
+												{isEnabled ? "Enabled" : "Disabled"}
 											</div>
 											<div className="text-sm text-muted-foreground">
 												Service availability
@@ -584,16 +764,8 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 													{selectedReport.reportSubType}
 												</Badge>
 											) : null}
-											<Badge
-												variant={
-													selectedReport.useReport === false
-														? "warning"
-														: "success"
-												}
-											>
-												{selectedReport.useReport === false
-													? "Disabled in service"
-													: "Runnable"}
+											<Badge variant={isEnabled ? "success" : "warning"}>
+												{isEnabled ? "Enabled" : "Disabled"}
 											</Badge>
 											{selectedReport.coreReport ? (
 												<Badge variant="outline">Core report</Badge>
@@ -704,12 +876,12 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 											</div>
 										) : null}
 
-										{selectedReport.useReport === false ? (
+										{!isEnabled ? (
 											<Alert>
 												<AlertTitle>Report is disabled</AlertTitle>
 												<AlertDescription>
-													This definition is present in the catalog but is not
-													runnable in the report service.
+													This report is currently disabled. Enable it from the
+													header to run it.
 												</AlertDescription>
 											</Alert>
 										) : null}
@@ -810,7 +982,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 												onClick={executeSelectedReport}
 												disabled={
 													runMutation.isPending ||
-													selectedReport.useReport === false ||
+													!isEnabled ||
 													missingRequiredParameters.length > 0
 												}
 											>
@@ -847,13 +1019,56 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 								<ReportResultsPanel
 									isPending={runMutation.isPending}
 									result={executionResult}
-									selectedExport={selectedExport}
+									onDownloadExport={downloadResultExport}
 								/>
 							</TabsContent>
 						</Tabs>
 					</>
 				) : null}
 			</div>
+
+			{selectedReport ? (
+				<>
+					<ReportUpsertSheet
+						mode="edit"
+						report={selectedReport}
+						open={showEditSheet}
+						onOpenChange={setShowEditSheet}
+					/>
+
+					<AlertDialog
+						open={showDeleteDialog}
+						onOpenChange={(open) => {
+							if (!open && !deleteMutation.isPending) {
+								setShowDeleteDialog(false);
+							}
+						}}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Delete report?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This will permanently remove{" "}
+									<strong>{selectedReport.reportName}</strong> from the catalog.
+									This action cannot be undone.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel disabled={deleteMutation.isPending}>
+									Cancel
+								</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => deleteMutation.mutate()}
+									disabled={deleteMutation.isPending}
+									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								>
+									{deleteMutation.isPending ? "Deleting…" : "Delete Report"}
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</>
+			) : null}
 		</PageShell>
 	);
 }

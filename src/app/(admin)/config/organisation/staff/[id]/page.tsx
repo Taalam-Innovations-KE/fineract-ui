@@ -1,58 +1,133 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Trash } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	ArrowLeft,
+	Building2,
+	CalendarDays,
+	Edit,
+	UserCheck,
+} from "lucide-react";
+import Link from "next/link";
 import { use, useState } from "react";
+import { StaffForm } from "@/components/config/forms/staff-form";
 import { PageShell } from "@/components/config/page-shell";
-import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
-import type { Staff } from "@/lib/fineract/generated/types.gen";
-import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
+import type {
+	OfficeData,
+	StaffRequest,
+} from "@/lib/fineract/generated/types.gen";
+import { normalizeFailedResponse } from "@/lib/fineract/ui-api-error";
+import {
+	getStaffDisplayName,
+	getStaffIsActive,
+	getStaffIsLoanOfficer,
+	getStaffOfficeName,
+	type StaffFormRecord,
+} from "@/lib/schemas/staff";
 import { useTenantStore } from "@/store/tenant";
 
-async function fetchStaffMember(tenantId: string, id: string): Promise<Staff> {
-	const response = await fetch(`${BFF_ROUTES.staff}/${id}`, {
+async function fetchStaffDetail(
+	tenantId: string,
+	id: string,
+): Promise<StaffFormRecord> {
+	const response = await fetch(`${BFF_ROUTES.staff}/${id}?template=true`, {
 		headers: {
 			"x-tenant-id": tenantId,
 		},
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch staff member");
+		throw await normalizeFailedResponse(response);
 	}
 
 	return response.json();
 }
 
-async function deleteStaffMember(
-	tenantId: string,
-	staffId: number,
-): Promise<void> {
-	const response = await fetch(`${BFF_ROUTES.staff}/${staffId}`, {
-		method: "DELETE",
+async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
+	const response = await fetch(BFF_ROUTES.offices, {
 		headers: {
 			"x-tenant-id": tenantId,
 		},
 	});
 
 	if (!response.ok) {
-		const payload = await response
-			.json()
-			.catch(() => ({ message: "Failed to delete staff member" }));
-		throw payload;
+		throw await normalizeFailedResponse(response);
 	}
+
+	return response.json();
+}
+
+async function updateStaff(
+	tenantId: string,
+	staffId: number,
+	payload: StaffRequest,
+) {
+	const response = await fetch(`${BFF_ROUTES.staff}/${staffId}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "application/json",
+			"x-tenant-id": tenantId,
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		throw await normalizeFailedResponse(response);
+	}
+
+	return response.json();
+}
+
+function StaffDetailSkeleton() {
+	return (
+		<div className="space-y-6">
+			<div className="grid gap-4 md:grid-cols-3">
+				{Array.from({ length: 3 }).map((_, index) => (
+					<Card key={`staff-stat-skeleton-${index}`}>
+						<CardContent className="pt-6">
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-8 w-24" />
+							</div>
+						</CardContent>
+					</Card>
+				))}
+			</div>
+			<Card>
+				<CardHeader>
+					<Skeleton className="h-6 w-48" />
+					<Skeleton className="h-4 w-56" />
+				</CardHeader>
+				<CardContent className="grid gap-4 md:grid-cols-2">
+					{Array.from({ length: 6 }).map((_, index) => (
+						<div key={`staff-field-skeleton-${index}`} className="space-y-2">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-5 w-36" />
+						</div>
+					))}
+				</CardContent>
+			</Card>
+		</div>
+	);
 }
 
 export default function StaffDetailPage({
@@ -62,167 +137,242 @@ export default function StaffDetailPage({
 }) {
 	const { id } = use(params);
 	const { tenantId } = useTenantStore();
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
-		null,
-	);
+	const queryClient = useQueryClient();
+	const [editSheetOpen, setEditSheetOpen] = useState(false);
 
 	const {
 		data: staff,
-		isLoading,
-		error,
+		isLoading: staffLoading,
+		error: staffError,
 	} = useQuery({
-		queryKey: ["staffMember", tenantId, id],
-		queryFn: () => fetchStaffMember(tenantId, id),
+		queryKey: ["staff-member", tenantId, id],
+		queryFn: () => fetchStaffDetail(tenantId, id),
+		enabled: Boolean(tenantId && id),
 	});
 
-	const deleteMutation = useMutation({
-		mutationFn: () => deleteStaffMember(tenantId, Number(id)),
-		onSuccess: () => {
-			setSubmitError(null);
-			window.location.href = "/config/organisation/staff";
-		},
-		onError: (error) => {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: "deleteStaff",
-					endpoint: `${BFF_ROUTES.staff}/${id}`,
-					method: "DELETE",
-					tenantId,
-				}),
-			);
+	const { data: offices = [] } = useQuery({
+		queryKey: ["offices", tenantId],
+		queryFn: () => fetchOffices(tenantId),
+		enabled: Boolean(tenantId),
+		staleTime: 5 * 60 * 1000,
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (payload: StaffRequest) =>
+			updateStaff(tenantId, Number(id), payload),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: ["staff-member", tenantId, id],
+			});
+			await queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
+			setEditSheetOpen(false);
 		},
 	});
 
-	const handleDeleteConfirm = () => {
-		setSubmitError(null);
-		deleteMutation.mutate();
-	};
-
-	if (isLoading) {
+	if (staffLoading) {
 		return (
-			<PageShell title="Staff Details">
-				<div className="space-y-6">
-					<Card>
-						<CardHeader>
-							<Skeleton className="h-6 w-40" />
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid gap-4 md:grid-cols-2">
-								{Array.from({ length: 6 }).map((_, index) => (
-									<div
-										key={`staff-detail-skeleton-${index}`}
-										className="space-y-2"
-									>
-										<Skeleton className="h-4 w-24" />
-										<Skeleton className="h-6 w-32" />
-									</div>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-				</div>
+			<PageShell
+				title="Staff Details"
+				subtitle="Review staff profile, office alignment, and operational status"
+			>
+				<StaffDetailSkeleton />
 			</PageShell>
 		);
 	}
 
-	if (error || !staff) {
+	if (staffError || !staff) {
 		return (
-			<PageShell title="Staff Details">
-				<div className="py-6 text-center text-destructive">
-					Failed to load staff details. Please try again.
-				</div>
+			<PageShell
+				title="Staff Details"
+				subtitle="Review staff profile, office alignment, and operational status"
+				actions={
+					<Button variant="outline" asChild>
+						<Link href="/config/organisation/staff">
+							<ArrowLeft className="mr-2 h-4 w-4" />
+							Back to Staff
+						</Link>
+					</Button>
+				}
+			>
+				<Alert variant="destructive">
+					<AlertTitle>Unable to load staff details</AlertTitle>
+					<AlertDescription>
+						Check connectivity and your access to the staff resource, then
+						retry.
+					</AlertDescription>
+				</Alert>
 			</PageShell>
 		);
 	}
+
+	const staffName = getStaffDisplayName(staff);
+	const isActive = getStaffIsActive(staff);
+	const isLoanOfficer = getStaffIsLoanOfficer(staff);
+	const officeName = getStaffOfficeName(staff) || "Unassigned";
+	const allowedOffices = staff.allowedOffices ?? offices;
 
 	return (
 		<>
 			<PageShell
-				title={`Staff: ${staff.displayName}`}
-				subtitle="View staff details"
+				title={`Staff: ${staffName}`}
+				subtitle="Review staff profile, office alignment, and operational status"
 				actions={
-					<Button variant="outline" onClick={() => setDeleteDialogOpen(true)}>
-						<Trash className="mr-1 h-4 w-4" />
-						Delete
-					</Button>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button variant="outline" asChild>
+							<Link href="/config/organisation/staff">
+								<ArrowLeft className="mr-2 h-4 w-4" />
+								Back to Staff
+							</Link>
+						</Button>
+						<Button variant="outline" onClick={() => setEditSheetOpen(true)}>
+							<Edit className="mr-2 h-4 w-4" />
+							Edit Staff
+						</Button>
+					</div>
 				}
 			>
 				<div className="space-y-6">
+					<Alert>
+						<AlertTitle>Staff remains an organisational record</AlertTitle>
+						<AlertDescription>
+							Staff cannot be deleted through this flow. Use active status
+							updates and force status only when assignment validations require
+							it.
+						</AlertDescription>
+					</Alert>
+
+					<div className="grid gap-4 md:grid-cols-3">
+						<Card>
+							<CardContent className="pt-6">
+								<div className="flex items-center gap-3">
+									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary/10">
+										<Building2 className="h-5 w-5 text-primary" />
+									</div>
+									<div>
+										<div className="text-lg font-semibold">{officeName}</div>
+										<div className="text-sm text-muted-foreground">Office</div>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<div className="flex items-center gap-3">
+									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-success/10">
+										<UserCheck className="h-5 w-5 text-success" />
+									</div>
+									<div>
+										<div className="flex items-center gap-2">
+											<Badge variant={isActive ? "success" : "secondary"}>
+												{isActive ? "Active" : "Inactive"}
+											</Badge>
+										</div>
+										<div className="mt-1 text-sm text-muted-foreground">
+											{isLoanOfficer
+												? "Loan officer enabled"
+												: "Standard staff"}
+										</div>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+						<Card>
+							<CardContent className="pt-6">
+								<div className="flex items-center gap-3">
+									<div className="flex h-10 w-10 items-center justify-center rounded-sm bg-info/10">
+										<CalendarDays className="h-5 w-5 text-info" />
+									</div>
+									<div>
+										<div className="text-lg font-semibold">
+											{staff.joiningDate || "Not provided"}
+										</div>
+										<div className="text-sm text-muted-foreground">
+											Joining Date
+										</div>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+
 					<Card>
 						<CardHeader>
-							<CardTitle>Staff Information</CardTitle>
+							<CardTitle>Staff Profile</CardTitle>
+							<CardDescription>
+								Identity, office, and contact details for this staff member.
+							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid gap-4 md:grid-cols-2">
-								<div>
-									<label className="text-sm font-medium">Display Name</label>
-									<p className="text-lg font-semibold">{staff.displayName}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">First Name</label>
-									<p>{staff.firstname || "—"}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Last Name</label>
-									<p>{staff.lastname || "—"}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Office</label>
-									<p>{staff.office?.name || "—"}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Is Loan Officer</label>
-									<p>{staff.loanOfficer ? "Yes" : "No"}</p>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Is Active</label>
-									<p>
-										{staff.active ? (
-											<Badge variant="success">Active</Badge>
-										) : (
-											<Badge variant="secondary">Inactive</Badge>
-										)}
-									</p>
-								</div>
+						<CardContent className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-1">
+								<div className="text-sm font-medium">Display Name</div>
+								<div>{staffName}</div>
 							</div>
+							<div className="space-y-1">
+								<div className="text-sm font-medium">Office</div>
+								<div>{officeName}</div>
+							</div>
+							<div className="space-y-1">
+								<div className="text-sm font-medium">First Name</div>
+								<div>{staff.firstname || "Not provided"}</div>
+							</div>
+							<div className="space-y-1">
+								<div className="text-sm font-medium">Last Name</div>
+								<div>{staff.lastname || "Not provided"}</div>
+							</div>
+							<div className="space-y-1">
+								<div className="text-sm font-medium">Mobile Number</div>
+								<div>{staff.mobileNo || "Not provided"}</div>
+							</div>
+							<div className="space-y-1">
+								<div className="text-sm font-medium">External ID</div>
+								<div>{staff.externalId || "Not provided"}</div>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle>Operational Flags</CardTitle>
+							<CardDescription>
+								Active status and loan officer designation.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="flex flex-wrap gap-2">
+							<Badge variant={isActive ? "success" : "secondary"}>
+								{isActive ? "Active" : "Inactive"}
+							</Badge>
+							<Badge variant={isLoanOfficer ? "default" : "secondary"}>
+								{isLoanOfficer ? "Loan Officer" : "Staff"}
+							</Badge>
 						</CardContent>
 					</Card>
 				</div>
 			</PageShell>
 
-			{/* Delete Dialog */}
-			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Delete Staff Member</DialogTitle>
-						<DialogDescription>
-							Are you sure you want to delete "{staff.displayName}"? This action
-							cannot be undone.
-						</DialogDescription>
-					</DialogHeader>
-					<SubmitErrorAlert
-						error={submitError}
-						title="Unable to delete staff member"
-					/>
-					<div className="flex justify-end space-x-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => setDeleteDialogOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={handleDeleteConfirm}
-							disabled={deleteMutation.isPending}
-						>
-							{deleteMutation.isPending ? "Deleting..." : "Delete"}
-						</Button>
+			<Sheet open={editSheetOpen} onOpenChange={setEditSheetOpen}>
+				<SheetContent
+					side="right"
+					className="w-full overflow-y-auto sm:max-w-xl"
+				>
+					<SheetHeader>
+						<SheetTitle>Edit Staff Member</SheetTitle>
+						<SheetDescription>
+							Update staff profile details, office assignment, and active
+							status.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="mt-6">
+						<StaffForm
+							offices={allowedOffices}
+							initialData={staff}
+							onSubmit={(payload) =>
+								updateMutation.mutateAsync(payload as StaffRequest)
+							}
+							onCancel={() => setEditSheetOpen(false)}
+						/>
 					</div>
-				</DialogContent>
-			</Dialog>
+				</SheetContent>
+			</Sheet>
 		</>
 	);
 }

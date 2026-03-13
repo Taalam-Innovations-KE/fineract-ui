@@ -25,8 +25,14 @@ export async function GET(request: NextRequest) {
 		if (searchParams.get("loanOfficersOnly")) {
 			params.set("loanOfficersOnly", searchParams.get("loanOfficersOnly")!);
 		}
-		if (searchParams.get("status")) {
+		if (searchParams.get("status") && searchParams.get("status") !== "all") {
 			params.set("status", searchParams.get("status")!);
+		}
+		if (searchParams.get("staffInOfficeHierarchy")) {
+			params.set(
+				"staffInOfficeHierarchy",
+				searchParams.get("staffInOfficeHierarchy")!,
+			);
 		}
 
 		const queryString = params.toString();

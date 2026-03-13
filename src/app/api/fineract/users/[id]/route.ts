@@ -22,14 +22,21 @@ export async function GET(
 	try {
 		const tenantId = getTenantFromRequest(request);
 		const { id } = await params;
+		const searchParams = request.nextUrl.searchParams;
+		const fineractParams = new URLSearchParams();
 
-		const user = await fineractFetch<GetUsersUserIdResponse>(
-			`${FINERACT_ENDPOINTS.users}/${id}`,
-			{
-				method: "GET",
-				tenantId,
-			},
-		);
+		if (searchParams.get("template") === "true") {
+			fineractParams.set("template", "true");
+		}
+
+		const path = fineractParams.toString()
+			? `${FINERACT_ENDPOINTS.users}/${id}?${fineractParams.toString()}`
+			: `${FINERACT_ENDPOINTS.users}/${id}`;
+
+		const user = await fineractFetch<GetUsersUserIdResponse>(path, {
+			method: "GET",
+			tenantId,
+		});
 
 		return NextResponse.json(user);
 	} catch (error) {

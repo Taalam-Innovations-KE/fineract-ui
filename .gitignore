@@ -45,3 +45,6 @@ next-env.d.ts
 
 # local agent planning/context notes
 /context/
+/.idea/material_theme_project_new.xml
+/.idea/vcs.xml
+/.idea/.gitignore

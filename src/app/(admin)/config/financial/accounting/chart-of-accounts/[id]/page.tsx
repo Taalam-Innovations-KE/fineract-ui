@@ -587,9 +587,10 @@ export default function LedgerDetailsPage({
 	const [pageIndex, setPageIndex] = useState(0);
 	const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
-	useEffect(() => {
+	function updateFilters(updater: (current: LedgerFilters) => LedgerFilters) {
+		setFilters((current) => updater(current));
 		setPageIndex(0);
-	}, [filters]);
+	}
 
 	const resolvedAccountIdQuery = useQuery({
 		queryKey: [
@@ -1035,7 +1036,7 @@ export default function LedgerDetailsPage({
 							<Select
 								value={filters.manualEntries}
 								onValueChange={(value) =>
-									setFilters((current) => ({
+									updateFilters((current) => ({
 										...current,
 										manualEntries: value as ManualFilter,
 									}))
@@ -1058,7 +1059,7 @@ export default function LedgerDetailsPage({
 								placeholder="Filter by transaction ID"
 								value={filters.transactionId}
 								onChange={(event) =>
-									setFilters((current) => ({
+									updateFilters((current) => ({
 										...current,
 										transactionId: event.target.value,
 									}))
@@ -1073,7 +1074,7 @@ export default function LedgerDetailsPage({
 								type="date"
 								value={filters.fromDate}
 								onChange={(event) =>
-									setFilters((current) => ({
+									updateFilters((current) => ({
 										...current,
 										fromDate: event.target.value,
 									}))
@@ -1088,7 +1089,7 @@ export default function LedgerDetailsPage({
 								type="date"
 								value={filters.toDate}
 								onChange={(event) =>
-									setFilters((current) => ({
+									updateFilters((current) => ({
 										...current,
 										toDate: event.target.value,
 									}))

@@ -70,23 +70,23 @@ function normalizeValue(value?: string) {
 function normalizeParameterLinks(
 	parameters?: ReportDefinition["reportParameters"],
 ): ReportParameterFormValue[] {
-	return (parameters || [])
-		.map((parameter) => {
-			const parameterId = parameter.parameterId ?? parameter.id;
-			if (!parameterId) {
-				return null;
-			}
+	const normalized: ReportParameterFormValue[] = [];
 
-			return {
-				id: parameter.id,
-				parameterId,
-				parameterName: parameter.parameterName?.trim() || undefined,
-				reportParameterName: parameter.reportParameterName?.trim() || "",
-			};
-		})
-		.filter(
-			(parameter): parameter is ReportParameterFormValue => parameter !== null,
-		);
+	for (const parameter of parameters || []) {
+		const parameterId = parameter.parameterId ?? parameter.id;
+		if (!parameterId) {
+			continue;
+		}
+
+		normalized.push({
+			id: parameter.id,
+			parameterId,
+			parameterName: parameter.parameterName?.trim() || undefined,
+			reportParameterName: parameter.reportParameterName?.trim() || "",
+		});
+	}
+
+	return normalized;
 }
 
 export function buildReportUpsertFormValues(

@@ -661,7 +661,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 				{showGenericReportLoadError ? (
 					<Alert variant="destructive">
 						<AlertTitle>Unable to load reports</AlertTitle>
-						<AlertDescription>{reportLoadError.message}</AlertDescription>
+						<AlertDescription>
+							{reportLoadError?.message || "Unable to load reports."}
+						</AlertDescription>
 					</Alert>
 				) : null}
 

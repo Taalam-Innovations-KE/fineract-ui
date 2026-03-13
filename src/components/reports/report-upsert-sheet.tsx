@@ -115,41 +115,38 @@ function buildAvailableReportParameters(
 		byName.set(entry.parameterName.toLowerCase(), entry);
 	}
 
-	return parameters
-		.map((parameter) => {
-			const parameterId = getParameterId(parameter);
-			if (!parameterId) {
-				return null;
-			}
+	const available: AvailableReportParameter[] = [];
 
-			const entry =
-				byId.get(parameterId) ||
-				(parameter.parameterName
-					? byName.get(parameter.parameterName.toLowerCase())
-					: undefined);
-			const parentEntry =
-				entry?.parentId !== undefined ? byId.get(entry.parentId) : undefined;
-			const metadata = describeReportParameter(parameter, entry, parentEntry);
+	for (const parameter of parameters) {
+		const parameterId = getParameterId(parameter);
+		if (!parameterId) {
+			continue;
+		}
 
-			return {
-				parameterId,
-				parameterName:
-					parameter.parameterName ||
-					entry?.parameterName ||
-					String(parameterId),
-				label: metadata.label,
-				runtimeName: metadata.requestKey,
-				control: metadata.control,
-				description: metadata.description,
-				parentParameterName:
-					parentEntry?.parameterLabel || parentEntry?.parameterName,
-				allowAll: entry?.selectAll,
-			} satisfies AvailableReportParameter;
-		})
-		.filter(
-			(parameter): parameter is AvailableReportParameter => parameter !== null,
-		)
-		.sort((left, right) => left.label.localeCompare(right.label));
+		const entry =
+			byId.get(parameterId) ||
+			(parameter.parameterName
+				? byName.get(parameter.parameterName.toLowerCase())
+				: undefined);
+		const parentEntry =
+			entry?.parentId !== undefined ? byId.get(entry.parentId) : undefined;
+		const metadata = describeReportParameter(parameter, entry, parentEntry);
+
+		available.push({
+			parameterId,
+			parameterName:
+				parameter.parameterName || entry?.parameterName || String(parameterId),
+			label: metadata.label,
+			runtimeName: metadata.requestKey,
+			control: metadata.control,
+			description: metadata.description,
+			parentParameterName:
+				parentEntry?.parameterLabel || parentEntry?.parameterName,
+			allowAll: entry?.selectAll,
+		});
+	}
+
+	return available.sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function buildSelectedParameterValue(
@@ -788,7 +785,7 @@ export function ReportUpsertSheet({
 														</div>
 													</div>
 
-													{fieldIndex !== undefined ? (
+													{fieldIndex !== undefined && selection ? (
 														<div className="space-y-2 pl-7">
 															<Label htmlFor={`alias-${parameter.parameterId}`}>
 																Alias Override

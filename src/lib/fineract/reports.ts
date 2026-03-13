@@ -508,65 +508,63 @@ export function getReportParameterRuntimeName(
 export function normalizeReportParameterCatalog(
 	payload: unknown,
 ): ReportParameterCatalogEntry[] {
-	const entries = normalizeCatalogRows(payload)
-		.map((record) => {
-			const parameterName = pickString(record, [
-				"parameterName",
-				"parameter_name",
-				"name",
-			]);
+	const entries: ReportParameterCatalogEntry[] = [];
 
-			if (!parameterName) {
-				return null;
-			}
+	for (const record of normalizeCatalogRows(payload)) {
+		const parameterName = pickString(record, [
+			"parameterName",
+			"parameter_name",
+			"name",
+		]);
 
-			return {
-				id: pickNumber(record, ["id", "parameterId", "parameter_id"]),
-				parameterName,
-				parameterVariable: pickString(record, [
-					"parameterVariable",
-					"parameter_variable",
-					"parametervariable",
-				]),
-				parameterLabel: pickString(record, [
-					"parameterLabel",
-					"parameter_label",
-					"label",
-				]),
-				parameterDisplayType: pickString(record, [
-					"parameterDisplayType",
-					"parameter_displayType",
-					"displayType",
-				]),
-				parameterFormatType: pickString(record, [
-					"parameterFormatType",
-					"parameter_FormatType",
-					"parameter_formatType",
-					"formatType",
-				]),
-				parameterDefault: pickString(record, [
-					"parameterDefault",
-					"parameter_default",
-					"defaultValue",
-				]),
-				selectOne: pickBoolean(record, ["selectOne"]),
-				selectAll: pickBoolean(record, ["selectAll"]),
-				parameterSql: pickString(record, [
-					"parameterSql",
-					"parameter_sql",
-					"sql",
-				]),
-				parentId: pickNumber(record, ["parentId", "parent_id"]),
-				parentParameterName: pickString(record, [
-					"parentParameterName",
-					"parent_parameter_name",
-					"parentName",
-				]),
-			} satisfies ReportParameterCatalogEntry;
-		})
-		.filter((entry): entry is ReportParameterCatalogEntry =>
-			Boolean(entry?.parameterName),
-		);
+		if (!parameterName) {
+			continue;
+		}
+
+		entries.push({
+			id: pickNumber(record, ["id", "parameterId", "parameter_id"]),
+			parameterName,
+			parameterVariable: pickString(record, [
+				"parameterVariable",
+				"parameter_variable",
+				"parametervariable",
+			]),
+			parameterLabel: pickString(record, [
+				"parameterLabel",
+				"parameter_label",
+				"label",
+			]),
+			parameterDisplayType: pickString(record, [
+				"parameterDisplayType",
+				"parameter_displayType",
+				"displayType",
+			]),
+			parameterFormatType: pickString(record, [
+				"parameterFormatType",
+				"parameter_FormatType",
+				"parameter_formatType",
+				"formatType",
+			]),
+			parameterDefault: pickString(record, [
+				"parameterDefault",
+				"parameter_default",
+				"defaultValue",
+			]),
+			selectOne: pickBoolean(record, ["selectOne"]),
+			selectAll: pickBoolean(record, ["selectAll"]),
+			parameterSql: pickString(record, [
+				"parameterSql",
+				"parameter_sql",
+				"sql",
+			]),
+			parentId: pickNumber(record, ["parentId", "parent_id"]),
+			parentParameterName: pickString(record, [
+				"parentParameterName",
+				"parent_parameter_name",
+				"parentName",
+			]),
+		});
+	}
 
 	const byId = new Map<number, ReportParameterCatalogEntry>();
 	for (const entry of entries) {
@@ -575,7 +573,7 @@ export function normalizeReportParameterCatalog(
 		}
 	}
 
-	return entries.map((entry) => {
+	return entries.map((entry): ReportParameterCatalogEntry => {
 		const parentEntry =
 			entry.parentId !== undefined ? byId.get(entry.parentId) : undefined;
 

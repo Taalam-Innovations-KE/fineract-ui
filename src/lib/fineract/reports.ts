@@ -5,7 +5,6 @@ import type {
 	GetReportsResponse,
 	GetReportsTemplateResponse,
 	PostReportsResponse,
-	PostRepostRequest,
 	PutReportResponse,
 	ResultsetColumnHeaderData,
 	RunReportsResponse,
@@ -26,8 +25,8 @@ export type ReportDefinition = Omit<GetReportsResponse, "reportParameters"> & {
 };
 
 export type ReportUpsertPayload = Omit<
-	PostRepostRequest,
-	"reportParameters"
+	ReportDefinition,
+	"id" | "coreReport"
 > & {
 	reportParameters?: Array<ReportParameter>;
 	useReport?: boolean;
@@ -60,6 +59,21 @@ export type ReportParameterMetadata = {
 	allowAll?: boolean;
 	allValue?: string;
 	placeholder?: string;
+};
+
+export type ReportParameterCatalogEntry = {
+	id?: number;
+	parameterName: string;
+	parameterVariable?: string;
+	parameterLabel?: string;
+	parameterDisplayType?: string;
+	parameterFormatType?: string;
+	parameterDefault?: string;
+	selectOne?: boolean;
+	selectAll?: boolean;
+	parameterSql?: string;
+	parentId?: number;
+	parentParameterName?: string;
 };
 
 export type StructuredReportPayload = {
@@ -350,6 +364,112 @@ function readCellValue(cell: unknown): unknown {
 	return values.length === 1 ? values[0] : cell;
 }
 
+function pickFirstValue(
+	record: Record<string, unknown>,
+	keys: string[],
+): unknown {
+	for (const key of keys) {
+		if (Object.prototype.hasOwnProperty.call(record, key)) {
+			const value = record[key];
+			if (value !== undefined && value !== null && value !== "") {
+				return value;
+			}
+		}
+	}
+
+	return undefined;
+}
+
+function pickString(record: Record<string, unknown>, keys: string[]) {
+	const value = pickFirstValue(record, keys);
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: undefined;
+}
+
+function pickNumber(record: Record<string, unknown>, keys: string[]) {
+	const value = pickFirstValue(record, keys);
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+
+	if (
+		typeof value === "string" &&
+		value.trim().length > 0 &&
+		!Number.isNaN(Number(value))
+	) {
+		return Number(value);
+	}
+
+	return undefined;
+}
+
+function pickBoolean(record: Record<string, unknown>, keys: string[]) {
+	const value = pickFirstValue(record, keys);
+	if (typeof value === "boolean") {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		if (normalized === "true" || normalized === "yes" || normalized === "1") {
+			return true;
+		}
+		if (normalized === "false" || normalized === "no" || normalized === "0") {
+			return false;
+		}
+	}
+
+	if (typeof value === "number") {
+		return value !== 0;
+	}
+
+	return undefined;
+}
+
+function normalizeCatalogRows(
+	payload: unknown,
+): Array<Record<string, unknown>> {
+	if (Array.isArray(payload)) {
+		return payload.filter(isRecord);
+	}
+
+	if (isStructuredReportPayload(payload)) {
+		return normalizeResultsetRows(payload).map((row) => row.values);
+	}
+
+	return [];
+}
+
+function inferReportParameterControl(
+	parameter: ReportParameter,
+	entry?: Pick<
+		ReportParameterCatalogEntry,
+		"parameterDisplayType" | "parameterFormatType"
+	>,
+): ReportParameterControl {
+	const fallback = getReportParameterMetadata(parameter).control;
+	const display = entry?.parameterDisplayType?.trim().toLowerCase() || "";
+	const format = entry?.parameterFormatType?.trim().toLowerCase() || "";
+
+	if (display.includes("select")) {
+		return "select";
+	}
+	if (display.includes("date") || format.includes("date")) {
+		return "date";
+	}
+	if (
+		display.includes("number") ||
+		format.includes("number") ||
+		format.includes("integer") ||
+		format.includes("decimal")
+	) {
+		return "number";
+	}
+
+	return fallback;
+}
+
 export function getReportParameterMetadata(
 	parameter: ReportParameter,
 ): ReportParameterMetadata {
@@ -371,6 +491,131 @@ export function getReportParameterMetadata(
 	return {
 		...base,
 		requestKey: parameter.reportParameterName || base.requestKey,
+	};
+}
+
+export function getReportParameterRuntimeName(
+	parameter: ReportParameter,
+	entry?: Pick<ReportParameterCatalogEntry, "parameterVariable">,
+) {
+	return (
+		parameter.reportParameterName ||
+		entry?.parameterVariable ||
+		getReportParameterMetadata(parameter).requestKey
+	);
+}
+
+export function normalizeReportParameterCatalog(
+	payload: unknown,
+): ReportParameterCatalogEntry[] {
+	const entries = normalizeCatalogRows(payload)
+		.map((record) => {
+			const parameterName = pickString(record, [
+				"parameterName",
+				"parameter_name",
+				"name",
+			]);
+
+			if (!parameterName) {
+				return null;
+			}
+
+			return {
+				id: pickNumber(record, ["id", "parameterId", "parameter_id"]),
+				parameterName,
+				parameterVariable: pickString(record, [
+					"parameterVariable",
+					"parameter_variable",
+					"parametervariable",
+				]),
+				parameterLabel: pickString(record, [
+					"parameterLabel",
+					"parameter_label",
+					"label",
+				]),
+				parameterDisplayType: pickString(record, [
+					"parameterDisplayType",
+					"parameter_displayType",
+					"displayType",
+				]),
+				parameterFormatType: pickString(record, [
+					"parameterFormatType",
+					"parameter_FormatType",
+					"parameter_formatType",
+					"formatType",
+				]),
+				parameterDefault: pickString(record, [
+					"parameterDefault",
+					"parameter_default",
+					"defaultValue",
+				]),
+				selectOne: pickBoolean(record, ["selectOne"]),
+				selectAll: pickBoolean(record, ["selectAll"]),
+				parameterSql: pickString(record, [
+					"parameterSql",
+					"parameter_sql",
+					"sql",
+				]),
+				parentId: pickNumber(record, ["parentId", "parent_id"]),
+				parentParameterName: pickString(record, [
+					"parentParameterName",
+					"parent_parameter_name",
+					"parentName",
+				]),
+			} satisfies ReportParameterCatalogEntry;
+		})
+		.filter((entry): entry is ReportParameterCatalogEntry =>
+			Boolean(entry?.parameterName),
+		);
+
+	const byId = new Map<number, ReportParameterCatalogEntry>();
+	for (const entry of entries) {
+		if (entry.id !== undefined) {
+			byId.set(entry.id, entry);
+		}
+	}
+
+	return entries.map((entry) => {
+		const parentEntry =
+			entry.parentId !== undefined ? byId.get(entry.parentId) : undefined;
+
+		return {
+			...entry,
+			parentParameterName:
+				entry.parentParameterName ||
+				parentEntry?.parameterName ||
+				entry.parentParameterName,
+		};
+	});
+}
+
+export function describeReportParameter(
+	parameter: ReportParameter,
+	entry?: ReportParameterCatalogEntry,
+	parentEntry?: ReportParameterCatalogEntry,
+): ReportParameterMetadata {
+	const fallback = getReportParameterMetadata(parameter);
+	const requestKey = getReportParameterRuntimeName(parameter, entry);
+	const label = entry?.parameterLabel || fallback.label;
+	const control = inferReportParameterControl(parameter, entry);
+	const dependencyLabel =
+		parentEntry?.parameterLabel || parentEntry?.parameterName;
+	const descriptionParts = [
+		entry?.parameterDisplayType
+			? `${entry.parameterDisplayType} parameter.`
+			: fallback.description,
+		dependencyLabel ? `Depends on ${dependencyLabel}.` : null,
+		entry?.selectAll ? "Supports an all-values option." : null,
+	]
+		.filter(Boolean)
+		.join(" ");
+
+	return {
+		...fallback,
+		label,
+		control,
+		requestKey,
+		description: descriptionParts || fallback.description,
 	};
 }
 
@@ -682,6 +927,23 @@ export async function fetchReportsTemplate(
 	}
 
 	return (await parseJsonSafely(response)) as ReportsTemplate;
+}
+
+export async function fetchReportParameterCatalog(
+	tenantId: string,
+): Promise<ReportParameterCatalogEntry[]> {
+	const response = await fetch(BFF_ROUTES.reportParameterCatalog, {
+		headers: {
+			"x-tenant-id": tenantId,
+		},
+	});
+
+	if (!response.ok) {
+		throw await normalizeFailedResponse(response);
+	}
+
+	const payload = await parseJsonSafely(response);
+	return normalizeReportParameterCatalog(payload);
 }
 
 export async function fetchReportsBranchMetadata(tenantId: string) {

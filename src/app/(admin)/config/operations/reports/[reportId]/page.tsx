@@ -65,6 +65,7 @@ import { findReportByRouteId } from "@/lib/fineract/report-route";
 import {
 	deleteReportDefinition,
 	fetchReportAvailableExports,
+	fetchReportById,
 	fetchReportParameterOptions,
 	fetchReports,
 	fetchReportsBranchMetadata,
@@ -255,10 +256,22 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 	});
 
 	const reports = reportsQuery.data || [];
-	const selectedReport = useMemo(
+	const numericReportId =
+		/^\d+$/u.test(reportId) && Number.isFinite(Number(reportId))
+			? Number(reportId)
+			: null;
+	const reportListMatch = useMemo(
 		() => findReportByRouteId(reports, reportId),
 		[reports, reportId],
 	);
+	const selectedReportId = reportListMatch?.id ?? numericReportId;
+	const reportDetailQuery = useQuery({
+		queryKey: ["report", tenantId, selectedReportId],
+		queryFn: () => fetchReportById(tenantId, selectedReportId!),
+		enabled: Boolean(tenantId && selectedReportId != null),
+		refetchOnWindowFocus: false,
+	});
+	const selectedReport = reportDetailQuery.data ?? reportListMatch;
 	const selectedParameters = selectedReport?.reportParameters || [];
 	const isPentahoReport = selectedReport?.reportType?.trim() === "Pentaho";
 	const isEnabled = selectedReport?.useReport !== false;
@@ -387,13 +400,6 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			}
 
 			return updateReportDefinition(tenantId, selectedReport.id, {
-				reportName: selectedReport.reportName,
-				reportType: selectedReport.reportType,
-				reportSubType: selectedReport.reportSubType,
-				reportCategory: selectedReport.reportCategory,
-				description: selectedReport.description,
-				reportSql: selectedReport.reportSql,
-				reportParameters: selectedReport.reportParameters,
 				useReport: !isEnabled,
 			});
 		},
@@ -401,6 +407,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			void queryClient.invalidateQueries({
 				queryKey: ["reports", tenantId],
 			});
+			if (selectedReport?.id) {
+				void queryClient.invalidateQueries({
+					queryKey: ["report", tenantId, selectedReport.id],
+				});
+			}
 			toast.success(
 				isEnabled
 					? `"${selectedReport?.reportName}" disabled.`
@@ -425,6 +436,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		mutationFn: () => {
 			if (!selectedReport?.id) {
 				throw new Error("Report ID is required");
+			}
+			if (selectedReport.coreReport) {
+				throw new Error("Core reports cannot be deleted");
 			}
 
 			return deleteReportDefinition(tenantId, selectedReport.id);
@@ -496,9 +510,11 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		selectedParameters,
 		formValues,
 	);
-	const reportLoadError = reportsQuery.error
-		? normalizeApiError(reportsQuery.error)
-		: null;
+	const reportLoadError = reportDetailQuery.error
+		? normalizeApiError(reportDetailQuery.error)
+		: !selectedReport && reportsQuery.error
+			? normalizeApiError(reportsQuery.error)
+			: null;
 	const runError = runMutation.error
 		? normalizeApiError(runMutation.error)
 		: null;
@@ -507,11 +523,13 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			note?: string;
 			legacyOutputTypeSupported?: boolean;
 		}) || null;
+	const showGenericReportLoadError =
+		Boolean(reportLoadError) && reportLoadError?.httpStatus !== 404;
 	const reportNotFound =
 		!reportsQuery.isLoading &&
-		!reportLoadError &&
-		reports.length > 0 &&
-		selectedReport === null;
+		!reportDetailQuery.isLoading &&
+		(reportLoadError?.httpStatus === 404 ||
+			(!reportLoadError && reports.length > 0 && selectedReport === null));
 
 	const executeSelectedReport = () => {
 		if (!selectedReport?.reportName) {
@@ -550,7 +568,12 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 		});
 	};
 
-	if (reportsQuery.isLoading && reports.length === 0) {
+	if (
+		(!selectedReport && reportsQuery.isLoading && reports.length === 0) ||
+		(selectedReportId != null &&
+			reportDetailQuery.isLoading &&
+			selectedReport === null)
+	) {
 		return (
 			<PageShell
 				title="Report Details"
@@ -614,7 +637,9 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 								variant="outline"
 								size="sm"
 								onClick={() => setShowDeleteDialog(true)}
-								disabled={!selectedReport.id}
+								disabled={
+									!selectedReport.id || selectedReport.coreReport === true
+								}
 								className="text-destructive hover:bg-destructive/10 hover:text-destructive"
 							>
 								<Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -633,7 +658,7 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 			}
 		>
 			<div className="space-y-6">
-				{reportLoadError ? (
+				{showGenericReportLoadError ? (
 					<Alert variant="destructive">
 						<AlertTitle>Unable to load reports</AlertTitle>
 						<AlertDescription>{reportLoadError.message}</AlertDescription>
@@ -1059,7 +1084,10 @@ export default function ReportDetailPage({ params }: ReportDetailPageProps) {
 								</AlertDialogCancel>
 								<AlertDialogAction
 									onClick={() => deleteMutation.mutate()}
-									disabled={deleteMutation.isPending}
+									disabled={
+										deleteMutation.isPending ||
+										selectedReport.coreReport === true
+									}
 									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 								>
 									{deleteMutation.isPending ? "Deleting…" : "Delete Report"}

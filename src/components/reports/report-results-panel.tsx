@@ -58,7 +58,8 @@ function formatCellDate(
 		if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
 			const date = parseISO(raw);
 			if (!isNaN(date.getTime())) {
-				return header.dateTimeDisplayType || header.columnDisplayType === "DATETIME"
+				return header.dateTimeDisplayType ||
+					header.columnDisplayType === "DATETIME"
 					? format(date, "dd MMM yyyy, HH:mm")
 					: format(date, "dd MMM yyyy");
 			}

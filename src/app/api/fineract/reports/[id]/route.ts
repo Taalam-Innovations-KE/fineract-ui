@@ -7,9 +7,9 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import type {
 	DeleteReportsResponse,
 	GetReportsResponse,
-	PutReportRequest,
 	PutReportResponse,
 } from "@/lib/fineract/generated/types.gen";
+import type { ReportUpsertPayload } from "@/lib/fineract/reports";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 type RouteContext = {
@@ -55,7 +55,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 	try {
 		const tenantId = getTenantFromRequest(request);
 		const { id } = await context.params;
-		const body = (await request.json()) as PutReportRequest;
+		const body = (await request.json()) as ReportUpsertPayload;
 		const result = await fineractFetch<PutReportResponse>(
 			FINERACT_ENDPOINTS.reportById(id),
 			{

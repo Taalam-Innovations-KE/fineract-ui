@@ -193,6 +193,7 @@ export const BFF_ROUTES = {
 	loansOldestCOB: "/api/fineract/loans/oldest-cob-closed",
 	reports: "/api/fineract/reports",
 	reportsTemplate: "/api/fineract/reports/template",
+	reportParameterCatalog: "/api/fineract/reports/parameters",
 	reportById: (id: number | string) => `/api/fineract/reports/${id}`,
 	reportsPentahoEnforcement: "/api/fineract/reports/pentaho-enforcement",
 	reportAvailableExports: (reportName: string) =>

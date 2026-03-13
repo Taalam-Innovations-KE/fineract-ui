@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Card,
 	CardContent,
@@ -41,6 +40,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,13 +96,6 @@ export default function ReportsPage() {
 	const toggleMutation = useMutation({
 		mutationFn: (report: ReportDefinition) =>
 			updateReportDefinition(tenantId, report.id!, {
-				reportName: report.reportName,
-				reportType: report.reportType,
-				reportSubType: report.reportSubType,
-				reportCategory: report.reportCategory,
-				description: report.description,
-				reportSql: report.reportSql,
-				reportParameters: report.reportParameters,
 				useReport: !report.useReport,
 			}),
 		onSuccess: (_, report) => {
@@ -130,8 +123,13 @@ export default function ReportsPage() {
 	});
 
 	const deleteMutation = useMutation({
-		mutationFn: (report: ReportDefinition) =>
-			deleteReportDefinition(tenantId, report.id!),
+		mutationFn: (report: ReportDefinition) => {
+			if (report.coreReport) {
+				throw new Error("Core reports cannot be deleted");
+			}
+
+			return deleteReportDefinition(tenantId, report.id!);
+		},
 		onSuccess: (_, report) => {
 			void queryClient.invalidateQueries({
 				queryKey: ["reports", tenantId],
@@ -165,13 +163,6 @@ export default function ReportsPage() {
 			Promise.all(
 				targets.map((report) =>
 					updateReportDefinition(tenantId, report.id!, {
-						reportName: report.reportName,
-						reportType: report.reportType,
-						reportSubType: report.reportSubType,
-						reportCategory: report.reportCategory,
-						description: report.description,
-						reportSql: report.reportSql,
-						reportParameters: report.reportParameters,
 						useReport: enable,
 					}),
 				),
@@ -394,8 +385,12 @@ export default function ReportsPage() {
 							variant="outline"
 							size="sm"
 							onClick={() => setDeleteTarget(report)}
-							disabled={report.id == null}
-							title="Delete report"
+							disabled={report.id == null || report.coreReport === true}
+							title={
+								report.coreReport
+									? "Core reports cannot be deleted"
+									: "Delete report"
+							}
 						>
 							<Trash2 className="h-3.5 w-3.5 text-destructive" />
 						</Button>
@@ -731,7 +726,9 @@ export default function ReportsPage() {
 									deleteMutation.mutate(deleteTarget);
 								}
 							}}
-							disabled={deleteMutation.isPending}
+							disabled={
+								deleteMutation.isPending || deleteTarget?.coreReport === true
+							}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
 							{deleteMutation.isPending ? "Deleting…" : "Delete Report"}

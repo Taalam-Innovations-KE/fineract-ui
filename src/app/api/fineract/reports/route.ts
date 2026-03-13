@@ -7,8 +7,8 @@ import { FINERACT_ENDPOINTS } from "@/lib/fineract/endpoints";
 import type {
 	GetReportsResponse,
 	PostReportsResponse,
-	PostRepostRequest,
 } from "@/lib/fineract/generated/types.gen";
+import type { ReportUpsertPayload } from "@/lib/fineract/reports";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 
 export async function GET(request: NextRequest) {
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
 	try {
 		const tenantId = getTenantFromRequest(request);
-		const body = (await request.json()) as PostRepostRequest;
+		const body = (await request.json()) as ReportUpsertPayload;
 		const result = await fineractFetch<PostReportsResponse>(
 			FINERACT_ENDPOINTS.reports,
 			{

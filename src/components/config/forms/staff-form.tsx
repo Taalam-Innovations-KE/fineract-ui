@@ -16,26 +16,40 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import type {
-	OfficeData,
-	Staff,
-	StaffRequest,
-} from "@/lib/fineract/generated/types.gen";
+import type { OfficeData } from "@/lib/fineract/generated/types.gen";
 import type { SubmitActionError } from "@/lib/fineract/submit-error";
-import { toSubmitActionError } from "@/lib/fineract/submit-error";
 import {
-	type CreateStaffFormData,
+	getSubmitErrorsByField,
+	toSubmitActionError,
+} from "@/lib/fineract/submit-error";
+import {
 	createStaffSchema,
+	getStaffIsActive,
+	type StaffFormRecord,
+	type StaffFormValues,
 	type StaffRequestPayload,
 	staffFormToRequest,
+	staffRecordToFormValues,
 } from "@/lib/schemas/staff";
 
 interface StaffFormProps {
 	offices: OfficeData[];
-	initialData?: Staff;
+	initialData?: StaffFormRecord;
 	onSubmit: (data: StaffRequestPayload) => Promise<void>;
 	onCancel: () => void;
 }
+
+const SERVER_FIELD_MAP: Record<string, keyof StaffFormValues> = {
+	officeId: "officeId",
+	firstname: "firstname",
+	lastname: "lastname",
+	joiningDate: "joiningDate",
+	mobileNo: "mobileNo",
+	externalId: "externalId",
+	isLoanOfficer: "isLoanOfficer",
+	isActive: "isActive",
+	forceStatus: "forceStatus",
+};
 
 export function StaffForm({
 	offices,
@@ -47,196 +61,300 @@ export function StaffForm({
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
-	const isEditing = Boolean(initialData);
+	const mode = initialData ? "edit" : "create";
+	const allowedOfficeIds = offices
+		.map((office) => office.id)
+		.filter((officeId): officeId is number => typeof officeId === "number");
 
 	const {
 		register,
 		handleSubmit,
 		control,
+		setError,
+		watch,
 		formState: { errors },
-	} = useForm<CreateStaffFormData>({
-		resolver: zodResolver(createStaffSchema),
+	} = useForm<StaffFormValues>({
+		resolver: zodResolver(
+			createStaffSchema({
+				mode,
+				allowedOfficeIds,
+			}),
+		),
 		defaultValues: initialData
-			? {
-					firstname: initialData.firstname || "",
-					lastname: initialData.lastname || "",
-					officeId: initialData.office?.id,
-					mobileNo: initialData.mobileNo || "",
-					externalId: initialData.externalId || "",
-					isLoanOfficer: initialData.loanOfficer ?? false,
-					isActive: initialData.active ?? true,
-					joiningDate: initialData.joiningDate
-						? new Date(initialData.joiningDate)
-						: undefined,
-				}
+			? staffRecordToFormValues(initialData)
 			: {
+					firstname: "",
+					lastname: "",
+					mobileNo: "",
+					externalId: "",
 					isLoanOfficer: false,
 					isActive: true,
+					forceStatus: false,
 				},
 	});
 
-	const onFormSubmit = async (data: CreateStaffFormData) => {
+	const isActive = watch("isActive");
+
+	const applyServerErrors = (error: SubmitActionError) => {
+		let hasFieldError = false;
+		const errorsByField = getSubmitErrorsByField(error);
+
+		for (const [field, messages] of Object.entries(errorsByField)) {
+			if (messages.length === 0) {
+				continue;
+			}
+
+			const mappedField = SERVER_FIELD_MAP[field];
+			if (!mappedField) {
+				continue;
+			}
+
+			setError(mappedField, { type: "server", message: messages[0] });
+			hasFieldError = true;
+		}
+
+		if (!hasFieldError) {
+			setSubmitError(error);
+		}
+	};
+
+	const onFormSubmit = async (data: StaffFormValues) => {
 		setIsSubmitting(true);
 		setSubmitError(null);
+
 		try {
-			const requestData = staffFormToRequest(data);
-			await onSubmit(requestData);
+			await onSubmit(staffFormToRequest(data));
 		} catch (error) {
-			setSubmitError(
-				toSubmitActionError(error, {
-					action: isEditing ? "updateStaff" : "createStaff",
-					endpoint:
-						isEditing && initialData?.id
-							? `/api/fineract/staff/${initialData.id}`
-							: "/api/fineract/staff",
-					method: isEditing ? "PUT" : "POST",
-				}),
-			);
+			const trackedError = toSubmitActionError(error, {
+				action: mode === "edit" ? "updateStaff" : "createStaff",
+				endpoint:
+					mode === "edit" && initialData?.id
+						? `/api/fineract/staff/${initialData.id}`
+						: "/api/fineract/staff",
+				method: mode === "edit" ? "PUT" : "POST",
+			});
+			applyServerErrors(trackedError);
+			setSubmitError(trackedError);
 		} finally {
 			setIsSubmitting(false);
 		}
 	};
 
 	return (
-		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
 			<SubmitErrorAlert
 				error={submitError}
-				title={isEditing ? "Failed to update staff" : "Failed to create staff"}
+				title={
+					mode === "edit" ? "Failed to update staff" : "Failed to create staff"
+				}
 			/>
-			<div className="grid grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<Label htmlFor="firstname">
-						First Name <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						id="firstname"
-						{...register("firstname")}
-						placeholder="Enter first name"
-					/>
-					{errors.firstname && (
+
+			<div className="space-y-4">
+				<div className="text-sm font-semibold text-muted-foreground">
+					Employment profile
+				</div>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="firstname">
+							First Name <span className="text-destructive">*</span>
+						</Label>
+						<Input
+							id="firstname"
+							{...register("firstname")}
+							placeholder="Enter first name"
+						/>
+						{errors.firstname && (
+							<p className="text-sm text-destructive">
+								{errors.firstname.message}
+							</p>
+						)}
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="lastname">
+							Last Name <span className="text-destructive">*</span>
+						</Label>
+						<Input
+							id="lastname"
+							{...register("lastname")}
+							placeholder="Enter last name"
+						/>
+						{errors.lastname && (
+							<p className="text-sm text-destructive">
+								{errors.lastname.message}
+							</p>
+						)}
+					</div>
+				</div>
+
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="officeId">
+							Office <span className="text-destructive">*</span>
+						</Label>
+						<Controller
+							control={control}
+							name="officeId"
+							render={({ field }) => (
+								<Select
+									value={field.value ? String(field.value) : undefined}
+									onValueChange={(value) => field.onChange(Number(value))}
+								>
+									<SelectTrigger id="officeId">
+										<SelectValue placeholder="Select office" />
+									</SelectTrigger>
+									<SelectContent>
+										{offices.map((office) => (
+											<SelectItem key={office.id} value={String(office.id)}>
+												{office.nameDecorated || office.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+						{errors.officeId && (
+							<p className="text-sm text-destructive">
+								{errors.officeId.message}
+							</p>
+						)}
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="joiningDate">
+							Joining Date <span className="text-destructive">*</span>
+						</Label>
+						<Input
+							id="joiningDate"
+							type="date"
+							{...register("joiningDate", { valueAsDate: true })}
+						/>
+						<p className="text-xs text-muted-foreground">
+							Required on creation. Keep this populated when updating staff.
+						</p>
+						{errors.joiningDate && (
+							<p className="text-sm text-destructive">
+								{errors.joiningDate.message}
+							</p>
+						)}
+					</div>
+				</div>
+			</div>
+
+			<div className="space-y-4">
+				<div className="text-sm font-semibold text-muted-foreground">
+					Contact and status
+				</div>
+				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="space-y-2">
+						<Label htmlFor="mobileNo">Mobile Number</Label>
+						<Input
+							id="mobileNo"
+							{...register("mobileNo")}
+							placeholder="Enter mobile number"
+						/>
+						{errors.mobileNo && (
+							<p className="text-sm text-destructive">
+								{errors.mobileNo.message}
+							</p>
+						)}
+					</div>
+
+					<div className="space-y-2">
+						<Label htmlFor="externalId">External ID</Label>
+						<Input
+							id="externalId"
+							{...register("externalId")}
+							placeholder="Enter external ID"
+						/>
+						{errors.externalId && (
+							<p className="text-sm text-destructive">
+								{errors.externalId.message}
+							</p>
+						)}
+					</div>
+				</div>
+
+				<div className="space-y-3 rounded-sm border border-border/60 p-4">
+					<div className="flex items-center gap-2">
+						<Controller
+							control={control}
+							name="isLoanOfficer"
+							render={({ field }) => (
+								<Checkbox
+									id="isLoanOfficer"
+									checked={field.value ?? false}
+									onCheckedChange={(value) => field.onChange(Boolean(value))}
+								/>
+							)}
+						/>
+						<Label htmlFor="isLoanOfficer" className="cursor-pointer">
+							Assign as loan officer
+						</Label>
+					</div>
+					{errors.isLoanOfficer && (
 						<p className="text-sm text-destructive">
-							{errors.firstname.message}
+							{errors.isLoanOfficer.message}
 						</p>
 					)}
-				</div>
 
-				<div className="space-y-2">
-					<Label htmlFor="lastname">
-						Last Name <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						id="lastname"
-						{...register("lastname")}
-						placeholder="Enter last name"
-					/>
-					{errors.lastname && (
+					<div className="flex items-center gap-2">
+						<Controller
+							control={control}
+							name="isActive"
+							render={({ field }) => (
+								<Checkbox
+									id="isActive"
+									checked={field.value ?? false}
+									onCheckedChange={(value) => field.onChange(Boolean(value))}
+								/>
+							)}
+						/>
+						<Label htmlFor="isActive" className="cursor-pointer">
+							Staff member is active
+						</Label>
+					</div>
+					{errors.isActive && (
 						<p className="text-sm text-destructive">
-							{errors.lastname.message}
+							{errors.isActive.message}
 						</p>
 					)}
-				</div>
-			</div>
 
-			<div className="space-y-2">
-				<Label htmlFor="officeId">
-					Office <span className="text-destructive">*</span>
-				</Label>
-				<Controller
-					control={control}
-					name="officeId"
-					render={({ field }) => (
-						<Select
-							value={
-								field.value !== undefined && field.value !== null
-									? String(field.value)
-									: undefined
-							}
-							onValueChange={(value) => field.onChange(Number(value))}
-						>
-							<SelectTrigger id="officeId">
-								<SelectValue placeholder="Select office" />
-							</SelectTrigger>
-							<SelectContent>
-								{offices.map((office) => (
-									<SelectItem key={office.id} value={String(office.id)}>
-										{office.nameDecorated || office.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+					{!isActive && (
+						<div className="space-y-2 rounded-sm border border-warning/30 bg-warning/5 p-3">
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="forceStatus"
+									render={({ field }) => (
+										<Checkbox
+											id="forceStatus"
+											checked={field.value ?? false}
+											onCheckedChange={(value) =>
+												field.onChange(Boolean(value))
+											}
+										/>
+									)}
+								/>
+								<Label htmlFor="forceStatus" className="cursor-pointer">
+									Force inactive status
+								</Label>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								Use this only if the backend blocks inactivation because the
+								staff member is still assigned to live portfolio records.
+							</p>
+							{errors.forceStatus && (
+								<p className="text-sm text-destructive">
+									{errors.forceStatus.message}
+								</p>
+							)}
+						</div>
 					)}
-				/>
-				{errors.officeId && (
-					<p className="text-sm text-destructive">{errors.officeId.message}</p>
-				)}
-			</div>
-
-			<div className="grid grid-cols-2 gap-4">
-				<div className="space-y-2">
-					<Label htmlFor="mobileNo">Mobile Number</Label>
-					<Input
-						id="mobileNo"
-						{...register("mobileNo")}
-						placeholder="Enter mobile number"
-					/>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="joiningDate">Joining Date</Label>
-					<Input
-						id="joiningDate"
-						type="date"
-						{...register("joiningDate", { valueAsDate: true })}
-					/>
 				</div>
 			</div>
 
-			<div className="space-y-2">
-				<Label htmlFor="externalId">External ID</Label>
-				<Input
-					id="externalId"
-					{...register("externalId")}
-					placeholder="Enter external ID"
-				/>
-			</div>
-
-			<div className="space-y-3">
-				<div className="flex items-center gap-2">
-					<Controller
-						control={control}
-						name="isLoanOfficer"
-						render={({ field }) => (
-							<Checkbox
-								id="isLoanOfficer"
-								checked={field.value ?? false}
-								onCheckedChange={(value) => field.onChange(Boolean(value))}
-							/>
-						)}
-					/>
-					<Label htmlFor="isLoanOfficer" className="cursor-pointer">
-						Is Loan Officer
-					</Label>
-				</div>
-
-				<div className="flex items-center gap-2">
-					<Controller
-						control={control}
-						name="isActive"
-						render={({ field }) => (
-							<Checkbox
-								id="isActive"
-								checked={field.value ?? false}
-								onCheckedChange={(value) => field.onChange(Boolean(value))}
-							/>
-						)}
-					/>
-					<Label htmlFor="isActive" className="cursor-pointer">
-						Is Active
-					</Label>
-				</div>
-			</div>
-
-			<div className="flex justify-end gap-3 pt-4">
+			<div className="flex items-center justify-end gap-2 pt-2">
 				<Button
 					type="button"
 					variant="outline"
@@ -246,13 +364,15 @@ export function StaffForm({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					<Save className="w-4 h-4 mr-2" />
+					<Save className="mr-2 h-4 w-4" />
 					{isSubmitting
-						? isEditing
-							? "Updating..."
+						? mode === "edit"
+							? "Saving..."
 							: "Creating..."
-						: isEditing
-							? "Update Staff"
+						: mode === "edit"
+							? getStaffIsActive(initialData)
+								? "Update Staff"
+								: "Save Staff"
 							: "Create Staff"}
 				</Button>
 			</div>

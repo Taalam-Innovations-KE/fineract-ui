@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isValid, parseISO } from "date-fns";
 import { Building2, Plus, UserCheck, Users } from "lucide-react";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { StaffForm } from "@/components/config/forms/staff-form";
 import { PageShell } from "@/components/config/page-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +16,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -31,46 +35,22 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { parseFineractDate } from "@/lib/date-utils";
 import { BFF_ROUTES } from "@/lib/fineract/endpoints";
 import type {
 	OfficeData,
 	Staff,
 	StaffRequest,
 } from "@/lib/fineract/generated/types.gen";
+import { normalizeFailedResponse } from "@/lib/fineract/ui-api-error";
 import { useTenantStore } from "@/store/tenant";
 
 type StaffFilters = {
 	officeId?: string;
 	loanOfficersOnly?: boolean;
 	status?: string;
+	staffInOfficeHierarchy?: boolean;
 };
-
-async function fetchStaff(
-	tenantId: string,
-	filters: StaffFilters = {},
-): Promise<Staff[]> {
-	const params = new URLSearchParams();
-	if (filters.officeId) params.set("officeId", filters.officeId);
-	if (filters.loanOfficersOnly) params.set("loanOfficersOnly", "true");
-	if (filters.status) params.set("status", filters.status);
-
-	const queryString = params.toString();
-	const url = queryString
-		? `${BFF_ROUTES.staff}?${queryString}`
-		: BFF_ROUTES.staff;
-
-	const response = await fetch(url, {
-		headers: {
-			"x-tenant-id": tenantId,
-		},
-	});
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch staff");
-	}
-
-	return response.json();
-}
 
 async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
 	const response = await fetch(BFF_ROUTES.offices, {
@@ -80,167 +60,267 @@ async function fetchOffices(tenantId: string): Promise<OfficeData[]> {
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to fetch offices");
+		throw await normalizeFailedResponse(response);
 	}
 
 	return response.json();
 }
 
-async function createStaff(tenantId: string, data: StaffRequest) {
+async function fetchStaff(
+	tenantId: string,
+	filters: StaffFilters,
+): Promise<Staff[]> {
+	const params = new URLSearchParams();
+
+	if (filters.officeId) {
+		params.set("officeId", filters.officeId);
+	}
+	if (filters.loanOfficersOnly) {
+		params.set("loanOfficersOnly", "true");
+	}
+	if (filters.status && filters.status !== "all") {
+		params.set("status", filters.status);
+	}
+	if (filters.staffInOfficeHierarchy) {
+		params.set("staffInOfficeHierarchy", "true");
+	}
+
+	const queryString = params.toString();
+	const response = await fetch(
+		queryString ? `${BFF_ROUTES.staff}?${queryString}` : BFF_ROUTES.staff,
+		{
+			headers: {
+				"x-tenant-id": tenantId,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw await normalizeFailedResponse(response);
+	}
+
+	return response.json();
+}
+
+async function createStaff(tenantId: string, payload: StaffRequest) {
 	const response = await fetch(BFF_ROUTES.staff, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 			"x-tenant-id": tenantId,
 		},
-		body: JSON.stringify(data),
+		body: JSON.stringify(payload),
 	});
 
 	if (!response.ok) {
-		const payload = await response
-			.json()
-			.catch(() => ({ message: "Failed to create staff" }));
-		throw payload;
+		throw await normalizeFailedResponse(response);
 	}
 
 	return response.json();
 }
 
-async function updateStaff(
-	tenantId: string,
-	staffId: number,
-	data: StaffRequest,
-) {
-	const response = await fetch(`${BFF_ROUTES.staff}/${staffId}`, {
-		method: "PUT",
-		headers: {
-			"Content-Type": "application/json",
-			"x-tenant-id": tenantId,
-		},
-		body: JSON.stringify(data),
-	});
+function StaffTableSkeleton() {
+	return (
+		<div className="space-y-2">
+			<div className="rounded-sm border border-border/60">
+				<table className="w-full text-left text-sm">
+					<thead className="border-b border-border/60 bg-muted/40">
+						<tr>
+							<th className="px-3 py-2">
+								<Skeleton className="h-4 w-24" />
+							</th>
+							<th className="px-3 py-2">
+								<Skeleton className="h-4 w-20" />
+							</th>
+							<th className="px-3 py-2">
+								<Skeleton className="h-4 w-16" />
+							</th>
+							<th className="px-3 py-2">
+								<Skeleton className="h-4 w-24" />
+							</th>
+							<th className="px-3 py-2">
+								<Skeleton className="h-4 w-20" />
+							</th>
+							<th className="px-3 py-2 text-right">
+								<Skeleton className="ml-auto h-4 w-12" />
+							</th>
+						</tr>
+					</thead>
+					<tbody className="divide-y divide-border/60">
+						{Array.from({ length: 8 }).map((_, index) => (
+							<tr key={`staff-row-skeleton-${index}`}>
+								<td className="px-3 py-2">
+									<div className="space-y-1">
+										<Skeleton className="h-4 w-32" />
+										<Skeleton className="h-3 w-24" />
+									</div>
+								</td>
+								<td className="px-3 py-2">
+									<Skeleton className="h-4 w-24" />
+								</td>
+								<td className="px-3 py-2">
+									<Skeleton className="h-6 w-20" />
+								</td>
+								<td className="px-3 py-2">
+									<Skeleton className="h-4 w-24" />
+								</td>
+								<td className="px-3 py-2">
+									<Skeleton className="h-4 w-28" />
+								</td>
+								<td className="px-3 py-2 text-right">
+									<Skeleton className="ml-auto h-8 w-16" />
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	);
+}
 
-	if (!response.ok) {
-		const payload = await response
-			.json()
-			.catch(() => ({ message: "Failed to update staff" }));
-		throw payload;
+function formatStaffDate(value?: string) {
+	if (!value) {
+		return "Not provided";
 	}
 
-	return response.json();
+	const isoDate = parseISO(value);
+	if (isValid(isoDate)) {
+		return isoDate.toLocaleDateString("en-GB", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+		});
+	}
+
+	try {
+		const fineractDate = parseFineractDate(value);
+		if (isValid(fineractDate)) {
+			return fineractDate.toLocaleDateString("en-GB", {
+				day: "2-digit",
+				month: "short",
+				year: "numeric",
+			});
+		}
+	} catch {
+		// Ignore and return the original string.
+	}
+
+	return value;
 }
 
 export default function StaffPage() {
 	const { tenantId } = useTenantStore();
-	const [isDialogOpen, setIsDialogOpen] = useState(false);
-	const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-	const [filters, setFilters] = useState({
-		officeId: "",
-		loanOfficersOnly: false,
-		status: "active",
-	});
 	const queryClient = useQueryClient();
+	const [isCreateSheetOpen, setIsCreateSheetOpen] = useState(false);
+	const [searchValue, setSearchValue] = useState("");
+	const [filters, setFilters] = useState<StaffFilters>({
+		status: "active",
+		loanOfficersOnly: false,
+		staffInOfficeHierarchy: false,
+	});
+	const deferredSearchValue = useDeferredValue(searchValue);
 
-	const isEditing = Boolean(selectedStaff);
-
-	const { data: offices = [] } = useQuery({
+	const {
+		data: offices = [],
+		isLoading: officesLoading,
+		error: officesError,
+	} = useQuery({
 		queryKey: ["offices", tenantId],
 		queryFn: () => fetchOffices(tenantId),
+		enabled: Boolean(tenantId),
+		staleTime: 5 * 60 * 1000,
 	});
 
 	const {
 		data: staff = [],
-		isLoading,
-		error,
+		isLoading: staffLoading,
+		error: staffError,
 	} = useQuery({
 		queryKey: ["staff", tenantId, filters],
 		queryFn: () => fetchStaff(tenantId, filters),
+		enabled: Boolean(tenantId),
 	});
 
 	const createMutation = useMutation({
-		mutationFn: (data: StaffRequest) => createStaff(tenantId, data),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
-			setIsDialogOpen(false);
+		mutationFn: (payload: StaffRequest) => createStaff(tenantId, payload),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
+			setIsCreateSheetOpen(false);
 		},
 	});
 
-	const updateMutation = useMutation({
-		mutationFn: (data: StaffRequest) =>
-			updateStaff(tenantId, selectedStaff!.id!, data),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["staff", tenantId] });
-			setIsDialogOpen(false);
-			setSelectedStaff(null);
-		},
-	});
-
-	const handleCreateNew = () => {
-		setSelectedStaff(null);
-		setIsDialogOpen(true);
-	};
-
-	const handleDialogClose = (open: boolean) => {
-		setIsDialogOpen(open);
-		if (!open) {
-			setSelectedStaff(null);
+	const normalizedSearch = deferredSearchValue.trim().toLowerCase();
+	const filteredStaff = staff.filter((member) => {
+		if (normalizedSearch.length === 0) {
+			return true;
 		}
-	};
 
-	const handleFilterChange = (
-		key: keyof StaffFilters,
-		value: string | boolean,
-	) => {
-		setFilters((prev) => ({ ...prev, [key]: value }));
-	};
+		return [
+			member.displayName,
+			member.firstname,
+			member.lastname,
+			member.office?.name,
+			member.mobileNo,
+			member.externalId,
+		]
+			.filter(Boolean)
+			.some((value) => value?.toLowerCase().includes(normalizedSearch));
+	});
 
-	const loanOfficers = staff.filter((s) => s.loanOfficer);
-	const activeStaff = staff.filter((s) => s.active);
-	const staffColumns = [
+	const activeCount = filteredStaff.filter((member) => member.active).length;
+	const inactiveCount = filteredStaff.filter((member) => !member.active).length;
+	const loanOfficerCount = filteredStaff.filter(
+		(member) => member.loanOfficer,
+	).length;
+
+	const columns: DataTableColumn<Staff>[] = [
 		{
-			header: "Name",
-			cell: (member: Staff) => (
-				<span className="font-medium">{member.displayName}</span>
+			header: "Staff",
+			cell: (member) => (
+				<div className="space-y-1">
+					<div className="font-medium">
+						{member.displayName ||
+							[member.firstname, member.lastname].filter(Boolean).join(" ") ||
+							"Unnamed Staff"}
+					</div>
+					<div className="text-xs text-muted-foreground">
+						{member.mobileNo || member.externalId || "No contact metadata"}
+					</div>
+				</div>
 			),
 		},
 		{
 			header: "Office",
-			cell: (member: Staff) => (
+			cell: (member) => (
 				<span className={member.office?.name ? "" : "text-muted-foreground"}>
-					{member.office?.name || "—"}
+					{member.office?.name || "No office"}
 				</span>
 			),
 		},
 		{
 			header: "Role",
-			cell: (member: Staff) =>
+			cell: (member) =>
 				member.loanOfficer ? (
-					<Badge variant="default" className="text-xs px-2 py-0.5">
-						Loan Officer
-					</Badge>
+					<Badge variant="default">Loan Officer</Badge>
 				) : (
-					<Badge variant="secondary" className="text-xs px-2 py-0.5">
-						Staff
-					</Badge>
+					<Badge variant="secondary">Staff</Badge>
 				),
 		},
 		{
-			header: "Status",
-			cell: (member: Staff) => (
-				<Badge
-					variant={member.active ? "success" : "secondary"}
-					className="text-xs px-2 py-0.5"
-				>
-					{member.active ? "Active" : "Inactive"}
-				</Badge>
+			header: "Joining Date",
+			cell: (member) => (
+				<span className={member.joiningDate ? "" : "text-muted-foreground"}>
+					{formatStaffDate(member.joiningDate)}
+				</span>
 			),
 		},
 		{
-			header: "External ID",
-			cell: (member: Staff) => (
-				<span className={member.externalId ? "" : "text-muted-foreground"}>
-					{member.externalId || "—"}
-				</span>
+			header: "Status",
+			cell: (member) => (
+				<Badge variant={member.active ? "success" : "secondary"}>
+					{member.active ? "Active" : "Inactive"}
+				</Badge>
 			),
 		},
 	];
@@ -248,16 +328,24 @@ export default function StaffPage() {
 	return (
 		<PageShell
 			title="Staff"
-			subtitle="Manage your organization's staff members"
+			subtitle="Manage organisational staff records independently from user accounts, with office-aware filtering and active-status controls."
 			actions={
-				<Button onClick={handleCreateNew}>
-					<Plus className="h-4 w-4 mr-2" />
+				<Button onClick={() => setIsCreateSheetOpen(true)}>
+					<Plus className="mr-2 h-4 w-4" />
 					Add Staff
 				</Button>
 			}
 		>
 			<div className="space-y-6">
-				{/* Summary Cards */}
+				<Alert>
+					<AlertTitle>Staff records are updated, not deleted</AlertTitle>
+					<AlertDescription>
+						Use inactive status when a staff member leaves. If portfolio
+						assignments block inactivation, use the force status option in the
+						edit flow.
+					</AlertDescription>
+				</Alert>
+
 				<div className="grid gap-4 md:grid-cols-3">
 					<Card>
 						<CardContent className="pt-6">
@@ -266,9 +354,11 @@ export default function StaffPage() {
 									<Users className="h-5 w-5 text-primary" />
 								</div>
 								<div>
-									<div className="text-2xl font-bold">{staff.length}</div>
+									<div className="text-2xl font-bold">
+										{filteredStaff.length}
+									</div>
 									<div className="text-sm text-muted-foreground">
-										Total Staff
+										Visible Staff
 									</div>
 								</div>
 							</div>
@@ -281,7 +371,7 @@ export default function StaffPage() {
 									<UserCheck className="h-5 w-5 text-success" />
 								</div>
 								<div>
-									<div className="text-2xl font-bold">{activeStaff.length}</div>
+									<div className="text-2xl font-bold">{activeCount}</div>
 									<div className="text-sm text-muted-foreground">Active</div>
 								</div>
 							</div>
@@ -294,9 +384,7 @@ export default function StaffPage() {
 									<Building2 className="h-5 w-5 text-info" />
 								</div>
 								<div>
-									<div className="text-2xl font-bold">
-										{loanOfficers.length}
-									</div>
+									<div className="text-2xl font-bold">{loanOfficerCount}</div>
 									<div className="text-sm text-muted-foreground">
 										Loan Officers
 									</div>
@@ -306,113 +394,144 @@ export default function StaffPage() {
 					</Card>
 				</div>
 
-				{/* Filters */}
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-lg">Filters</CardTitle>
+						<CardTitle>Filters</CardTitle>
+						<CardDescription>
+							Use server-backed office, status, and loan officer filters, then
+							refine locally with search.
+						</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<div className="grid grid-cols-3 gap-4">
+					<CardContent className="space-y-4">
+						<div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
 							<div className="space-y-2">
-								<Label htmlFor="officeFilter">Office</Label>
+								<Label htmlFor="staff-search">Search</Label>
+								<Input
+									id="staff-search"
+									value={searchValue}
+									onChange={(event) => setSearchValue(event.target.value)}
+									placeholder="Search by name, office, mobile, or external ID"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="staff-office-filter">Office</Label>
 								<Select
 									value={filters.officeId || "all"}
 									onValueChange={(value) =>
-										handleFilterChange("officeId", value === "all" ? "" : value)
+										setFilters((current) => ({
+											...current,
+											officeId: value === "all" ? undefined : value,
+										}))
 									}
 								>
-									<SelectTrigger id="officeFilter">
-										<SelectValue placeholder="All Offices" />
+									<SelectTrigger id="staff-office-filter">
+										<SelectValue placeholder="All offices" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="all">All Offices</SelectItem>
+										<SelectItem value="all">All offices</SelectItem>
 										{offices.map((office) => (
 											<SelectItem key={office.id} value={String(office.id)}>
-												{office.name}
+												{office.nameDecorated || office.name}
 											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
 							</div>
-
 							<div className="space-y-2">
-								<Label htmlFor="statusFilter">Status</Label>
+								<Label htmlFor="staff-status-filter">Status</Label>
 								<Select
 									value={filters.status || "all"}
-									onValueChange={(value) => handleFilterChange("status", value)}
+									onValueChange={(value) =>
+										setFilters((current) => ({ ...current, status: value }))
+									}
 								>
-									<SelectTrigger id="statusFilter">
-										<SelectValue placeholder="All" />
+									<SelectTrigger id="staff-status-filter">
+										<SelectValue placeholder="All statuses" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="all">All</SelectItem>
+										<SelectItem value="all">All statuses</SelectItem>
 										<SelectItem value="active">Active</SelectItem>
 										<SelectItem value="inactive">Inactive</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
-
 							<div className="space-y-2">
-								<Label htmlFor="roleFilter">Role</Label>
+								<Label htmlFor="staff-role-filter">Role</Label>
 								<Select
 									value={filters.loanOfficersOnly ? "loanOfficer" : "all"}
 									onValueChange={(value) =>
-										handleFilterChange(
-											"loanOfficersOnly",
-											value === "loanOfficer",
-										)
+										setFilters((current) => ({
+											...current,
+											loanOfficersOnly: value === "loanOfficer",
+										}))
 									}
 								>
-									<SelectTrigger id="roleFilter">
-										<SelectValue placeholder="All Staff" />
+									<SelectTrigger id="staff-role-filter">
+										<SelectValue placeholder="All staff" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="all">All Staff</SelectItem>
+										<SelectItem value="all">All staff</SelectItem>
 										<SelectItem value="loanOfficer">
-											Loan Officers Only
+											Loan officers only
 										</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
 						</div>
+
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id="staff-hierarchy-filter"
+								checked={filters.staffInOfficeHierarchy ?? false}
+								onCheckedChange={(value) =>
+									setFilters((current) => ({
+										...current,
+										staffInOfficeHierarchy: Boolean(value),
+									}))
+								}
+							/>
+							<Label
+								htmlFor="staff-hierarchy-filter"
+								className="cursor-pointer"
+							>
+								Include office hierarchy when filtering by office
+							</Label>
+						</div>
 					</CardContent>
 				</Card>
 
-				{/* Staff List */}
 				<Card>
 					<CardHeader>
 						<CardTitle>Staff Members</CardTitle>
 						<CardDescription>
-							{staff.length} staff member{staff.length !== 1 ? "s" : ""} found
+							{filteredStaff.length} staff member
+							{filteredStaff.length === 1 ? "" : "s"} match the current filters.{" "}
+							{inactiveCount} currently inactive.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						{isLoading && (
-							<div className="space-y-2">
-								<Skeleton className="h-10 w-full" />
-								{Array.from({ length: 8 }).map((_, index) => (
-									<Skeleton
-										key={`staff-row-skeleton-${index}`}
-										className="h-12 w-full"
-									/>
-								))}
-							</div>
-						)}
-						{error && (
-							<div className="text-center py-8 text-destructive">
-								Failed to load staff. Please try again.
-							</div>
-						)}
-						{!isLoading && !error && staff.length === 0 && (
-							<div className="text-center py-8 text-muted-foreground">
-								No staff members found. Add your first staff member to get
-								started.
-							</div>
-						)}
-						{!isLoading && !error && staff.length > 0 && (
+						{staffLoading ? <StaffTableSkeleton /> : null}
+						{staffError ? (
+							<Alert variant="destructive">
+								<AlertTitle>Unable to load staff</AlertTitle>
+								<AlertDescription>
+									Check connectivity and your access to the staff resource, then
+									retry.
+								</AlertDescription>
+							</Alert>
+						) : null}
+						{officesError ? (
+							<Alert variant="destructive">
+								<AlertTitle>Unable to load offices</AlertTitle>
+								<AlertDescription>
+									Office metadata is required for filtering and staff setup.
+								</AlertDescription>
+							</Alert>
+						) : null}
+						{!staffLoading && !staffError ? (
 							<DataTable
-								data={staff}
-								columns={staffColumns}
+								data={filteredStaff}
+								columns={columns}
 								getRowId={(member) =>
 									member.id ?? member.displayName ?? "staff-row"
 								}
@@ -420,39 +539,49 @@ export default function StaffPage() {
 								getViewUrl={(member) =>
 									`/config/organisation/staff/${member.id}`
 								}
+								emptyMessage="No staff records match the current filters."
 							/>
-						)}
+						) : null}
 					</CardContent>
 				</Card>
 			</div>
 
-			<Sheet open={isDialogOpen} onOpenChange={handleDialogClose}>
+			<Sheet open={isCreateSheetOpen} onOpenChange={setIsCreateSheetOpen}>
 				<SheetContent
 					side="right"
-					className="w-full sm:max-w-lg overflow-y-auto"
+					className="w-full overflow-y-auto sm:max-w-xl"
 				>
 					<SheetHeader>
-						<SheetTitle>
-							{isEditing ? "Edit Staff Member" : "Add Staff Member"}
-						</SheetTitle>
+						<SheetTitle>Add Staff Member</SheetTitle>
 						<SheetDescription>
-							{isEditing
-								? "Update staff member details"
-								: "Add a new staff member to your organization"}
+							Create the organisational staff record first. A system user can be
+							linked later if login access is required.
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
-						<StaffForm
-							key={selectedStaff?.id ?? "new"}
-							offices={offices}
-							initialData={selectedStaff ?? undefined}
-							onSubmit={(data) =>
-								isEditing
-									? updateMutation.mutateAsync(data)
-									: createMutation.mutateAsync(data)
-							}
-							onCancel={() => handleDialogClose(false)}
-						/>
+						{officesLoading ? (
+							<div className="space-y-4">
+								<Skeleton className="h-10 w-full" />
+								<Skeleton className="h-10 w-full" />
+								<Skeleton className="h-10 w-full" />
+								<Skeleton className="h-32 w-full" />
+							</div>
+						) : officesError ? (
+							<Alert variant="destructive">
+								<AlertTitle>Office data unavailable</AlertTitle>
+								<AlertDescription>
+									Staff creation requires office metadata to be loaded first.
+								</AlertDescription>
+							</Alert>
+						) : (
+							<StaffForm
+								offices={offices}
+								onSubmit={(payload) =>
+									createMutation.mutateAsync(payload as StaffRequest)
+								}
+								onCancel={() => setIsCreateSheetOpen(false)}
+							/>
+						)}
 					</div>
 				</SheetContent>
 			</Sheet>

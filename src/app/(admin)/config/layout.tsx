@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { ConfigPageLoadingSkeleton } from "@/components/config/config-page-loading-skeleton";
 import { Sidebar } from "@/components/config/sidebar";
 import { TenantSwitcher } from "@/components/config/tenant-switcher";
 import { TopBar } from "@/components/config/topbar";
@@ -20,7 +22,11 @@ export default function ConfigLayout({
 			{/* Main content */}
 			<main className="flex-1 overflow-y-auto">
 				<TopBar />
-				<div className="container mx-auto px-4 py-4">{children}</div>
+				<div className="container mx-auto px-4 py-4">
+					<Suspense fallback={<ConfigPageLoadingSkeleton />}>
+						{children}
+					</Suspense>
+				</div>
 			</main>
 		</div>
 	);

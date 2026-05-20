@@ -75,46 +75,57 @@ async function authenticateWithFineract(
 	}
 }
 
-export const authConfig: NextAuthConfig = {
-	providers: [
-		Credentials({
-			id: "credentials",
-			name: "Username & Password",
-			credentials: {
-				username: { label: "Username", type: "text" },
-				password: { label: "Password", type: "password" },
-				tenantId: { label: "Tenant ID", type: "text" },
-			},
-			async authorize(credentials) {
-				if (!credentials?.username || !credentials?.password) {
-					return null;
-				}
+const providers: NextAuthConfig["providers"] = [
+	Credentials({
+		id: "credentials",
+		name: "Username & Password",
+		credentials: {
+			username: { label: "Username", type: "text" },
+			password: { label: "Password", type: "password" },
+			tenantId: { label: "Tenant ID", type: "text" },
+		},
+		async authorize(credentials) {
+			if (!credentials?.username || !credentials?.password) {
+				return null;
+			}
 
-				const user = await authenticateWithFineract(
-					credentials.username as string,
-					credentials.password as string,
-					(credentials.tenantId as string) || "default",
-				);
+			const user = await authenticateWithFineract(
+				credentials.username as string,
+				credentials.password as string,
+				(credentials.tenantId as string) || "default",
+			);
 
-				// Store credentials securely in the user object (will be encrypted in JWT)
-				if (user) {
-					return {
-						...user,
-						credentials: Buffer.from(
-							`${credentials.username}:${credentials.password}`,
-						).toString("base64"),
-					};
-				}
+			// Store credentials securely in the user object (will be encrypted in JWT)
+			if (user) {
+				return {
+					...user,
+					credentials: Buffer.from(
+						`${credentials.username}:${credentials.password}`,
+					).toString("base64"),
+				};
+			}
 
-				return user;
-			},
-		}),
+			return user;
+		},
+	}),
+];
+
+if (
+	process.env.AUTH_KEYCLOAK_ID &&
+	process.env.AUTH_KEYCLOAK_SECRET &&
+	process.env.AUTH_KEYCLOAK_ISSUER
+) {
+	providers.push(
 		Keycloak({
-			clientId: process.env.AUTH_KEYCLOAK_ID!,
-			clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
-			issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+			clientId: process.env.AUTH_KEYCLOAK_ID,
+			clientSecret: process.env.AUTH_KEYCLOAK_SECRET,
+			issuer: process.env.AUTH_KEYCLOAK_ISSUER,
 		}),
-	],
+	);
+}
+
+export const authConfig: NextAuthConfig = {
+	providers,
 	callbacks: {
 		async jwt({ token, account, profile, user }) {
 			// For Keycloak provider

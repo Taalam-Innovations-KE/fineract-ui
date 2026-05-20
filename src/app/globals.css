@@ -29,7 +29,14 @@
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
 
-	/* Secondary */
+	/* Brand Tokens */
+	--color-brand-primary: var(--brand-primary);
+	--color-brand-secondary: var(--brand-secondary);
+	--color-surface-main: var(--surface-main);
+	--color-surface-subtle: var(--surface-subtle);
+	--color-brand-accent: var(--brand-accent);
+
+	/* Secondary UI */
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 
@@ -97,219 +104,157 @@
 
 :root {
 	/* ============================================
-     FINERACT UI - MODERN LIGHT THEME
-     Inspired by contemporary dashboard aesthetics
-     Clean, spacious, with vibrant orange accents
+     TAALAM FINCORE - NEO BANK LIGHT THEME
+     Expressive violet/cyan palette with AA-safe finance text
      ============================================ */
 
-	/* Border Radius - Softer, more modern */
-	--radius: 0.75rem;
+	color-scheme: light;
 
-	/* ============================================
-      BASE COLORS - Backgrounds & Surfaces
-      Ultra-light, clean aesthetic
-      ============================================ */
-	--background: #f8fafc;
-	--background-subtle: #f1f5f9;
-	--background-tint: #ffffff;
-	--foreground: #0f172a;
+	/* Border Radius - modern without softening dense tools too much */
+	--radius: 0.625rem;
 
-	/* Card surfaces - Pure white with subtle elevation */
-	--card: #ffffff;
-	--card-foreground: #0f172a;
+	/* Portable design tokens */
+	--brand-primary: #5b21b6;
+	--brand-secondary: #0e7490;
+	--brand-accent: #a21caf;
+	--surface-main: #ffffff;
+	--surface-subtle: #f5f7ff;
+	--text-primary: #0f172a;
+	--text-secondary: #475569;
+	--semantic-success: #047857;
+	--semantic-danger: #be123c;
+
+	/* Base Colors - Backgrounds & Surfaces */
+	--background: var(--surface-subtle);
+	--foreground: var(--text-primary);
+
+	/* Card surfaces */
+	--card: var(--surface-main);
+	--card-foreground: var(--text-primary);
 
 	/* Popovers & dropdowns */
-	--popover: #ffffff;
-	--popover-foreground: #0f172a;
+	--popover: var(--surface-main);
+	--popover-foreground: var(--text-primary);
 
-	/* ============================================
-      PRIMARY - Deep Teal
-      Base: #0B7285 (Taalam deep teal)
-      ============================================ */
-	--primary: #0b7285;
+	/* Brand actions */
+	--primary: var(--brand-primary);
 	--primary-foreground: #ffffff;
+	--secondary: #e2e8f0;
+	--secondary-foreground: var(--text-primary);
 
-	/* ============================================
-      SECONDARY - Soft Neutral Gray
-      ============================================ */
-	--secondary: #eef2f6;
-	--secondary-foreground: #1f2937;
-
-	/* ============================================
-      MUTED - Subtle Backgrounds
-      ============================================ */
+	/* Subtle UI */
 	--muted: #f1f5f9;
-	--muted-foreground: #64748b;
+	--muted-foreground: var(--text-secondary);
+	--accent: #ede9fe;
+	--accent-foreground: var(--text-primary);
 
-	/* ============================================
-      ACCENT - Soft Teal Tint
-      ============================================ */
-	--accent: #e6fffb;
-	--accent-foreground: #0f172a;
-
-	/* ============================================
-     DESTRUCTIVE - Error Red
-     ============================================ */
-	--destructive: #ef4444;
+	/* Semantic states */
+	--destructive: var(--semantic-danger);
 	--destructive-foreground: #ffffff;
-
-	/* ============================================
-      SUCCESS - Fresh Green
-      ============================================ */
-	--success: #16a34a;
+	--success: var(--semantic-success);
 	--success-foreground: #ffffff;
-
-	/* ============================================
-      WARNING - Spark Gold
-      ============================================ */
-	--warning: #f59e0b;
-	--warning-foreground: #0f172a;
-
-	/* ============================================
-      INFO - Cool Blue
-      ============================================ */
-	--info: #2563eb;
+	--warning: #a16207;
+	--warning-foreground: #ffffff;
+	--info: var(--brand-secondary);
 	--info-foreground: #ffffff;
 
-	/* ============================================
-      BORDERS & INPUTS - Very subtle
-      ============================================ */
-	--border: #e2e8f0;
-	--input: #eef2f6;
-	--ring: #14b8a6;
+	/* Borders, inputs, and focus */
+	--border: #cbd5e1;
+	--input: #64748b;
+	--ring: var(--brand-primary);
 
-	/* ============================================
-      CHARTS - Dashboard Data Visualization
-      Multi-color vibrant palette
-      ============================================ */
-	--chart-1: #0b7285;
-	--chart-2: #2563eb;
-	--chart-3: #7c3aed;
-	--chart-4: #16a34a;
-	--chart-5: #f59e0b;
+	/* Financial data visualization */
+	--chart-1: var(--brand-primary);
+	--chart-2: var(--brand-secondary);
+	--chart-3: var(--brand-accent);
+	--chart-4: var(--semantic-success);
+	--chart-5: var(--semantic-danger);
 
-	/* ============================================
-      SIDEBAR - Navigation
-      ============================================ */
-	--sidebar: #ffffff;
-	--sidebar-foreground: #0f172a;
-	--sidebar-primary: #0b7285;
+	/* Sidebar navigation */
+	--sidebar: var(--surface-main);
+	--sidebar-foreground: var(--text-secondary);
+	--sidebar-primary: var(--brand-primary);
 	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #e6fffb;
-	--sidebar-accent-foreground: #0f172a;
-	--sidebar-border: #eef2f6;
-	--sidebar-ring: #14b8a6;
-
-	/* ============================================
-      BRAND HELPERS - Optional for gradients/highlights
-      ============================================ */
-	--brand-teal-2: #14b8a6;
-	--brand-spark: #f59e0b;
+	--sidebar-accent: #ede9fe;
+	--sidebar-accent-foreground: var(--text-primary);
+	--sidebar-border: #cbd5e1;
+	--sidebar-ring: var(--brand-primary);
 }
 
 .dark {
 	/* ============================================
-     FINERACT UI - MODERN DARK THEME
-     Deep backgrounds with vibrant orange accents
+     TAALAM FINCORE - NEO BANK DARK THEME
+     Deep navy surfaces with indigo, cyan, violet, and money semantics
      ============================================ */
 
-	/* ============================================
-      BASE COLORS - Dark Backgrounds
-      ============================================ */
-	--background: #0b1220;
-	--background-subtle: #0f172a;
-	--background-tint: #111c2f;
-	--foreground: #e2e8f0;
+	color-scheme: dark;
 
-	/* Card surfaces - Elevated */
-	--card: #0f172a;
-	--card-foreground: #e2e8f0;
+	/* Portable design tokens */
+	--brand-primary: #a78bfa;
+	--brand-secondary: #22d3ee;
+	--brand-accent: #f0abfc;
+	--surface-main: #070b1a;
+	--surface-subtle: #151f35;
+	--text-primary: #f8fafc;
+	--text-secondary: #94a3b8;
+	--semantic-success: #34d399;
+	--semantic-danger: #fb7185;
+
+	/* Base Colors - Dark Backgrounds */
+	--background: var(--surface-main);
+	--foreground: var(--text-primary);
+
+	/* Card surfaces */
+	--card: var(--surface-subtle);
+	--card-foreground: var(--text-primary);
 
 	/* Popovers & dropdowns */
-	--popover: #0f172a;
-	--popover-foreground: #e2e8f0;
+	--popover: var(--surface-subtle);
+	--popover-foreground: var(--text-primary);
 
-	/* ============================================
-      PRIMARY - Bright Teal
-      ============================================ */
-	--primary: #14b8a6;
-	--primary-foreground: #062a2a;
+	/* Brand actions */
+	--primary: var(--brand-primary);
+	--primary-foreground: #070b1a;
+	--secondary: #25314a;
+	--secondary-foreground: var(--text-primary);
 
-	/* ============================================
-      SECONDARY - Deep Gray
-      ============================================ */
-	--secondary: #111c2f;
-	--secondary-foreground: #cbd5e1;
+	/* Subtle UI */
+	--muted: var(--surface-subtle);
+	--muted-foreground: var(--text-secondary);
+	--accent: #312e81;
+	--accent-foreground: var(--text-primary);
 
-	/* ============================================
-      MUTED - Dark Backgrounds & Disabled
-      ============================================ */
-	--muted: #0f172a;
-	--muted-foreground: #94a3b8;
-
-	/* ============================================
-      ACCENT - Deep Teal Tint
-      ============================================ */
-	--accent: #062a2a;
-	--accent-foreground: #e2e8f0;
-
-	/* ============================================
-      DESTRUCTIVE - Error Red
-      ============================================ */
-	--destructive: #f87171;
-	--destructive-foreground: #0b1220;
-
-	/* ============================================
-      SUCCESS - Emerald Green
-      ============================================ */
-	--success: #22c55e;
-	--success-foreground: #052e16;
-
-	/* ============================================
-      WARNING - Spark Gold
-      ============================================ */
+	/* Semantic states */
+	--destructive: var(--semantic-danger);
+	--destructive-foreground: #070b1a;
+	--success: var(--semantic-success);
+	--success-foreground: #070b1a;
 	--warning: #fbbf24;
-	--warning-foreground: #0b1220;
+	--warning-foreground: #070b1a;
+	--info: var(--brand-secondary);
+	--info-foreground: #070b1a;
 
-	/* ============================================
-      INFO - Cool Blue
-      ============================================ */
-	--info: #60a5fa;
-	--info-foreground: #0b1220;
+	/* Borders, inputs, and focus */
+	--border: #334155;
+	--input: #94a3b8;
+	--ring: var(--brand-primary);
 
-	/* ============================================
-      BORDERS & INPUTS
-      ============================================ */
-	--border: #1e293b;
-	--input: #111c2f;
-	--ring: #2dd4bf;
+	/* Financial data visualization */
+	--chart-1: var(--brand-primary);
+	--chart-2: var(--brand-secondary);
+	--chart-3: var(--brand-accent);
+	--chart-4: var(--semantic-success);
+	--chart-5: var(--semantic-danger);
 
-	/* ============================================
-      CHARTS - Financial Data Visualization
-      ============================================ */
-	--chart-1: #14b8a6;
-	--chart-2: #60a5fa;
-	--chart-3: #a78bfa;
-	--chart-4: #22c55e;
-	--chart-5: #fbbf24;
-
-	/* ============================================
-      SIDEBAR - Dark Navigation
-      ============================================ */
-	--sidebar: #0b1220;
-	--sidebar-foreground: #cbd5e1;
-	--sidebar-primary: #14b8a6;
-	--sidebar-primary-foreground: #062a2a;
-	--sidebar-accent: #0f172a;
-	--sidebar-accent-foreground: #e2e8f0;
-	--sidebar-border: #1e293b;
-	--sidebar-ring: #2dd4bf;
-
-	/* ============================================
-      BRAND HELPERS - Optional for gradients/highlights
-      ============================================ */
-	--brand-teal-2: #2dd4bf;
-	--brand-spark: #fbbf24;
+	/* Sidebar navigation */
+	--sidebar: var(--surface-main);
+	--sidebar-foreground: var(--text-secondary);
+	--sidebar-primary: var(--brand-primary);
+	--sidebar-primary-foreground: #070b1a;
+	--sidebar-accent: var(--surface-subtle);
+	--sidebar-accent-foreground: var(--text-primary);
+	--sidebar-border: #25314a;
+	--sidebar-ring: var(--brand-primary);
 }
 
 @layer base {
@@ -318,24 +263,13 @@
 	}
 
 	body {
-		@apply text-foreground;
-		background-color: var(--background);
-		background-image:
-			radial-gradient(
-				1200px 600px at -10% -10%,
-				var(--background-tint),
-				transparent 60%
-			),
-			radial-gradient(
-				900px 500px at 110% -20%,
-				var(--background-tint),
-				transparent 55%
-			),
-			linear-gradient(
-				180deg,
-				var(--background) 0%,
-				var(--background-subtle) 100%
-			);
+		@apply bg-background text-foreground;
+		background-image: linear-gradient(
+			135deg,
+			var(--background) 0%,
+			color-mix(in srgb, var(--brand-primary) 8%, var(--background)) 48%,
+			color-mix(in srgb, var(--brand-secondary) 7%, var(--background)) 100%
+		);
 		font-feature-settings: "cv11", "ss01";
 		font-variation-settings: "opsz" 32;
 	}

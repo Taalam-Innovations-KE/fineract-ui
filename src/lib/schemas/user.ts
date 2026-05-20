@@ -54,11 +54,11 @@ const baseUserSchema = z.object({
 		.email("A valid email address is required"),
 	officeId: z.number().positive("Office is required"),
 	staffId: z.number().positive("Select a valid staff record").optional(),
-	roles: z
-		.array(z.number().positive())
-		.min(1, "At least one role must be selected"),
+	roles: z.array(z.number().positive()),
 	sendPasswordToEmail: z.boolean().optional(),
 	passwordNeverExpires: z.boolean().optional(),
+	updateRoles: z.boolean().optional(),
+	updatePassword: z.boolean().optional(),
 	password: z.string().optional(),
 	repeatPassword: z.string().optional(),
 });
@@ -106,7 +106,18 @@ export function createUserSchema({
 			});
 		}
 
+		const shouldValidateRoles = mode === "create" || data.updateRoles;
+
+		if (shouldValidateRoles && data.roles.length === 0) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["roles"],
+				message: "At least one role must be selected",
+			});
+		}
+
 		if (
+			shouldValidateRoles &&
 			availableRoleIds.length > 0 &&
 			data.roles.some((roleId) => !availableRoleIds.includes(roleId))
 		) {
@@ -120,7 +131,13 @@ export function createUserSchema({
 		const password = (data.password ?? "").trim();
 		const repeatPassword = (data.repeatPassword ?? "").trim();
 		const passwordProvided = Boolean(password || repeatPassword);
-		const passwordRequired = mode === "create" && !data.sendPasswordToEmail;
+		const passwordRequired =
+			(mode === "create" && !data.sendPasswordToEmail) ||
+			(mode === "edit" && Boolean(data.updatePassword));
+
+		if (mode === "edit" && !data.updatePassword) {
+			return;
+		}
 
 		if (!passwordRequired && !passwordProvided) {
 			return;
@@ -191,6 +208,8 @@ export function userRecordToFormValues(user?: UserFormRecord): UserFormValues {
 		roles: getUserRoleIds(user),
 		sendPasswordToEmail: false,
 		passwordNeverExpires: user?.passwordNeverExpires ?? false,
+		updateRoles: false,
+		updatePassword: false,
 		password: "",
 		repeatPassword: "",
 	};
@@ -230,14 +249,21 @@ export function userFormToCreateRequest(
 
 export function userFormToUpdateRequest(
 	data: UserFormValues,
+	{
+		includePassword = true,
+		includeRoles = true,
+	}: { includePassword?: boolean; includeRoles?: boolean } = {},
 ): PutUsersUserIdRequest {
 	const request: PutUsersUserIdRequest = {
 		firstname: data.firstname.trim(),
 		lastname: data.lastname.trim(),
 		email: data.email.trim(),
 		officeId: data.officeId,
-		roles: data.roles,
 	};
+
+	if (includeRoles) {
+		request.roles = data.roles;
+	}
 
 	if (data.staffId) {
 		request.staffId = data.staffId;
@@ -246,11 +272,8 @@ export function userFormToUpdateRequest(
 	const password = normalizeOptionalText(data.password);
 	const repeatPassword = normalizeOptionalText(data.repeatPassword);
 
-	if (password) {
+	if (includePassword && password && repeatPassword) {
 		request.password = password;
-	}
-
-	if (repeatPassword) {
 		request.repeatPassword = repeatPassword;
 	}
 

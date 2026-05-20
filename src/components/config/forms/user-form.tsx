@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { SubmitErrorAlert } from "@/components/errors/SubmitErrorAlert";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ import { FINERACT_PASSWORD_MESSAGE } from "@/lib/schemas/password";
 import {
 	createUserSchema,
 	getUserLinkedStaffId,
+	getUserRoleIds,
 	type UserFormMode,
 	type UserFormRecord,
 	type UserFormValues,
@@ -118,10 +119,31 @@ export function UserForm({
 	const [submitError, setSubmitError] = useState<SubmitActionError | null>(
 		null,
 	);
+	const initialRoleIds = useMemo(
+		() => getUserRoleIds(initialData),
+		[initialData],
+	);
+	const roleOptions = useMemo(() => {
+		const merged = new Map<number, UserRoleOption>();
+
+		for (const role of roles) {
+			if (typeof role.id === "number") {
+				merged.set(role.id, role);
+			}
+		}
+
+		for (const role of initialData?.selectedRoles ?? []) {
+			if (typeof role.id === "number" && !merged.has(role.id)) {
+				merged.set(role.id, role);
+			}
+		}
+
+		return Array.from(merged.values());
+	}, [initialData, roles]);
 	const allowedOfficeIds = offices
 		.map((office) => office.id)
 		.filter((officeId): officeId is number => typeof officeId === "number");
-	const availableRoleIds = roles
+	const availableRoleIds = roleOptions
 		.map((role) => role.id)
 		.filter((roleId): roleId is number => typeof roleId === "number");
 
@@ -131,6 +153,7 @@ export function UserForm({
 		control,
 		setValue,
 		setError,
+		clearErrors,
 		watch,
 		formState: { errors },
 	} = useForm<UserFormValues>({
@@ -151,6 +174,8 @@ export function UserForm({
 					roles: [],
 					sendPasswordToEmail: false,
 					passwordNeverExpires: false,
+					updateRoles: true,
+					updatePassword: true,
 					password: "",
 					repeatPassword: "",
 				},
@@ -160,6 +185,10 @@ export function UserForm({
 	const selectedStaffId = watch("staffId");
 	const selectedRoleIds = watch("roles") ?? [];
 	const sendPasswordToEmail = watch("sendPasswordToEmail") ?? false;
+	const updateRoles = watch("updateRoles") ?? false;
+	const updatePassword = watch("updatePassword") ?? false;
+	const shouldUpdateRoles = mode === "create" || updateRoles;
+	const shouldUpdatePassword = mode === "create" || updatePassword;
 	const usernameValue = watch("username");
 	const currentLinkedStaffId = getUserLinkedStaffId(initialData);
 	const currentLinkedStaff = initialData?.staff;
@@ -216,6 +245,31 @@ export function UserForm({
 		staffQuery.isFetched,
 	]);
 
+	useEffect(() => {
+		if (mode !== "edit" || updateRoles) {
+			return;
+		}
+
+		setValue("roles", initialRoleIds, {
+			shouldDirty: false,
+			shouldValidate: false,
+		});
+		clearErrors("roles");
+	}, [clearErrors, initialRoleIds, mode, setValue, updateRoles]);
+
+	useEffect(() => {
+		if (mode !== "edit" || updatePassword) {
+			return;
+		}
+
+		setValue("password", "", { shouldDirty: false, shouldValidate: false });
+		setValue("repeatPassword", "", {
+			shouldDirty: false,
+			shouldValidate: false,
+		});
+		clearErrors(["password", "repeatPassword"]);
+	}, [clearErrors, mode, setValue, updatePassword]);
+
 	const toggleRole = (roleId: number) => {
 		const nextRoleIds = selectedRoleIds.includes(roleId)
 			? selectedRoleIds.filter((selectedRoleId) => selectedRoleId !== roleId)
@@ -269,7 +323,10 @@ export function UserForm({
 			const payload =
 				mode === "create"
 					? userFormToCreateRequest(data)
-					: userFormToUpdateRequest(data);
+					: userFormToUpdateRequest(data, {
+							includePassword: Boolean(data.updatePassword),
+							includeRoles: Boolean(data.updateRoles),
+						});
 			await onSubmit(payload);
 		} catch (error) {
 			const trackedError = toSubmitActionError(error, {
@@ -287,6 +344,107 @@ export function UserForm({
 			setIsSubmitting(false);
 		}
 	};
+
+	const currentAssignedRoles = initialData?.selectedRoles ?? [];
+	const passwordFieldsRequired =
+		mode === "edit" || (mode === "create" && !sendPasswordToEmail);
+	const roleSelector = (
+		<div className="max-h-56 space-y-2 overflow-y-auto rounded-sm border border-border/60 p-3">
+			{roleOptions.length === 0 ? (
+				<p className="text-sm text-muted-foreground">
+					No assignable roles are available.
+				</p>
+			) : (
+				roleOptions.map((role) => {
+					if (typeof role.id !== "number") {
+						return null;
+					}
+
+					const roleId = role.id;
+					const isSelfServiceRole = selfServiceRoleIds.includes(roleId);
+					const description = readRoleDescription(role);
+
+					return (
+						<div key={roleId} className="flex items-start gap-2">
+							<Checkbox
+								id={`role-${roleId}`}
+								checked={selectedRoleIds.includes(roleId)}
+								onCheckedChange={() => toggleRole(roleId)}
+							/>
+							<Label
+								htmlFor={`role-${roleId}`}
+								className="flex-1 cursor-pointer space-y-1"
+							>
+								<div className="flex items-center gap-2">
+									<span className="font-medium">
+										{role.name || `Role ${roleId}`}
+									</span>
+									{isSelfServiceRole && (
+										<Badge variant="outline">Self Service</Badge>
+									)}
+								</div>
+								{description && (
+									<div className="text-xs text-muted-foreground">
+										{description}
+									</div>
+								)}
+							</Label>
+						</div>
+					);
+				})
+			)}
+		</div>
+	);
+	const passwordFields = (
+		<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<div className="space-y-2">
+				<Label htmlFor="password">
+					Password
+					{passwordFieldsRequired && (
+						<span className="text-destructive"> *</span>
+					)}
+				</Label>
+				<Input
+					id="password"
+					type="password"
+					{...register("password")}
+					placeholder={
+						mode === "create" && sendPasswordToEmail
+							? "Optional when emailed"
+							: mode === "edit"
+								? "Enter new password"
+								: "Enter password"
+					}
+				/>
+				<p className="text-xs text-muted-foreground">
+					{FINERACT_PASSWORD_MESSAGE}
+				</p>
+				{errors.password && (
+					<p className="text-sm text-destructive">{errors.password.message}</p>
+				)}
+			</div>
+
+			<div className="space-y-2">
+				<Label htmlFor="repeatPassword">
+					Confirm Password
+					{passwordFieldsRequired && (
+						<span className="text-destructive"> *</span>
+					)}
+				</Label>
+				<Input
+					id="repeatPassword"
+					type="password"
+					{...register("repeatPassword")}
+					placeholder="Confirm password"
+				/>
+				{errors.repeatPassword && (
+					<p className="text-sm text-destructive">
+						{errors.repeatPassword.message}
+					</p>
+				)}
+			</div>
+		</div>
+	);
 
 	return (
 		<form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
@@ -497,148 +655,163 @@ export function UserForm({
 				<div className="text-sm font-semibold text-muted-foreground">
 					Role assignments
 				</div>
-				<div className="space-y-2">
-					<Label>
-						Roles <span className="text-destructive">*</span>
-					</Label>
-					<div className="max-h-56 space-y-2 overflow-y-auto rounded-sm border border-border/60 p-3">
-						{roles.map((role) => {
-							if (typeof role.id !== "number") {
-								return null;
-							}
-
-							const isSelfServiceRole = selfServiceRoleIds.includes(role.id);
-							return (
-								<div key={role.id} className="flex items-start gap-2">
+				{mode === "edit" ? (
+					<div className="space-y-3 rounded-sm border border-border/60 p-4">
+						<div className="flex items-start gap-2">
+							<Controller
+								control={control}
+								name="updateRoles"
+								render={({ field }) => (
 									<Checkbox
-										id={`role-${role.id}`}
-										checked={selectedRoleIds.includes(role.id)}
-										onCheckedChange={() => toggleRole(role.id!)}
+										id="updateRoles"
+										checked={field.value ?? false}
+										onCheckedChange={(value) => field.onChange(Boolean(value))}
 									/>
-									<Label
-										htmlFor={`role-${role.id}`}
-										className="flex-1 cursor-pointer space-y-1"
-									>
-										<div className="flex items-center gap-2">
-											<span className="font-medium">{role.name}</span>
-											{isSelfServiceRole && (
-												<Badge variant="outline">Self Service</Badge>
-											)}
-										</div>
-										{readRoleDescription(role) && (
-											<div className="text-xs text-muted-foreground">
-												{readRoleDescription(role)}
-											</div>
-										)}
-									</Label>
+								)}
+							/>
+							<div className="space-y-1">
+								<Label htmlFor="updateRoles" className="cursor-pointer">
+									Update role assignments
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									Leave disabled to keep the current role list unchanged. When
+									enabled, submitted roles replace the full assigned role list.
+								</p>
+							</div>
+						</div>
+
+						{shouldUpdateRoles ? (
+							<div className="space-y-2 border-t border-border/60 pt-3">
+								<Label>
+									Roles <span className="text-destructive">*</span>
+								</Label>
+								{roleSelector}
+								{errors.roles && (
+									<p className="text-sm text-destructive">
+										{errors.roles.message}
+									</p>
+								)}
+							</div>
+						) : (
+							<div className="space-y-2 border-t border-border/60 pt-3">
+								<div className="text-xs font-medium text-muted-foreground">
+									Current roles
 								</div>
-							);
-						})}
+								{currentAssignedRoles.length > 0 ? (
+									<div className="flex flex-wrap gap-2">
+										{currentAssignedRoles.map((role) => (
+											<Badge key={role.id ?? role.name} variant="secondary">
+												{role.name || "Unnamed role"}
+											</Badge>
+										))}
+									</div>
+								) : (
+									<p className="text-sm text-muted-foreground">
+										No roles are currently assigned.
+									</p>
+								)}
+							</div>
+						)}
 					</div>
-					{errors.roles && (
-						<p className="text-sm text-destructive">{errors.roles.message}</p>
-					)}
-				</div>
+				) : (
+					<div className="space-y-2">
+						<Label>
+							Roles <span className="text-destructive">*</span>
+						</Label>
+						{roleSelector}
+						{errors.roles && (
+							<p className="text-sm text-destructive">{errors.roles.message}</p>
+						)}
+					</div>
+				)}
 			</div>
 
 			<div className="space-y-4">
 				<div className="text-sm font-semibold text-muted-foreground">
 					Credentials
 				</div>
-				{mode === "create" && (
+				{mode === "edit" ? (
 					<div className="space-y-3 rounded-sm border border-border/60 p-4">
-						<div className="flex items-center gap-2">
+						<div className="flex items-start gap-2">
 							<Controller
 								control={control}
-								name="sendPasswordToEmail"
+								name="updatePassword"
 								render={({ field }) => (
 									<Checkbox
-										id="sendPasswordToEmail"
+										id="updatePassword"
 										checked={field.value ?? false}
 										onCheckedChange={(value) => field.onChange(Boolean(value))}
 									/>
 								)}
 							/>
-							<Label htmlFor="sendPasswordToEmail" className="cursor-pointer">
-								Send generated password by email
-							</Label>
+							<div className="space-y-1">
+								<Label htmlFor="updatePassword" className="cursor-pointer">
+									Reset password
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									Leave disabled to keep the current password unchanged.
+								</p>
+							</div>
 						</div>
-						<p className="text-xs text-muted-foreground">
-							If this is enabled, password fields become optional and the system
-							can deliver initial credentials by email.
-						</p>
 
-						<div className="flex items-center gap-2">
-							<Controller
-								control={control}
-								name="passwordNeverExpires"
-								render={({ field }) => (
-									<Checkbox
-										id="passwordNeverExpires"
-										checked={field.value ?? false}
-										onCheckedChange={(value) => field.onChange(Boolean(value))}
-									/>
-								)}
-							/>
-							<Label htmlFor="passwordNeverExpires" className="cursor-pointer">
-								Password never expires
-							</Label>
-						</div>
+						{shouldUpdatePassword ? (
+							<div className="border-t border-border/60 pt-3">
+								{passwordFields}
+							</div>
+						) : null}
 					</div>
+				) : (
+					<>
+						<div className="space-y-3 rounded-sm border border-border/60 p-4">
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="sendPasswordToEmail"
+									render={({ field }) => (
+										<Checkbox
+											id="sendPasswordToEmail"
+											checked={field.value ?? false}
+											onCheckedChange={(value) =>
+												field.onChange(Boolean(value))
+											}
+										/>
+									)}
+								/>
+								<Label htmlFor="sendPasswordToEmail" className="cursor-pointer">
+									Send generated password by email
+								</Label>
+							</div>
+							<p className="text-xs text-muted-foreground">
+								If this is enabled, password fields become optional and the
+								system can deliver initial credentials by email.
+							</p>
+
+							<div className="flex items-center gap-2">
+								<Controller
+									control={control}
+									name="passwordNeverExpires"
+									render={({ field }) => (
+										<Checkbox
+											id="passwordNeverExpires"
+											checked={field.value ?? false}
+											onCheckedChange={(value) =>
+												field.onChange(Boolean(value))
+											}
+										/>
+									)}
+								/>
+								<Label
+									htmlFor="passwordNeverExpires"
+									className="cursor-pointer"
+								>
+									Password never expires
+								</Label>
+							</div>
+						</div>
+
+						{passwordFields}
+					</>
 				)}
-
-				<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div className="space-y-2">
-						<Label htmlFor="password">
-							Password
-							{mode === "create" && !sendPasswordToEmail && (
-								<span className="text-destructive"> *</span>
-							)}
-						</Label>
-						<Input
-							id="password"
-							type="password"
-							{...register("password")}
-							placeholder={
-								mode === "create" && sendPasswordToEmail
-									? "Optional when emailed"
-									: mode === "edit"
-										? "Leave blank to keep current password"
-										: "Enter password"
-							}
-						/>
-						<p className="text-xs text-muted-foreground">
-							{mode === "edit"
-								? "Leave both password fields blank to keep the current password."
-								: FINERACT_PASSWORD_MESSAGE}
-						</p>
-						{errors.password && (
-							<p className="text-sm text-destructive">
-								{errors.password.message}
-							</p>
-						)}
-					</div>
-
-					<div className="space-y-2">
-						<Label htmlFor="repeatPassword">
-							Confirm Password
-							{mode === "create" && !sendPasswordToEmail && (
-								<span className="text-destructive"> *</span>
-							)}
-						</Label>
-						<Input
-							id="repeatPassword"
-							type="password"
-							{...register("repeatPassword")}
-							placeholder="Confirm password"
-						/>
-						{errors.repeatPassword && (
-							<p className="text-sm text-destructive">
-								{errors.repeatPassword.message}
-							</p>
-						)}
-					</div>
-				</div>
 			</div>
 
 			<div className="flex items-center justify-end gap-2 pt-2">

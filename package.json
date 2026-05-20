@@ -33,7 +33,7 @@
 		"date-fns": "^4.1.0",
 		"exceljs": "^4.4.0",
 		"lucide-react": "^0.562.0",
-		"next": "16.1.5",
+		"next": "16.2.6",
 		"next-auth": "5.0.0-beta.30",
 		"next-themes": "^0.4.6",
 		"radix-ui": "^1.4.3",
@@ -62,7 +62,10 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"lodash": "4.17.23"
+			"brace-expansion@<1.1.13": "1.1.13",
+			"brace-expansion@>=2.0.0 <2.0.3": "2.0.3",
+			"lodash": "4.17.23",
+			"postcss@<8.5.10": "8.5.10"
 		}
 	},
 	"packageManager": "pnpm@10.18.1+sha512.77a884a165cbba2d8d1c19e3b4880eee6d2fcabd0d879121e282196b80042351d5eb3ca0935fa599da1dc51265cc68816ad2bddd2a2de5ea9fdf92adbec7cd34"

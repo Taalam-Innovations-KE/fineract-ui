@@ -1,0 +1,56 @@
+{
+	"color": {
+		"brand": {
+			"primary": {
+				"light": { "$value": "#5b21b6", "$type": "color" },
+				"dark": { "$value": "#a78bfa", "$type": "color" }
+			},
+			"secondary": {
+				"light": { "$value": "#0e7490", "$type": "color" },
+				"dark": { "$value": "#22d3ee", "$type": "color" }
+			},
+			"accent": {
+				"light": { "$value": "#a21caf", "$type": "color" },
+				"dark": { "$value": "#f0abfc", "$type": "color" }
+			}
+		},
+		"surface": {
+			"main": {
+				"light": { "$value": "#ffffff", "$type": "color" },
+				"dark": { "$value": "#070b1a", "$type": "color" }
+			},
+			"subtle": {
+				"light": { "$value": "#f5f7ff", "$type": "color" },
+				"dark": { "$value": "#151f35", "$type": "color" }
+			}
+		},
+		"text": {
+			"primary": {
+				"light": { "$value": "#0f172a", "$type": "color" },
+				"dark": { "$value": "#f8fafc", "$type": "color" }
+			},
+			"secondary": {
+				"light": { "$value": "#475569", "$type": "color" },
+				"dark": { "$value": "#94a3b8", "$type": "color" }
+			}
+		},
+		"semantic": {
+			"success": {
+				"light": { "$value": "#047857", "$type": "color" },
+				"dark": { "$value": "#34d399", "$type": "color" }
+			},
+			"danger": {
+				"light": { "$value": "#be123c", "$type": "color" },
+				"dark": { "$value": "#fb7185", "$type": "color" }
+			},
+			"warning": {
+				"light": { "$value": "#a16207", "$type": "color" },
+				"dark": { "$value": "#fbbf24", "$type": "color" }
+			},
+			"info": {
+				"light": { "$value": "#0e7490", "$type": "color" },
+				"dark": { "$value": "#22d3ee", "$type": "color" }
+			}
+		}
+	}
+}

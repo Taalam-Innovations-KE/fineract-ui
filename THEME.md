@@ -4,65 +4,77 @@ Comprehensive theming documentation for the Fineract UI built with shadcn/ui, Ta
 
 ## Overview
 
-This theme system is specifically designed for financial applications with:
-- **Warm Orange** (#FF8A00) primary color for a modern dashboard aesthetic
-- **Neutral Palette** with soft warm grays for surfaces and dividers
-- **Semantic Colors** for financial states (success, warning, error)
-- **Dark Mode** with deep slate backgrounds (#0F1218, #151B24)
-- **WCAG 2.1 Level AA** compliant contrast ratios
+This theme system is currently set to an Electric Neo Bank direction for core banking operations:
+- **Deep violet primary brand** (`#5B21B6` light, `#A78BFA` dark) for primary actions and selected states
+- **Cyan secondary brand** (`#0E7490` light, `#22D3EE` dark) for links, info states, and high-visibility accents
+- **Magenta-violet accent** for chart diversity and modern product expression without overwhelming tables and forms
+- **Tinted operational surfaces** so dashboards, ledgers, and forms stay readable during long sessions
+- **Emerald and rose money semantics** for positive/completed and risk/failed financial states
+- **WCAG 2.1 Level AA** oriented contrast ratios for core text and financial data
 
 ## Color Palette
 
 ### Light Mode
 
-#### Primary Colors
-- **Primary Orange**: `#FF8A00`
-  - Used for: Primary buttons, links, active states, brand elements
+#### Brand Colors
+- **Primary Brand**: `#5B21B6`
+  - Used for: Primary buttons, selected navigation, active controls
   - Text: `#FFFFFF`
+
+- **Secondary Brand**: `#0E7490`
+  - Used for: Links, info states, tab underlines, secondary brand accents
+  - Runtime token: `--brand-secondary` and Tailwind `text-brand-secondary`/`bg-brand-secondary`
+  - Text: `#FFFFFF`
+
+- **Accent Brand**: `#A21CAF`
+  - Used for: Charts, differentiated product accents, non-critical highlights
 
 #### Semantic Colors
-- **Success Green**: `#22C55E`
-  - Used for: Positive balances, confirmations, successful transactions
+- **Success Emerald**: `#047857`
+  - Used for: Income, completed transfers, positive ROI
   - Text: `#FFFFFF`
 
-- **Warning Amber**: `#F59E0B`
-  - Used for: Pending states, warnings, caution messages
-  - Text: `#1F2937`
-
-- **Error Red**: `#EF4444`
-  - Used for: Negative balances, errors, deletions
+- **Danger Rose**: `#BE123C`
+  - Used for: Expenses, failed transactions, overdrafts
   - Text: `#FFFFFF`
 
-- **Info Blue**: `#60A5FA`
-  - Used for: Informational messages, secondary actions
+- **Warning Amber**: `#A16207`
+  - Used for: Pending states and cautions
   - Text: `#FFFFFF`
 
 #### Neutral Scale
-- **50**: `#FFFFFF` - Card surfaces
-- **100**: `#F6F7FB` - Page background
-- **200**: `#EEF1F6` - Background gradient base
-- **300**: `#E6E9EF` - Borders/dividers
-- **500**: `#6B7280` - Muted text
-- **900**: `#141621` - Primary text
+- **Main Surface**: `#FFFFFF` - Card surfaces and popovers
+- **Subtle Surface**: `#F5F7FF` - Page background
+- **Primary Text**: `#0F172A` - Headings, balances, transaction values
+- **Secondary Text**: `#475569` - Labels, timestamps, account numbers
 
-### Dark Mode (Exact Colors)
+### Dark Mode
+
+#### Brand Colors
+- **Primary Brand**: `#A78BFA`
+- **Secondary Brand**: `#22D3EE`
+- **Accent Brand**: `#F0ABFC`
 
 #### Base Colors
-- **Background**: `#0F1218`
-- **Surface/Card**: `#151B24`
-- **Text Light**: `#F8FAFC`
-- **Text Secondary**: `#94A3B8`
+- **Background**: `#070B1A`
+- **Surface/Card**: `#151F35`
+- **Primary Text**: `#F8FAFC`
+- **Secondary Text**: `#94A3B8`
 
-#### Primary & Semantic Colors
-- **Primary**: `#FF9A1F`
-- **Success/Accent**: `#34D399`
-- **Warning**: `#FBBF24`
-- **Error**: `#F87171`
-- **Info**: `#7DD3FC`
+#### Semantic Colors
+- **Success Emerald**: `#34D399`
+- **Danger Rose**: `#FB7185`
+- **Warning Amber**: `#FBBF24`
+- **Info Cyan**: `#22D3EE`
+
+#### Typography
+- **UI font**: Inter remains the runtime font because it is already configured and has excellent dashboard readability.
+- **Financial data**: tabular numbers are enforced through `.tabular-nums`, amount, balance, and currency selectors.
+- **Optional later swap**: Manrope or Geist would fit a stronger neo-bank brand, but changing `next/font` should be done with a build check because font fetching can affect deployment.
 
 #### UI Elements
-- **Dividers & Borders**: `#242C3A`
-- **Focus Ring**: `#FF9A1F` (matches primary)
+- **Dividers & Borders**: `#334155` dark, `#CBD5E1` light
+- **Focus Ring**: primary brand color per theme
 
 ## Usage Examples
 
@@ -80,7 +92,7 @@ This theme system is specifically designed for financial applications with:
 </Badge>
 
 // Warning alert
-<Alert className="border-warning bg-warning/10 text-warning-foreground">
+<Alert variant="warning">
   Payment pending
 </Alert>
 
@@ -174,7 +186,8 @@ import { LineChart, Line } from 'recharts';
 ### Semantic Colors
 ```css
 --primary           /* Brand/primary actions */
---secondary         /* Secondary actions */
+--brand-secondary   /* Secondary brand accent */
+--secondary         /* Neutral secondary UI surface */
 --accent            /* Accent/info actions */
 --destructive       /* Errors/deletions */
 --success           /* Positive states */
@@ -195,15 +208,15 @@ import { LineChart, Line } from 'recharts';
 --border            /* Border color */
 --input             /* Input border */
 --ring              /* Focus ring */
---radius            /* Border radius (1rem) */
+--radius            /* Border radius (0.5rem) */
 ```
 
 ### Charts
 ```css
---chart-1           /* Primary orange */
---chart-2           /* Amber */
---chart-3           /* Success green */
---chart-4           /* Cool blue */
+--chart-1           /* Primary indigo */
+--chart-2           /* Secondary cyan */
+--chart-3           /* Accent violet */
+--chart-4           /* Success emerald */
 --chart-5           /* Destructive red */
 ```
 

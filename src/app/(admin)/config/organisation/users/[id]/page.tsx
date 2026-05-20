@@ -450,8 +450,8 @@ export default function UserDetailPage({
 					<SheetHeader>
 						<SheetTitle>Edit User</SheetTitle>
 						<SheetDescription>
-							Update core account fields, office assignment, roles, and optional
-							password reset details.
+							Update core account fields and opt in to role or password changes
+							when needed.
 						</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">

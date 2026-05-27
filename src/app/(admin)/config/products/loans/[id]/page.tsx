@@ -277,12 +277,15 @@ function transformProductToFormData(
 				? "disbursement"
 				: charge.chargeTimeType?.id === 2
 					? "specifiedDueDate"
-					: charge.chargeTimeType?.id === 5
-						? "approval"
-						: "disbursement") as
+					: charge.chargeTimeType?.id === 8
+						? "installmentFee"
+						: charge.chargeTimeType?.id === 12
+							? "trancheDisbursement"
+							: "disbursement") as
 				| "disbursement"
 				| "specifiedDueDate"
-				| "approval",
+				| "installmentFee"
+				| "trancheDisbursement",
 			paymentMode:
 				charge.chargePaymentMode?.id === 1
 					? "deduct"
@@ -1701,6 +1704,7 @@ export default function LoanProductDetailPage({
 															</TableHead>
 															<TableHead>When Charged</TableHead>
 															<TableHead>Applied To</TableHead>
+															<TableHead>Tax Group</TableHead>
 															<TableHead>Type</TableHead>
 														</TableRow>
 													</TableHeader>
@@ -1725,6 +1729,9 @@ export default function LoanProductDetailPage({
 																</TableCell>
 																<TableCell>
 																	{getChargeApplicationLabel(charge)}
+																</TableCell>
+																<TableCell>
+																	{charge.taxGroup?.name || "—"}
 																</TableCell>
 																<TableCell>
 																	<Badge

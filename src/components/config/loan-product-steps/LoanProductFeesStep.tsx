@@ -1,10 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm, useFormContext } from "react-hook-form";
+import type { input as ZodInput } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import type {
 	PostChargesResponse,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
+import { taxGroupsApi } from "@/lib/fineract/taxes";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import {
 	type CreateLoanProductFormData,
@@ -53,6 +55,7 @@ interface LoanProductFeesStepProps {
 }
 
 type FeeItem = FeeSelection & { summary?: string };
+type FeeFormInput = ZodInput<typeof feeChargeFormSchema>;
 
 function toAmountLabel(
 	amount?: number,
@@ -83,9 +86,11 @@ function formatFeeSummary(fee: FeeItem, currencyCode?: string) {
 	const chargeTimeLabel =
 		fee.chargeTimeType === "disbursement"
 			? "at disbursement"
-			: fee.chargeTimeType === "approval"
-				? "on approval"
-				: "on specified due date";
+			: fee.chargeTimeType === "installmentFee"
+				? "per installment"
+				: fee.chargeTimeType === "trancheDisbursement"
+					? "at tranche disbursement"
+					: "on specified due date";
 	const paymentModeLabel =
 		fee.paymentMode === "deduct"
 			? "deducted from disbursement"
@@ -113,9 +118,15 @@ export function LoanProductFeesStep({
 	const [isFeeSelectOpen, setIsFeeSelectOpen] = useState(false);
 	const [feeSubmitError, setFeeSubmitError] = useState<string | null>(null);
 	const [isCreatingFee, setIsCreatingFee] = useState(false);
+	const taxGroupsQuery = useQuery({
+		queryKey: ["tax-groups", tenantId],
+		queryFn: () => taxGroupsApi.list(tenantId),
+		enabled: isFeeDrawerOpen,
+		staleTime: 1000 * 60 * 5,
+	});
 
 	// Separate form for creating new fees (API call)
-	const feeForm = useForm<FeeFormData>({
+	const feeForm = useForm<FeeFormInput, unknown, FeeFormData>({
 		resolver: zodResolver(feeChargeFormSchema),
 		mode: "onChange",
 		defaultValues: {
@@ -123,6 +134,7 @@ export function LoanProductFeesStep({
 			chargeTimeType: "disbursement",
 			paymentMode: "deduct",
 			currencyCode: currencyCode || "KES",
+			taxGroupId: undefined,
 		},
 	});
 
@@ -149,12 +161,15 @@ export function LoanProductFeesStep({
 					values.chargeTimeType === "disbursement"
 						? 1
 						: values.chargeTimeType === "specifiedDueDate"
-							? 9
-							: 0,
+							? 2
+							: values.chargeTimeType === "installmentFee"
+								? 8
+								: 12,
 				chargeCalculationType: values.calculationMethod === "flat" ? 1 : 2,
 				chargePaymentMode: values.paymentMode === "deduct" ? 0 : 1,
 				active: true,
 				penalty: false,
+				taxGroupId: values.taxGroupId,
 				locale: "en",
 			};
 
@@ -186,6 +201,7 @@ export function LoanProductFeesStep({
 				currencyCode: values.currencyCode,
 				amount: undefined,
 				name: "",
+				taxGroupId: undefined,
 			});
 			setIsFeeDrawerOpen(false);
 
@@ -231,6 +247,7 @@ export function LoanProductFeesStep({
 	});
 	const excludedFeeCount =
 		feeOptions.length - matchingCurrencyFeeOptions.length;
+	const taxGroupOptions = taxGroupsQuery.data || [];
 
 	return (
 		<TooltipProvider>
@@ -373,7 +390,8 @@ export function LoanProductFeesStep({
 												value as
 													| "disbursement"
 													| "specifiedDueDate"
-													| "approval",
+													| "installmentFee"
+													| "trancheDisbursement",
 											)
 										}
 									>
@@ -387,7 +405,12 @@ export function LoanProductFeesStep({
 											<SelectItem value="specifiedDueDate">
 												On Specified Due Date
 											</SelectItem>
-											<SelectItem value="approval">On Approval</SelectItem>
+											<SelectItem value="installmentFee">
+												Installment Fee
+											</SelectItem>
+											<SelectItem value="trancheDisbursement">
+												Tranche Disbursement
+											</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
@@ -417,6 +440,37 @@ export function LoanProductFeesStep({
 										</SelectContent>
 									</Select>
 								</div>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="fee-tax-group">Tax Group</Label>
+								<Select
+									value={
+										feeForm.watch("taxGroupId") !== undefined
+											? String(feeForm.watch("taxGroupId"))
+											: "none"
+									}
+									onValueChange={(value) =>
+										feeForm.setValue(
+											"taxGroupId",
+											value === "none" ? undefined : Number(value),
+										)
+									}
+								>
+									<SelectTrigger id="fee-tax-group">
+										<SelectValue placeholder="Optional" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">None</SelectItem>
+										{taxGroupOptions.map((group) =>
+											group.id !== undefined ? (
+												<SelectItem key={group.id} value={String(group.id)}>
+													{group.name || `Tax Group ${group.id}`}
+												</SelectItem>
+											) : null,
+										)}
+									</SelectContent>
+								</Select>
 							</div>
 
 							{feeSubmitError && (

@@ -41,6 +41,7 @@ import type {
 	PutChargesChargeIdRequest,
 } from "@/lib/fineract/generated/types.gen";
 import { chargesApi } from "@/lib/fineract/loan-products";
+import { taxGroupsApi } from "@/lib/fineract/taxes";
 import { normalizeApiError } from "@/lib/fineract/ui-api-error";
 import {
 	type CreateLoanProductFormData,
@@ -302,6 +303,12 @@ export function LoanProductPenaltiesStep({
 		enabled: isPenaltySelectOpen,
 		staleTime: 1000 * 60 * 5,
 	});
+	const taxGroupsQuery = useQuery({
+		queryKey: ["tax-groups", tenantId],
+		queryFn: () => taxGroupsApi.list(tenantId),
+		enabled: isPenaltyDrawerOpen,
+		staleTime: 1000 * 60 * 5,
+	});
 
 	// Separate form for creating new penalties (API call)
 	const penaltyForm = useForm<PenaltyFormInput, unknown, PenaltyFormData>({
@@ -311,6 +318,7 @@ export function LoanProductPenaltiesStep({
 			calculationMethod: "percent",
 			penaltyBasis: "totalOverdue",
 			currencyCode: currencyCode || "KES",
+			taxGroupId: undefined,
 			frequencyType: undefined,
 			frequencyInterval: undefined,
 		},
@@ -359,6 +367,7 @@ export function LoanProductPenaltiesStep({
 					values.frequencyInterval !== undefined
 						? String(values.frequencyInterval)
 						: undefined,
+				taxGroupId: values.taxGroupId,
 				locale: "en",
 			};
 
@@ -408,6 +417,7 @@ export function LoanProductPenaltiesStep({
 				amount: undefined,
 				name: "",
 				gracePeriodOverride: undefined,
+				taxGroupId: undefined,
 				frequencyType: undefined,
 				frequencyInterval: undefined,
 			});
@@ -479,6 +489,7 @@ export function LoanProductPenaltiesStep({
 	});
 	const excludedPenaltyCount =
 		penaltyOptions.length - matchingCurrencyPenaltyOptions.length;
+	const taxGroupOptions = taxGroupsQuery.data || [];
 
 	return (
 		<TooltipProvider>
@@ -719,6 +730,37 @@ export function LoanProductPenaltiesStep({
 										</p>
 									)}
 								</div>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="penalty-tax-group">Tax Group</Label>
+								<Select
+									value={
+										penaltyForm.watch("taxGroupId") !== undefined
+											? String(penaltyForm.watch("taxGroupId"))
+											: "none"
+									}
+									onValueChange={(value) =>
+										penaltyForm.setValue(
+											"taxGroupId",
+											value === "none" ? undefined : Number(value),
+										)
+									}
+								>
+									<SelectTrigger id="penalty-tax-group">
+										<SelectValue placeholder="Optional" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">None</SelectItem>
+										{taxGroupOptions.map((group) =>
+											group.id !== undefined ? (
+												<SelectItem key={group.id} value={String(group.id)}>
+													{group.name || `Tax Group ${group.id}`}
+												</SelectItem>
+											) : null,
+										)}
+									</SelectContent>
+								</Select>
 							</div>
 
 							{penaltySubmitError && (

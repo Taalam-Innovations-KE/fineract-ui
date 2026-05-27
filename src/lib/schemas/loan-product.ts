@@ -11,14 +11,21 @@ const optionalPositiveInteger = z.preprocess(
 	coerceNaNToUndefined,
 	z.number().int().positive().optional(),
 );
+const loanFeeChargeTimeTypeSchema = z.enum([
+	"disbursement",
+	"specifiedDueDate",
+	"installmentFee",
+	"trancheDisbursement",
+]);
 
 export const feeChargeFormSchema = z.object({
 	name: z.string().min(2, "Fee name is required"),
 	calculationMethod: z.enum(["flat", "percent"]),
 	amount: z.number().positive("Amount must be greater than 0"),
-	chargeTimeType: z.enum(["disbursement", "specifiedDueDate", "approval"]),
+	chargeTimeType: loanFeeChargeTimeTypeSchema,
 	paymentMode: z.enum(["deduct", "payable"]),
 	currencyCode: z.string().length(3, "Currency code must be 3 characters"),
+	taxGroupId: optionalPositiveInteger,
 });
 
 export const penaltyChargeFormSchema = z
@@ -33,6 +40,7 @@ export const penaltyChargeFormSchema = z
 		amount: z.number().positive("Amount must be greater than 0"),
 		gracePeriodOverride: optionalNumber,
 		currencyCode: z.string().length(3, "Currency code must be 3 characters"),
+		taxGroupId: optionalPositiveInteger,
 		frequencyType: z.enum(["days", "weeks", "months", "years"]).optional(),
 		frequencyInterval: optionalPositiveInteger,
 	})
@@ -62,9 +70,7 @@ export const feeSelectionSchema = z.object({
 	name: z.string(),
 	amount: z.number().optional(),
 	calculationMethod: z.enum(["flat", "percent"]).optional(),
-	chargeTimeType: z
-		.enum(["disbursement", "specifiedDueDate", "approval"])
-		.optional(),
+	chargeTimeType: loanFeeChargeTimeTypeSchema.optional(),
 	paymentMode: z.enum(["deduct", "payable"]).optional(),
 	currencyCode: z.string().optional(),
 });

@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Banknote, Landmark, PiggyBank, Wallet } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
+import { toast } from "sonner";
 import { PageShell } from "@/components/config/page-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -126,6 +127,30 @@ async function fetchSavingsAccount(
 	return response.json();
 }
 
+async function updateSavingsWithHoldTax(
+	tenantId: string,
+	accountId: string,
+	withHoldTax: boolean,
+) {
+	const response = await fetch(
+		`${BFF_ROUTES.savingsAccountById(accountId)}?command=updateWithHoldTax`,
+		{
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+				"x-tenant-id": tenantId,
+			},
+			body: JSON.stringify({ withHoldTax }),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error("Failed to update withholding tax setting");
+	}
+
+	return response.json();
+}
+
 export default function SavingsAccountDetailPage({
 	params,
 }: {
@@ -133,11 +158,30 @@ export default function SavingsAccountDetailPage({
 }) {
 	const { accountId } = use(params);
 	const { tenantId } = useTenantStore();
+	const queryClient = useQueryClient();
 
 	const savingsQuery = useQuery({
 		queryKey: ["savings-account", tenantId, accountId],
 		queryFn: () => fetchSavingsAccount(tenantId, accountId),
 		enabled: Boolean(tenantId && accountId),
+	});
+
+	const updateWithHoldTaxMutation = useMutation({
+		mutationFn: (withHoldTax: boolean) =>
+			updateSavingsWithHoldTax(tenantId, accountId, withHoldTax),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["savings-account", tenantId, accountId],
+			});
+			toast.success("Savings withholding tax updated");
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to update withholding tax setting",
+			);
+		},
 	});
 
 	const headerActions = (
@@ -184,6 +228,9 @@ export default function SavingsAccountDetailPage({
 	const summary = savings.summary || savings.savingsAccountSummaryData;
 	const transactions =
 		savings.transactions || savings.savingsAccountTransactionData || [];
+	const taxGroupName = savings.taxGroup?.name || "N/A";
+	const isActive = Boolean(savings.status?.active);
+	const nextWithHoldTax = !Boolean(savings.withHoldTax);
 
 	const transactionColumns = [
 		{
@@ -314,6 +361,22 @@ export default function SavingsAccountDetailPage({
 								label="Withhold Tax"
 								value={savings.withHoldTax ? "Yes" : "No"}
 							/>
+							<InfoRow label="Tax Group" value={taxGroupName} />
+							<div className="flex justify-end py-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									disabled={!isActive || updateWithHoldTaxMutation.isPending}
+									onClick={() =>
+										updateWithHoldTaxMutation.mutate(nextWithHoldTax)
+									}
+								>
+									{nextWithHoldTax
+										? "Enable Withholding"
+										: "Disable Withholding"}
+								</Button>
+							</div>
 							<InfoRow
 								label="Dormancy Tracking"
 								value={

@@ -23,8 +23,9 @@ const CHARGE_CALCULATION = {
 const CHARGE_TIME_TYPE = {
 	disbursement: 1,
 	specifiedDueDate: 2,
-	approval: 5, // Adjust if your instance maps approval charges to a different ID.
-	overdue: 4,
+	installmentFee: 8,
+	overdue: 9,
+	trancheDisbursement: 12,
 } as const;
 
 const CHARGE_PAYMENT_MODE = {
@@ -195,6 +196,7 @@ export function mapFeeUiToChargeRequest(fee: FeeFormData): ChargeRequest {
 		chargeTimeType: CHARGE_TIME_TYPE[fee.chargeTimeType],
 		chargePaymentMode: CHARGE_PAYMENT_MODE[fee.paymentMode],
 		penalty: false,
+		taxGroupId: fee.taxGroupId,
 		locale: "en",
 	};
 }
@@ -221,6 +223,7 @@ export function mapPenaltyUiToChargeRequest(
 		penalty: true,
 		chargePaymentMode: 1, // Payable separately (penalties are paid explicitly)
 		active: true, // Penalties should be active by default
+		taxGroupId: penalty.taxGroupId,
 		locale: "en",
 	};
 }

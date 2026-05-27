@@ -77,6 +77,16 @@ function readUnknownProperty(source: object, property: string): unknown {
 	return record[property];
 }
 
+function readTaxGroupName(product: GetSavingsProductsProductIdResponse) {
+	const taxGroup = readUnknownProperty(product, "taxGroup");
+	if (!taxGroup || typeof taxGroup !== "object") {
+		return "—";
+	}
+
+	const name = readUnknownProperty(taxGroup, "name");
+	return typeof name === "string" && name.length > 0 ? name : "—";
+}
+
 type SavingsAccountingMappingRow = {
 	key: string;
 	label: string;
@@ -298,6 +308,7 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 	const accountingRule = product.accountingRule?.value || "—";
 	const withdrawalFeeEnabled = Boolean(product.withdrawalFeeForTransfers);
 	const withHoldTax = readUnknownBooleanProperty(product, "withHoldTax");
+	const taxGroupName = readTaxGroupName(product);
 	const allowOverdraft = readUnknownBooleanProperty(product, "allowOverdraft");
 	const dormancyTracking = readUnknownBooleanProperty(
 		product,
@@ -455,6 +466,7 @@ export default function SavingsProductDetailsPage({ params }: PageProps) {
 								label="Withhold Tax"
 								value={formatBoolean(withHoldTax)}
 							/>
+							<InfoRow label="Tax Group" value={taxGroupName} />
 							<InfoRow
 								label="Allow Overdraft"
 								value={formatBoolean(allowOverdraft)}

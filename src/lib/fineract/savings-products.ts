@@ -28,6 +28,7 @@ export type SavingsProductRequestPayload = PostSavingsProductsRequest & {
 	feesReceivableAccountId?: number;
 	penaltiesReceivableAccountId?: number;
 	interestPayableAccountId?: number;
+	taxGroupId?: number;
 	paymentChannelToFundSourceMappings?: Array<PaymentChannelToFundSourceMappingPayload>;
 };
 
@@ -211,6 +212,10 @@ export function buildSavingsProductRequest(
 		charges: data.charges.map((id) => ({ id })),
 	};
 
+	if (data.withHoldTax) {
+		payload.taxGroupId = data.taxGroupId;
+	}
+
 	if (
 		data.lockinPeriodFrequency !== undefined &&
 		data.lockinPeriodFrequencyType !== undefined
@@ -264,6 +269,11 @@ export function mapSavingsProductToFormData(
 		product.currency && typeof product.currency === "object"
 			? readUnknownNumberProperty(product.currency, "inMultiplesOf")
 			: undefined;
+	const taxGroup = readUnknownProperty(product, "taxGroup");
+	const taxGroupId =
+		taxGroup && typeof taxGroup === "object"
+			? readUnknownNumberProperty(taxGroup, "id")
+			: readUnknownNumberProperty(product, "taxGroupId");
 
 	return {
 		name: product.name || "",
@@ -283,6 +293,7 @@ export function mapSavingsProductToFormData(
 		withdrawalFeeForTransfers: Boolean(product.withdrawalFeeForTransfers),
 		allowOverdraft: readUnknownBooleanProperty(product, "allowOverdraft"),
 		withHoldTax: readUnknownBooleanProperty(product, "withHoldTax"),
+		taxGroupId,
 		isDormancyTrackingActive: readUnknownBooleanProperty(
 			product,
 			"isDormancyTrackingActive",

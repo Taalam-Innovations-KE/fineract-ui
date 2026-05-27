@@ -243,7 +243,13 @@ export function SavingsProductForm({
 		staleTime: 1000 * 60 * 5,
 	});
 
-	const template = templateQuery.data;
+	const template = templateQuery.data as
+		| (NonNullable<typeof templateQuery.data> & {
+				taxGroup?: SelectOption;
+				taxGroupId?: number;
+				taxGroupOptions?: SelectOption[];
+		  })
+		| undefined;
 
 	const defaultValues: SavingsProductFormData = {
 		name: "",
@@ -260,6 +266,7 @@ export function SavingsProductForm({
 		accountingRule: 1,
 		withdrawalFeeForTransfers: false,
 		withHoldTax: false,
+		taxGroupId: undefined,
 		allowOverdraft: false,
 		isDormancyTrackingActive: false,
 		lockinPeriodFrequency: undefined,
@@ -326,6 +333,10 @@ export function SavingsProductForm({
 		() => template?.paymentTypeOptions || [],
 		[template],
 	);
+	const taxGroupOptions = useMemo(
+		() => template?.taxGroupOptions || [],
+		[template],
+	);
 
 	const accountingMappingOptions = template?.accountingMappingOptions;
 	const assetAccountOptions =
@@ -339,6 +350,7 @@ export function SavingsProductForm({
 
 	const accountingRule = form.watch("accountingRule");
 	const selectedCurrencyCode = form.watch("currencyCode");
+	const withHoldTax = form.watch("withHoldTax");
 
 	useEffect(() => {
 		if (!template || isEditMode || form.formState.isDirty) {
@@ -385,6 +397,12 @@ export function SavingsProductForm({
 			"withHoldTax",
 			readUnknownBooleanProperty(template, "withHoldTax"),
 		);
+		const templateTaxGroupId =
+			template.taxGroup?.id ??
+			readUnknownNumberProperty(template, "taxGroupId");
+		if (templateTaxGroupId !== undefined) {
+			form.setValue("taxGroupId", templateTaxGroupId);
+		}
 		form.setValue(
 			"allowOverdraft",
 			readUnknownBooleanProperty(template, "allowOverdraft"),
@@ -413,6 +431,21 @@ export function SavingsProductForm({
 			readUnknownNumberProperty(selectedCurrency, "inMultiplesOf") ?? 1,
 		);
 	}, [selectedCurrencyCode, currencyOptions, form]);
+
+	useEffect(() => {
+		if (withHoldTax) {
+			return;
+		}
+
+		if (form.getValues("taxGroupId") === undefined) {
+			return;
+		}
+
+		form.setValue("taxGroupId", undefined, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
+	}, [form, withHoldTax]);
 
 	const requiresCashMappings = accountingRule >= 2;
 	const requiresAccrualMappings = accountingRule >= 3;
@@ -997,6 +1030,16 @@ export function SavingsProductForm({
 									</FormItem>
 								)}
 							/>
+
+							{withHoldTax ? (
+								<SelectField
+									name="taxGroupId"
+									label="Tax Group"
+									options={taxGroupOptions}
+									placeholder="Select tax group"
+									required={true}
+								/>
+							) : null}
 
 							<FormField
 								control={form.control}

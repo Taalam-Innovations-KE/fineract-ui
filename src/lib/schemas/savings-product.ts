@@ -42,6 +42,7 @@ export const savingsProductSchema = z
 		accountingRule: z.number().int().positive(),
 		withdrawalFeeForTransfers: z.boolean().default(false),
 		withHoldTax: z.boolean().default(false),
+		taxGroupId: optionalAccountId,
 		allowOverdraft: z.boolean().default(false),
 		isDormancyTrackingActive: z.boolean().default(false),
 		lockinPeriodFrequency: optionalNumber,
@@ -73,6 +74,14 @@ export const savingsProductSchema = z
 				path: ["lockinPeriodFrequency"],
 				message:
 					"Lock-in period and lock-in frequency type must be set together",
+			});
+		}
+
+		if (data.withHoldTax && data.taxGroupId === undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["taxGroupId"],
+				message: "Tax group is required when withholding tax is enabled",
 			});
 		}
 

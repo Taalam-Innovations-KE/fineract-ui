@@ -31,6 +31,14 @@ export const FINERACT_ENDPOINTS = {
 
 	// Financial Setup
 	currencies: "/v1/currencies",
+	taxComponents: "/v1/taxes/component",
+	taxComponentTemplate: "/v1/taxes/component/template",
+	taxComponentById: (taxComponentId: number | string) =>
+		`/v1/taxes/component/${taxComponentId}`,
+	taxGroups: "/v1/taxes/group",
+	taxGroupTemplate: "/v1/taxes/group/template",
+	taxGroupById: (taxGroupId: number | string) =>
+		`/v1/taxes/group/${taxGroupId}`,
 
 	// Products
 	loanProducts: "/v1/loanproducts",
@@ -149,6 +157,14 @@ export const BFF_ROUTES = {
 
 	// Financial Setup
 	currencies: "/api/fineract/currencies",
+	taxComponents: "/api/fineract/taxes/component",
+	taxComponentTemplate: "/api/fineract/taxes/component/template",
+	taxComponentById: (taxComponentId: number | string) =>
+		`/api/fineract/taxes/component/${taxComponentId}`,
+	taxGroups: "/api/fineract/taxes/group",
+	taxGroupTemplate: "/api/fineract/taxes/group/template",
+	taxGroupById: (taxGroupId: number | string) =>
+		`/api/fineract/taxes/group/${taxGroupId}`,
 
 	// Products
 	loanProducts: "/api/fineract/loanproducts",

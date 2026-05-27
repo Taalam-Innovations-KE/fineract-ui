@@ -6,6 +6,7 @@ import {
 	GitBranch,
 	Link2,
 	Percent,
+	Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@/components/config/page-shell";
@@ -53,6 +54,13 @@ const modules = [
 			"Manage transaction payment methods used across products and accounting fund-source mappings.",
 		href: "/config/financial/accounting/payment-types",
 		icon: Banknote,
+	},
+	{
+		title: "Tax Configuration",
+		description:
+			"Configure tax components and groups used by product withholding and taxable charges.",
+		href: "/config/financial/accounting/taxes",
+		icon: Receipt,
 	},
 	{
 		title: "Provisioning Criteria",
